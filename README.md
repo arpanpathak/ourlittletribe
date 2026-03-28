@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="https://via.placeholder.com/150x150.png?text=OutLittleTribe" alt="OutLittleTribe Logo" width="150" height="auto" />
   <h1>🌍 OutLittleTribe (FindMyTribes)</h1>
   <p><strong>A fiercely independent, open-source, and cloud-agnostic community platform.</strong></p>
 
@@ -14,9 +13,9 @@
   </p>
 
   <p>
-    <img src="https://img.shields.io/github/stars/arpanpathak/outlittletribe?style=for-the-badge&color=yellow" alt="Stars"/>
-    <img src="https://img.shields.io/github/forks/arpanpathak/outlittletribe?style=for-the-badge&color=blue" alt="Forks"/>
-    <img src="https://img.shields.io/github/issues/arpanpathak/outlittletribe?style=for-the-badge&color=red" alt="Issues"/>
+    <img src="https://img.shields.io/github/stars/arpanpathak/ourlittletribe?style=for-the-badge&color=yellow" alt="Stars"/>
+    <img src="https://img.shields.io/github/forks/arpanpathak/ourlittletribe?style=for-the-badge&color=blue" alt="Forks"/>
+    <img src="https://img.shields.io/github/issues/arpanpathak/ourlittletribe?style=for-the-badge&color=red" alt="Issues"/>
     <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License"/>
   </p>
 </div>
@@ -79,8 +78,8 @@ OutLittleTribe consists of a decoupled architecture with a dedicated backend API
 The fastest way to get the entire ecosystem up and running:
 
 ```bash
-git clone https://github.com/arpanpathak/outlittletribe.git
-cd outlittletribe
+git clone https://github.com/arpanpathak/ourlittletribe.git
+cd ourlittletribe
 
 # Fire up the entire stack, including the backend, frontend, and DB securely
 docker-compose up -d
