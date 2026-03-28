@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🌍 OutLittleTribe (FindMyTribes)</h1>
+  <h1>🌍 OutLittleTribe</h1>
   <p><strong>A fiercely independent, open-source, and cloud-agnostic community platform.</strong></p>
 
   <!-- Navigation Tabs -->
