@@ -36,6 +36,10 @@ vendor/
 *.swp
 *.swo
 
-# Secrets
+# Secrets & Generated Kubernetes Configs
 secrets/
 backend/secrets/
+k8s/secrets.yaml
+k8s/config.yaml
+k8s/gateway.yaml
+k8s/certificate.yaml

@@ -10,7 +10,7 @@ import ActivitiesView from './pages/ActivitiesView';
 import type { User, Event, Tribe } from './types';
 
 // API Configuration
-const API_BASE = 'http://localhost:8080';
+const API_BASE = '';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'feed' | 'tribes' | 'activities'>('feed');

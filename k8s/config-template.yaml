@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: ourlittletribe
+data:
+  # Database Config
+  POSTGRES_DB: ourlittletribe
+  POSTGRES_USER: postgres
+  
+  # Backend config - Service Discovery 
+  PORT: "8080"
+  FRONTEND_URL: "https://<MAGIC_DOMAIN>" # Magic domain for IP
+  
+  # For frontend proxying or internal calling
+  VITE_API_BASE_URL: "http://backend-service:8080"

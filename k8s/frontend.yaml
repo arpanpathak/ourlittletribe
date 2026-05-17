@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: ourlittletribe
+spec:
+  type: ClusterIP # Exposes frontend to the outside world for IP access
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  namespace: ourlittletribe
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: arpanpathak/ourlittletribe-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          # Frontend typically compiles env vars, but we can pass runtime ones here if configured
+          envFrom:
+            - configMapRef:
+                name: app-config

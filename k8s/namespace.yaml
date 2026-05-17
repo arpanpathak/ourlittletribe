@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ourlittletribe
+  labels:
+    name: ourlittletribe
+    # Optional but common for Cilium/Istio to allow metrics or sidecars
+    environment: production
