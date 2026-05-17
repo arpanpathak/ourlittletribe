@@ -19,11 +19,13 @@ func main() {
 	// Register API routes
 	api.RegisterRoutes(mux)
 
-	// Apply global middleware (Security, Rate Limit, CORS, Internal Logging)
-	handler := api.LoggingMiddleware(
-		api.RateLimitMiddleware(
-			api.SecurityHeadersMiddleware(
-				api.CorsMiddleware(mux),
+	// Apply global middleware (Metrics, Security, Rate Limit, CORS, Internal Logging)
+	handler := api.MetricsMiddleware(
+		api.LoggingMiddleware(
+			api.RateLimitMiddleware(
+				api.SecurityHeadersMiddleware(
+					api.CorsMiddleware(mux),
+				),
 			),
 		),
 	)

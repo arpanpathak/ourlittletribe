@@ -12,7 +12,44 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/time/rate"
+	
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+var (
+	httpRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "http_requests_total",
+		Help: "Total number of HTTP requests",
+	}, []string{"method", "path"})
+
+	httpRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "http_request_duration_seconds",
+		Help:    "Histogram of response latency (seconds) of HTTP requests",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"method", "path"})
+)
+
+func MetricsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		duration := time.Since(start).Seconds()
+
+		path := r.URL.Path
+		// Simple normalization to avoid exploding cardinality on dynamic paths like /v1/tribes/uuid
+		if len(path) > 11 && path[:11] == "/v1/tribes/" && len(path) > 12 {
+			path = "/v1/tribes/{id}"
+		} else if len(path) > 11 && path[:11] == "/v1/events/" && len(path) > 12 {
+			path = "/v1/events/{id}"
+		} else if len(path) > 10 && path[:10] == "/v1/users/" && len(path) > 11 {
+			path = "/v1/users/{id}"
+		}
+
+		httpRequestsTotal.WithLabelValues(r.Method, path).Inc()
+		httpRequestDuration.WithLabelValues(r.Method, path).Observe(duration)
+	})
+}
 
 type contextKey string
 

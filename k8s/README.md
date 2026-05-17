@@ -53,3 +53,17 @@ When you run `./deploy.sh`, the following files are dynamically generated locall
    ./deploy.sh
    ```
    *The script will handle building Docker images, applying the manifests, provisioning the LoadBalancer IP, generating the domain, and configuring TLS automatically.*
+
+---
+
+## 📊 Monitoring (Prometheus & Grafana)
+
+The cluster has a full `kube-prometheus-stack` installed in the `monitoring` namespace, which actively scrapes metrics from the Envoy Gateway proxies and the Go Backend API.
+
+To view the real-time dashboards (Request Latency, HTTP 5xx errors, Node CPU/RAM):
+1. Port-forward the Grafana service to your local machine:
+   ```bash
+   kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+   ```
+2. Open your browser to `http://localhost:3000`
+3. Log in with Username: `admin` and Password: `admin`

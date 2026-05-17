@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func RegisterRoutes(mux *http.ServeMux) {
@@ -11,6 +13,8 @@ func RegisterRoutes(mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
+
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	// Auth
 	mux.HandleFunc("GET /v1/auth/google/login", handleGoogleLogin)
