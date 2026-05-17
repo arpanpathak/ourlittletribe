@@ -104,6 +104,56 @@ echo "🔄 Restarting pods to pick up new configurations..."
 kubectl rollout restart deployment backend-deployment -n ourlittletribe
 kubectl rollout restart deployment frontend-deployment -n ourlittletribe
 
+# ==========================================
+# Phase 5: Deploy Monitoring (Prometheus & Grafana)
+# ==========================================
+echo "📊 Deploying Prometheus & Grafana Monitoring stack..."
+
+# Add/Update prometheus community repo
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# Create namespace if not exists
+kubectl create namespace monitoring 2>/dev/null || true
+
+# Provision the Grafana Dashboard ConfigMap
+echo "🎨 Provisioning OutLittleTribe Go Backend Grafana Dashboard..."
+kubectl create configmap ourlittletribe-grafana-dashboard \
+  --from-file=dashboard.json=k8s/grafana-dashboard.json \
+  -n monitoring \
+  --dry-run=client -o yaml | \
+  kubectl annotate --local -f - "grafana_folder=OutLittleTribe" -o yaml | \
+  kubectl label --local -f - "grafana_dashboard=1" -o yaml | \
+  kubectl apply -f -
+
+# Install/Upgrade Prometheus stack with custom sidecar and skip TLS verify configurations
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --set grafana.adminPassword="admin" \
+  --set grafana.sidecar.dashboards.enabled=true \
+  --set grafana.sidecar.dashboards.searchNamespace=ALL \
+  --set grafana.sidecar.datasources.enabled=true \
+  --set grafana.sidecar.datasources.searchNamespace=ALL \
+  --set grafana.sidecar.skipTlsVerify=true \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+  --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false
+
+# Apply Envoy & Go Backend monitors
+echo "🕵️  Applying Prometheus Monitors..."
+kubectl apply -f k8s/monitoring-envoy.yaml
+kubectl apply -f k8s/monitoring-backend.yaml
+
+# Rollout restart Grafana to guarantee it reloads all configmaps immediately
+kubectl rollout restart deployment kube-prometheus-stack-grafana -n monitoring
+
 echo "🎉 DEPLOYMENT COMPLETE!"
 echo "Your app is securely accessible at: https://$MAGIC_DOMAIN"
 echo "Note: It may take 1-2 minutes for the Let's Encrypt TLS certificate to finish issuing."
+echo ""
+echo "📊 MONITORING DETAILS:"
+echo "To access Grafana Dashboards:"
+echo "1. Run: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
+echo "2. Open: http://localhost:3000"
+echo "3. Credentials: admin / admin"
+echo "4. Navigate to: Dashboards -> Folders -> OutLittleTribe -> OutLittleTribe — Go Backend API"
+

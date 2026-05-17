@@ -73,8 +73,35 @@ We use a template system to keep our codebase completely clean while dynamically
 
 ---
 
+## 📊 Observability & Monitoring
+
+The OutLittleTribe platform features a production-grade observability stack built on **Prometheus** and **Grafana**, deployed in the `monitoring` namespace. 
+
+### What is Monitored?
+1. **Go Backend Application**: A custom Prometheus middleware collects and exposes HTTP request rates, errors (5xx/4xx), and detailed latency percentiles (P50/P90/P99) normalized per API path (e.g. `/v1/events/{id}`).
+2. **Envoy API Gateway**: Envoy's internal `19001` statistics endpoint is automatically scraped using a `PodMonitor` to track cluster-wide traffic, network errors, and TLS performance.
+3. **Cluster Health**: Node CPU, Memory, Disk usage, and general Kubernetes pod health metrics.
+
+### Accessing the Grafana Dashboards
+To view metrics, forward the Grafana port locally:
+```bash
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+```
+- **URL**: [http://localhost:3000](http://localhost:3000)
+- **Username**: `admin`
+- **Password**: `admin`
+
+Once logged in, go to the side menu, click **Dashboards** -> **Folders** -> **OutLittleTribe** -> **OutLittleTribe — Go Backend API** to view our custom preconfigured Go application dashboard!
+
+---
+
 ## 🚑 Troubleshooting
 
+- **Empty or Missing Grafana Dashboards**: The Prometheus & Grafana stack uses a Kubernetes sidecar (`k8s-sidecar`) to dynamically find and load Dashboards labeled with `grafana_dashboard=1`. If you don't see the dashboard, try restarting the Grafana deployment:
+  ```bash
+  kubectl rollout restart deployment kube-prometheus-stack-grafana -n monitoring
+  ```
 - **503 Service Unavailable / Connection Timeout**: If Envoy Gateway returns a 503, it means it cannot reach the backend/frontend pods. This is usually caused by an issue in the pod (check `kubectl get pods -n ourlittletribe`) or a Cilium network policy blocking traffic. Ensure you haven't altered labels without updating `network-policy.yaml`.
 - **Browser Not Secure (HTTPS)**: Cert-manager takes about 1-2 minutes to issue a Let's Encrypt certificate after a new LoadBalancer IP is provisioned. If the browser says "Not Private", just wait a moment and refresh.
 - **Google Auth Redirect Mismatch**: If you change clusters and get a new LoadBalancer IP, the nip.io domain changes. You **must** update your Authorized Redirect URIs in the Google Cloud Console to match the new URL output by the deployment script.
+
