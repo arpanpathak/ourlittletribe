@@ -62,6 +62,14 @@ OutLittleTribe strictly isolates concerns into layers following an **MVC Model**
 3. **Service Layer**: Pure business logic separated from HTTP details.
 4. **Data Layer**: Clean database repositories ensuring high portability across persistence layers (PostgreSQL / SQLite).
 
+### 📚 Dive Deeper into the Stack
+
+We maintain detailed, intuitive documentation inside each core directory. Dive into the modules below to understand how to develop and deploy OutLittleTribe:
+
+- ⚙️ **[Backend API (Go)](backend/README.md)**: Explore the MVC structure, JWT authentication flow, and local server startup.
+- 🎨 **[Frontend SPA (React/Vite)](frontend/README.md)**: Discover our premium UI/UX design philosophy, CSS architecture, and Envoy routing connectivity.
+- ☸️ **[Kubernetes Infrastructure (Cilium/Envoy)](k8s/README.md)**: Understand our zero-trust network policies, Cert-Manager integrations, and deployment template system.
+
 ---
 
 ## 🚀 Getting Started

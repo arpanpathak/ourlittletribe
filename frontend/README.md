@@ -1,73 +1,49 @@
-# React + TypeScript + Vite
+# 🎨 OutLittleTribe Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Welcome to the user interface of OutLittleTribe! This is a lightning-fast Single Page Application (SPA) built with **React** and bundled using **Vite**.
 
-Currently, two official plugins are available:
+## 💅 Design Philosophy
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Our frontend is designed to feel highly dynamic, vibrant, and incredibly premium. 
+We strictly enforce:
+- **Zero bloat:** No massive component libraries. We utilize raw, modern CSS (`index.css`) utilizing CSS Variables (tokens) for absolute control over micro-animations, glassmorphism, and responsive layouts.
+- **Rich Aesthetics:** Dark mode optimization, subtle gradients, and Google's `Outfit` typography.
+- **Smooth UX:** Instant transitions and gracefully handled loading states.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 📂 File Structure
 
-## Expanding the ESLint configuration
+- **`src/components/`**: Reusable, atomic UI components (Navbars, Modals, Event Cards).
+- **`src/pages/`**: Primary viewport containers (HomeFeed, TribesView, ActivitiesView).
+- **`src/types.ts`**: Strict TypeScript interfaces reflecting the Go backend's domain models.
+- **`src/App.tsx`**: The core application state manager and view router.
+- **`Dockerfile`**: A multi-stage build file that compiles the Vite React app and serves it purely through an optimized Nginx web server in production.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 🔌 API Connectivity
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+In production (Kubernetes), the React app is served by Nginx, but all API calls go through the **Envoy API Gateway**.
+Because of this, the `API_BASE` in `App.tsx` is set to an empty string (`""`). 
+When a user requests `/v1/users/me`, the browser automatically sends it to the same domain the app is hosted on, and Envoy handles securely routing that specific path back to the Go API.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+---
+
+## 🚀 Running Locally for Development
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18+)
+
+### Setup
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Start the Development Server
+If you are running the backend locally on `localhost:8080`, you will want to temporarily update `API_BASE` in `src/App.tsx` to `"http://localhost:8080"` during local development so your requests hit the local Go server instead of trying to hit Vite's dev server.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+Your app will be live at `http://localhost:5173` with Lightning-Fast Hot Module Replacement (HMR).
