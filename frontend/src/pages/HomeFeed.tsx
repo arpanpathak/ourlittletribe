@@ -76,7 +76,7 @@ export default function HomeFeed({
                                                         <MapPin size={16} /> {event.location}
                                                     </p>
                                                     <p className="subtitle" style={{ marginTop: '12px', marginBottom: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                                                        {event.description.replace(/<[^>]*>?/gm, '')}
+                                                        {event.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ')}
                                                     </p>
                                                 </div>
                                                 {!event.is_official && <span className="badge" style={{ background: 'var(--color-accent)', padding: '4px 8px', borderRadius: '12px', fontSize: '0.8rem', color: 'black' }}>Draft</span>}

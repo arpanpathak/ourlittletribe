@@ -74,7 +74,7 @@ export default function TribesView({
                                 <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => setSelectedTribe(tribe)}>
                                     <h3 style={{ color: 'var(--color-text)', marginBottom: '4px' }}>{tribe.name}</h3>
                                     <p className="subtitle" style={{ fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                                        {tribe.description.replace(/<[^>]*>?/gm, '') /* Strip HTML for summary */}
+                                        {tribe.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') /* Strip HTML for summary */}
                                     </p>
                                     <p style={{ fontSize: '0.8rem', color: 'var(--color-primary-dark)', marginTop: '4px' }}>
                                         <Users size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
