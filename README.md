@@ -86,6 +86,12 @@ docker-compose up -d
 ```
 The API and frontend will automatically orchestrate and bind to your local environment.
 
+### Production Deployment (Kubernetes)
+
+For production environments, OutLittleTribe utilizes a modern, zero-trust Kubernetes architecture powered by **Cilium**, **Envoy Gateway API**, and **Cert-Manager** for automated TLS 1.3.
+
+We have fully streamlined the deployment process into a single command. Please see our [Kubernetes Deployment Guide](README_Deployment.md) for detailed instructions on configuring your secrets and spinning up the cluster.
+
 ---
 
 ## 🤝 Contributing
