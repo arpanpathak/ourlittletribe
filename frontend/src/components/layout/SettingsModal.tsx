@@ -5,9 +5,10 @@ interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
     onLogout: () => void;
+    onNavigate?: (view: 'profile' | 'notifications' | 'privacy') => void;
 }
 
-export default function SettingsModal({ isOpen, onClose, onLogout }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, onLogout, onNavigate }: SettingsModalProps) {
     const [settingsSearch, setSettingsSearch] = useState('');
 
     const settingsItems = [
@@ -41,7 +42,16 @@ export default function SettingsModal({ isOpen, onClose, onLogout }: SettingsMod
                 </div>
                 <ul className="settings-list">
                     {filteredSettings.map(item => (
-                        <li key={item.id} className="settings-item">
+                        <li 
+                            key={item.id} 
+                            className="settings-item cursor-pointer hover:bg-white/5 transition-colors"
+                            onClick={() => {
+                                if (onNavigate) {
+                                    onNavigate(item.id as any);
+                                    onClose();
+                                }
+                            }}
+                        >
                             {item.icon}
                             <div className="item-text">
                                 <strong>{item.title}</strong>

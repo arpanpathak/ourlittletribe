@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { LogOut, CalendarOff, MapPin, CheckCircle, XCircle } from 'lucide-react';
+import { LogOut, CalendarOff, MapPin } from 'lucide-react';
 import type { User, Event, Tribe } from '../types';
 import DraftEventForm from '../components/events/DraftEventForm';
 import 'react-quill-new/dist/quill.snow.css';
@@ -14,38 +13,12 @@ interface HomeFeedProps {
     onCreateEvent: (title: string, desc: string, coverImage: string, location: string, tribeId: string, startTime: string) => Promise<void>;
     onApproveEvent: (eventId: string) => Promise<void>;
     onRsvpEvent: (eventId: string, status: 'going' | 'not_going' | 'none') => Promise<void>;
+    onSelectEvent: (event: Event) => void;
 }
 
 export default function HomeFeed({
-    user, events, tribes, onLogin, isDraftingEvent, setIsDraftingEvent, onCreateEvent, onApproveEvent, onRsvpEvent
+    user, events, tribes, onLogin, isDraftingEvent, setIsDraftingEvent, onCreateEvent, onApproveEvent, onSelectEvent
 }: HomeFeedProps) {
-    const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-    const [shareCopied, setShareCopied] = useState(false);
-
-    // Dynamic sharing growth loop: listen for ?event=UUID in the URL and open the modal automatically
-    useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const eventId = urlParams.get('event');
-        if (eventId) {
-            const found = events.find(e => e.id === eventId);
-            if (found) {
-                setSelectedEvent(found);
-            } else if (user) {
-                // Fetch directly from the backend if it's not in their local feed list
-                fetch(`/v1/events/${eventId}`, { credentials: 'include' })
-                    .then(res => {
-                        if (res.ok) return res.json();
-                        throw new Error('Shared event not found');
-                    })
-                    .then(data => {
-                        setSelectedEvent(data);
-                    })
-                    .catch(err => {
-                        console.error("Failed fetching shared event:", err);
-                    });
-            }
-        }
-    }, [events, user]);
 
     return (
         <div className="view">
@@ -98,7 +71,7 @@ export default function HomeFeed({
                                         )}
                                         <div style={{ padding: '16px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => setSelectedEvent(event)}>
+                                                <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => onSelectEvent(event)}>
                                                     <h3 style={{ color: 'var(--color-primary)' }}>{event.title}</h3>
                                                     <p style={{ fontSize: '0.9em', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <MapPin size={16} /> {event.location}
@@ -216,159 +189,6 @@ export default function HomeFeed({
                     </div>
                 )}
             </div>
-
-            {/* Event Details Modal Popup */}
-            {selectedEvent && (
-                <div
-                    className="modal-overlay"
-                    onClick={(e) => { if (e.target === e.currentTarget) setSelectedEvent(null); }}
-                    style={{ backdropFilter: 'blur(8px)', zIndex: 1000 }}
-                >
-                    <div className="modal-content glass-panel" style={{ maxWidth: '600px', width: '90%', maxHeight: '85vh', overflowY: 'auto', padding: '0', display: 'flex', flexDirection: 'column' }}>
-                        {selectedEvent.cover_image_url && (
-                            <img
-                                src={selectedEvent.cover_image_url}
-                                alt="Event Cover"
-                                style={{ width: '100%', height: '240px', objectFit: 'cover', display: 'block', borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
-                            />
-                        )}
-                        <div style={{ padding: '24px' }}>
-                            <div className="modal-header" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div>
-                                    <h2 style={{ color: 'var(--color-primary)', margin: 0 }}>{selectedEvent.title}</h2>
-                                    
-                                    {/* Date & Location Details */}
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '0.9em', marginTop: '8px', color: 'var(--color-text-muted)' }}>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <MapPin size={16} /> {selectedEvent.location}
-                                        </span>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-accent)' }}>
-                                            📅 {new Date(selectedEvent.start_time).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-                                        </span>
-                                        {selectedEvent.tribe_name && (
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary-dark)', fontWeight: 'bold' }}>
-                                                🏘️ Tribe: {selectedEvent.tribe_name}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <button className="icon-btn" onClick={() => setSelectedEvent(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px' }}>
-                                    <span style={{ fontSize: '1.5rem', color: 'var(--color-text-muted)' }}>&times;</span>
-                                </button>
-                            </div>
-
-                            {/* Creator Block */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '16px 0', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                {selectedEvent.creator_avatar_url ? (
-                                    <img src={selectedEvent.creator_avatar_url} alt={selectedEvent.creator_name} style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
-                                ) : (
-                                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.95rem', color: 'var(--color-bg)', fontWeight: 'bold' }}>
-                                        {(selectedEvent.creator_name || 'U')[0]}
-                                    </div>
-                                )}
-                                <div>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: 0 }}>Organized by</p>
-                                    <p style={{ fontSize: '0.9rem', fontWeight: 'bold', margin: 0, color: 'var(--color-text)' }}>{selectedEvent.creator_name || 'Tribe Member'}</p>
-                                </div>
-                            </div>
-
-                            {/* Event Description */}
-                            <div style={{ margin: '20px 0' }}>
-                                <h4 style={{ color: 'var(--color-primary)', marginBottom: '8px', fontSize: '0.95rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Event Details</h4>
-                                <div className="ql-snow">
-                                    <div 
-                                        className="ql-editor tribe-description" 
-                                        style={{ 
-                                            padding: 0, 
-                                            color: 'var(--color-text)', 
-                                            lineHeight: '1.6', 
-                                            fontSize: '0.95rem',
-                                            wordBreak: 'break-word',
-                                            overflowWrap: 'anywhere'
-                                        }} 
-                                        dangerouslySetInnerHTML={{ __html: selectedEvent.description || '' }} 
-                                    />
-                                </div>
-                            </div>
-
-                            {/* RSVP Section */}
-                            <div style={{ margin: '24px 0', padding: '16px', background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', color: 'var(--color-primary)' }}>Are you going?</h4>
-                                
-                                <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                                    <button 
-                                        className={`btn ${selectedEvent.user_rsvp === 'going' ? 'btn-primary' : 'btn-secondary'}`}
-                                        style={{ flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s ease' }}
-                                        onClick={async () => {
-                                            const newRsvp = selectedEvent.user_rsvp === 'going' ? 'none' : 'going';
-                                            await onRsvpEvent(selectedEvent.id, newRsvp);
-                                            setSelectedEvent(prev => prev ? { 
-                                                ...prev, 
-                                                user_rsvp: newRsvp,
-                                                going_count: newRsvp === 'going' ? (prev.going_count || 0) + 1 : (prev.going_count || 1) - 1,
-                                                not_going_count: prev.user_rsvp === 'not_going' ? (prev.not_going_count || 1) - 1 : prev.not_going_count
-                                            } : null);
-                                        }}
-                                    >
-                                        <CheckCircle size={16} /> Going ({selectedEvent.going_count || 0})
-                                    </button>
-                                    
-                                    <button 
-                                        className={`btn`}
-                                        style={{ 
-                                            flex: 1, 
-                                            padding: '10px 16px', 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'center', 
-                                            gap: '8px',
-                                            transition: 'all 0.2s ease',
-                                            borderColor: selectedEvent.user_rsvp === 'not_going' ? '#ff4d4d' : 'rgba(255, 255, 255, 0.2)',
-                                            backgroundColor: selectedEvent.user_rsvp === 'not_going' ? 'rgba(255, 77, 77, 0.2)' : 'transparent',
-                                            color: selectedEvent.user_rsvp === 'not_going' ? '#ff4d4d' : 'var(--color-text)'
-                                        }}
-                                        onClick={async () => {
-                                            const newRsvp = selectedEvent.user_rsvp === 'not_going' ? 'none' : 'not_going';
-                                            await onRsvpEvent(selectedEvent.id, newRsvp);
-                                            setSelectedEvent(prev => prev ? { 
-                                                ...prev, 
-                                                user_rsvp: newRsvp,
-                                                not_going_count: newRsvp === 'not_going' ? (prev.not_going_count || 0) + 1 : (prev.not_going_count || 1) - 1,
-                                                going_count: prev.user_rsvp === 'going' ? (prev.going_count || 1) - 1 : prev.going_count
-                                            } : null);
-                                        }}
-                                    >
-                                        <XCircle size={16} /> Not Going ({selectedEvent.not_going_count || 0})
-                                    </button>
-                                </div>
-
-                                {selectedEvent.user_rsvp && selectedEvent.user_rsvp !== 'none' && (
-                                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-accent)', textAlign: 'center', opacity: 0.9 }}>
-                                        Marked as <strong>{selectedEvent.user_rsvp === 'going' ? 'Going' : 'Not Going'}</strong>. Click again to remove your RSVP.
-                                    </p>
-                                )}
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
-                                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedEvent(null)}>Go Back</button>
-                                <button 
-                                    className="btn btn-primary" 
-                                    style={{ flex: 1, backgroundColor: 'var(--color-accent)', color: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                                    onClick={() => {
-                                        const shareUrl = `${window.location.origin}?event=${selectedEvent.id}`;
-                                        navigator.clipboard.writeText(shareUrl).then(() => {
-                                            setShareCopied(true);
-                                            setTimeout(() => setShareCopied(false), 2000);
-                                        });
-                                    }}
-                                >
-                                    {shareCopied ? '🔗 Link Copied!' : '📤 Share Event'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

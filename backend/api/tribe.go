@@ -45,6 +45,9 @@ func handleCreateTribe(w http.ResponseWriter, r *http.Request) {
 	// Creator automatically joins the tribe
 	_, _ = db.DB.Exec(`INSERT INTO tribe_members (tribe_id, user_id) VALUES ($1, $2)`, tribe.ID, userID)
 
+	// Log Activity
+	_ = RepoStore.LogActivity(userID, "CREATED_TRIBE", tribe.ID, "TRIBE", map[string]string{"name": tribe.Name})
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(tribe)
@@ -120,6 +123,9 @@ func handleJoinTribe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to join tribe", http.StatusInternalServerError)
 		return
 	}
+
+	// Log Activity
+	_ = RepoStore.LogActivity(userID, "JOINED_TRIBE", tribeID, "TRIBE", nil)
 
 	w.WriteHeader(http.StatusOK)
 }

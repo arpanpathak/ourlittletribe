@@ -6,9 +6,14 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"outlittletribe.us/backend/db"
+	"outlittletribe.us/backend/internal/repository"
 )
 
 func RegisterRoutes(mux *http.ServeMux) {
+	// Initialize Shared Repository Store
+	RepoStore = repository.NewStore(db.DB)
+
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -77,4 +82,16 @@ func RegisterRoutes(mux *http.ServeMux) {
 		}
 		http.NotFound(w, r)
 	}))
+
+	// New Features (Protected)
+	mux.HandleFunc("GET /v1/search", AuthMiddleware(handleGlobalSearch))
+	mux.HandleFunc("GET /v1/activities", AuthMiddleware(handleGetActivities))
+
+	// Profiles
+	mux.HandleFunc("GET /v1/profile", AuthMiddleware(handleGetProfile))
+	mux.HandleFunc("PATCH /v1/profile", AuthMiddleware(handleUpdateProfile))
+
+	// Notification Settings
+	mux.HandleFunc("GET /v1/settings/notifications", AuthMiddleware(handleGetNotificationSettings))
+	mux.HandleFunc("PATCH /v1/settings/notifications", AuthMiddleware(handleUpdateNotificationSettings))
 }
