@@ -24,6 +24,33 @@ interface TribesViewProps {
     onSelectEvent: (event: Event) => void;
 }
 
+const quillModules = {
+    toolbar: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'blockquote'],
+        [{'list': 'ordered'}, {'list': 'bullet'}],
+        ['link', 'clean']
+    ],
+    clipboard: {
+        matchers: [
+            [
+                1, // Node.ELEMENT_NODE
+                (_node: any, delta: any) => {
+                    if (delta && delta.ops) {
+                        delta.ops.forEach((op: any) => {
+                            if (op.attributes) {
+                                delete op.attributes.color;
+                                delete op.attributes.background;
+                            }
+                        });
+                    }
+                    return delta;
+                }
+            ]
+        ]
+    }
+};
+
 export default function TribesView({
     user, tribes, events, isCreatingTribe, setIsCreatingTribe,
     newTribeName, setNewTribeName, newTribeDesc, setNewTribeDesc,
@@ -67,6 +94,7 @@ export default function TribesView({
                                 theme="snow"
                                 value={newTribeDesc}
                                 onChange={setNewTribeDesc}
+                                modules={quillModules}
                                 style={{ height: '180px', color: 'var(--color-text)' }}
                             />
                         </div>
