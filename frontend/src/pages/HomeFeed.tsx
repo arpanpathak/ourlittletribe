@@ -225,7 +225,7 @@ export default function HomeFeed({
                                             padding: '10px 16px', 
                                             display: 'flex', 
                                             alignItems: 'center', 
-                                            justify: 'center', 
+                                            justifyContent: 'center', 
                                             gap: '8px',
                                             transition: 'all 0.2s ease',
                                             borderColor: selectedEvent.user_rsvp === 'not_going' ? '#ff4d4d' : 'rgba(255, 255, 255, 0.2)',
