@@ -29,6 +29,11 @@ To prevent fragile configurations and dirty Git histories, we use a **Templating
 - **`network-policy.yaml`**: Cilium Zero-Trust rules.
 - **`gatewayclass.yaml` & `clusterissuer.yaml`**: Configuration for Envoy and Cert-Manager.
 
+### 📊 Observability & Monitoring Blueprints (Committed to Git)
+- **`monitoring-backend.yaml`**: CoreOS `ServiceMonitor` that looks for services in `ourlittletribe` namespace with label `app: backend` and scrapes their `/metrics` on port `http`.
+- **`monitoring-envoy.yaml`**: CoreOS `PodMonitor` that scrapes Envoy Gateway proxy endpoints on port `19001` (`/stats/prometheus`) for traffic throughput and error rates.
+- **`grafana-dashboard.json`**: Pre-configured JSON dashboard containing high-fidelity panels for Request Rates, 5xx Error Rates, and P50/P90/P99 latency distribution.
+
 ### 👻 Generated Files (Ignored by Git)
 When you run `./deploy.sh`, the following files are dynamically generated locally and applied to the cluster. They are safely ignored by `.gitignore`:
 - `config.yaml`
@@ -52,18 +57,34 @@ When you run `./deploy.sh`, the following files are dynamically generated locall
    cd ..
    ./deploy.sh
    ```
-   *The script will handle building Docker images, applying the manifests, provisioning the LoadBalancer IP, generating the domain, and configuring TLS automatically.*
+   *The script will handle building Docker images, applying the manifests, deploying the Prometheus/Grafana stack, setting up the custom dashboards, provisioning the LoadBalancer IP, generating the domain, and configuring TLS automatically.*
 
 ---
 
-## 📊 Monitoring (Prometheus & Grafana)
+## 📊 Observability & Monitoring Stack
 
-The cluster has a full `kube-prometheus-stack` installed in the `monitoring` namespace, which actively scrapes metrics from the Envoy Gateway proxies and the Go Backend API.
+The cluster deploys a full production-grade observability stack running in the `monitoring` namespace using **Prometheus Operator** and **Grafana**. 
 
-To view the real-time dashboards (Request Latency, HTTP 5xx errors, Node CPU/RAM):
-1. Port-forward the Grafana service to your local machine:
+### 1. How Metrics Scraping Works
+* **Go Backend API**: The Go backend is instrumented with the Prometheus client. Our `monitoring-backend.yaml` service monitor discovers the backend pods, and scrapes `/metrics` every 30 seconds.
+* **Envoy API Gateway**: The `monitoring-envoy.yaml` pod monitor discovers the Envoy proxy pods running in `envoy-gateway-system` namespace, scraping internal Envoy network statistics.
+
+### 2. Automatic Grafana Dashboard Provisioning
+We do not configure dashboards manually via the Grafana UI. 
+- The deployment script creates a Kubernetes `ConfigMap` called `ourlittletribe-grafana-dashboard` in the `monitoring` namespace holding the payload of `grafana-dashboard.json`.
+- The ConfigMap is labeled with `grafana_dashboard: "1"` and annotated with `grafana_folder: OutLittleTribe`.
+- The `k8s-sidecar` helper container running in the Grafana pod watches the Kubernetes API for labeled ConfigMaps, downloads `grafana-dashboard.json` directly into Grafana's local shared directory, and triggers a hot-reload of Grafana's dashboards configuration.
+- The dashboard is automatically placed under the **OutLittleTribe** folder!
+
+### 3. Accessing the Grafana Dashboards
+To view live metrics (Request Latency, HTTP 5xx errors, Node CPU/RAM):
+1. **Port-forward the Grafana service to your local machine**:
    ```bash
    kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
    ```
-2. Open your browser to `http://localhost:3000`
-3. Log in with Username: `admin` and Password: `admin`
+2. **Open your browser** to `http://localhost:3000`
+3. **Log in** with the following credentials:
+   - **Username**: `admin`
+   - **Password**: `admin`
+4. **Locate your dashboard**: Go to **Dashboards** -> **Folders** -> **OutLittleTribe** -> **OutLittleTribe — Go Backend API**.
+
