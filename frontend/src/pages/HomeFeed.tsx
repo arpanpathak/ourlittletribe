@@ -156,9 +156,26 @@ export default function HomeFeed({
                                                         </button>
                                                     </div>
 
-                                                    <p className="subtitle" style={{ marginTop: '4px', marginBottom: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                                                        {event.description ? event.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : ''}
-                                                    </p>
+                                                    <div className="ql-snow" style={{ marginTop: '4px', marginBottom: '16px' }}>
+                                                         <div 
+                                                             className="ql-editor subtitle" 
+                                                             style={{ 
+                                                                 padding: 0,
+                                                                 fontSize: '0.9rem',
+                                                                 overflow: 'hidden', 
+                                                                 textOverflow: 'ellipsis', 
+                                                                 display: '-webkit-box',
+                                                                 WebkitLineClamp: 2,
+                                                                 WebkitBoxOrient: 'vertical',
+                                                                 whiteSpace: 'normal',
+                                                                 maxWidth: '100%', 
+                                                                 wordBreak: 'break-word', 
+                                                                 overflowWrap: 'anywhere',
+                                                                 lineHeight: '1.4'
+                                                             }}
+                                                             dangerouslySetInnerHTML={{ __html: event.description || '' }}
+                                                         />
+                                                     </div>
                                                 </div>
                                                 {!event.is_official && <span className="badge" style={{ background: 'var(--color-accent)', padding: '4px 8px', borderRadius: '12px', fontSize: '0.8rem', color: 'black' }}>Draft</span>}
                                             </div>

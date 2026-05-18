@@ -85,9 +85,26 @@ export default function TribesView({
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                                 <div style={{ cursor: 'pointer', flex: 1, minWidth: 0 }} onClick={() => setSelectedTribe(tribe)}>
                                     <h3 style={{ color: 'var(--color-text)', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tribe.name}</h3>
-                                    <p className="subtitle" style={{ fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%' }}>
-                                        {tribe.description ? tribe.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : ''}
-                                    </p>
+                                    <div className="ql-snow" style={{ marginTop: '4px', marginBottom: '8px' }}>
+                                        <div 
+                                            className="ql-editor subtitle" 
+                                            style={{ 
+                                                padding: 0,
+                                                fontSize: '0.9rem', 
+                                                overflow: 'hidden', 
+                                                textOverflow: 'ellipsis', 
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 2,
+                                                WebkitBoxOrient: 'vertical',
+                                                whiteSpace: 'normal',
+                                                maxWidth: '100%', 
+                                                wordBreak: 'break-word', 
+                                                overflowWrap: 'anywhere',
+                                                lineHeight: '1.4'
+                                            }}
+                                            dangerouslySetInnerHTML={{ __html: tribe.description || '' }}
+                                        />
+                                    </div>
                                     <p style={{ fontSize: '0.8rem', color: 'var(--color-primary-dark)', marginTop: '4px' }}>
                                         <Users size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
                                         {tribe.member_count || 1} Members
