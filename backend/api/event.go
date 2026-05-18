@@ -13,6 +13,7 @@ import (
 type Event struct {
 	ID               string    `json:"id"`
 	TribeID          string    `json:"tribe_id"`
+	TribeName        string    `json:"tribe_name"`
 	CreatorID        string    `json:"creator_id"`
 	CreatorName      string    `json:"creator_name"`
 	CreatorAvatarURL string    `json:"creator_avatar_url"`
@@ -79,7 +80,7 @@ func handleCreateEvent(w http.ResponseWriter, r *http.Request) {
 
 	err = db.DB.QueryRow(`
 		SELECT 
-			e.id, e.tribe_id, e.creator_id, u.name as creator_name, u.avatar_url as creator_avatar_url, 
+			e.id, e.tribe_id, t.name as tribe_name, e.creator_id, u.name as creator_name, u.avatar_url as creator_avatar_url, 
 			e.title, e.description, e.cover_image_url, e.location, e.lat, e.lng, e.start_time, e.is_official, e.created_at,
 			COALESCE((SELECT SUM(vote) FROM event_votes WHERE event_id = e.id), 0) as net_votes,
 			COALESCE((SELECT vote FROM event_votes WHERE event_id = e.id AND user_id = $1), 0) as user_vote,
@@ -88,9 +89,10 @@ func handleCreateEvent(w http.ResponseWriter, r *http.Request) {
 			COALESCE((SELECT status FROM event_rsvps WHERE event_id = e.id AND user_id = $1), 'none') as user_rsvp
 		FROM events e
 		JOIN users u ON e.creator_id = u.id
+		JOIN tribes t ON e.tribe_id = t.id
 		WHERE e.id = $2
 	`, userID, insertedID).Scan(
-		&event.ID, &event.TribeID, &event.CreatorID, &event.CreatorName, &creatorAvatar,
+		&event.ID, &event.TribeID, &event.TribeName, &event.CreatorID, &event.CreatorName, &creatorAvatar,
 		&event.Title, &event.Description, &coverImage, &event.Location, &event.Lat, &event.Lng, &event.StartTime, &event.IsOfficial, &event.CreatedAt,
 		&event.NetVotes, &event.UserVote, &event.GoingCount, &event.NotGoingCount, &event.UserRsvp,
 	)
@@ -117,7 +119,7 @@ func handleListEvents(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := db.DB.Query(`
 		SELECT 
-			e.id, e.tribe_id, e.creator_id, u.name as creator_name, u.avatar_url as creator_avatar_url, 
+			e.id, e.tribe_id, t.name as tribe_name, e.creator_id, u.name as creator_name, u.avatar_url as creator_avatar_url, 
 			e.title, e.description, e.cover_image_url, e.location, e.lat, e.lng, e.start_time, e.is_official, e.created_at,
 			COALESCE((SELECT SUM(vote) FROM event_votes WHERE event_id = e.id), 0) as net_votes,
 			COALESCE((SELECT vote FROM event_votes WHERE event_id = e.id AND user_id = $1), 0) as user_vote,
@@ -126,6 +128,7 @@ func handleListEvents(w http.ResponseWriter, r *http.Request) {
 			COALESCE((SELECT status FROM event_rsvps WHERE event_id = e.id AND user_id = $1), 'none') as user_rsvp
 		FROM events e
 		JOIN users u ON e.creator_id = u.id
+		JOIN tribes t ON e.tribe_id = t.id
 		LEFT JOIN tribe_members tm ON e.tribe_id = tm.tribe_id AND tm.user_id = $1
 		WHERE (e.is_official = TRUE) 
 		   OR (e.is_official = FALSE AND tm.user_id IS NOT NULL)
@@ -144,7 +147,7 @@ func handleListEvents(w http.ResponseWriter, r *http.Request) {
 		var coverImage sql.NullString
 		var creatorAvatar sql.NullString
 		if err := rows.Scan(
-			&e.ID, &e.TribeID, &e.CreatorID, &e.CreatorName, &creatorAvatar,
+			&e.ID, &e.TribeID, &e.TribeName, &e.CreatorID, &e.CreatorName, &creatorAvatar,
 			&e.Title, &e.Description, &coverImage, &e.Location, &e.Lat, &e.Lng, &e.StartTime, &e.IsOfficial, &e.CreatedAt,
 			&e.NetVotes, &e.UserVote, &e.GoingCount, &e.NotGoingCount, &e.UserRsvp,
 		); err != nil {
@@ -174,7 +177,7 @@ func handleGetEvent(w http.ResponseWriter, r *http.Request) {
 
 	err := db.DB.QueryRow(`
 		SELECT 
-			e.id, e.tribe_id, e.creator_id, u.name as creator_name, u.avatar_url as creator_avatar_url, 
+			e.id, e.tribe_id, t.name as tribe_name, e.creator_id, u.name as creator_name, u.avatar_url as creator_avatar_url, 
 			e.title, e.description, e.cover_image_url, e.location, e.lat, e.lng, e.start_time, e.is_official, e.created_at,
 			COALESCE((SELECT SUM(vote) FROM event_votes WHERE event_id = e.id), 0) as net_votes,
 			COALESCE((SELECT vote FROM event_votes WHERE event_id = e.id AND user_id = $1), 0) as user_vote,
@@ -183,9 +186,10 @@ func handleGetEvent(w http.ResponseWriter, r *http.Request) {
 			COALESCE((SELECT status FROM event_rsvps WHERE event_id = e.id AND user_id = $1), 'none') as user_rsvp
 		FROM events e
 		JOIN users u ON e.creator_id = u.id
+		JOIN tribes t ON e.tribe_id = t.id
 		WHERE e.id = $2
 	`, userID, eventID).Scan(
-		&e.ID, &e.TribeID, &e.CreatorID, &e.CreatorName, &creatorAvatar,
+		&e.ID, &e.TribeID, &e.TribeName, &e.CreatorID, &e.CreatorName, &creatorAvatar,
 		&e.Title, &e.Description, &coverImage, &e.Location, &e.Lat, &e.Lng, &e.StartTime, &e.IsOfficial, &e.CreatedAt,
 		&e.NetVotes, &e.UserVote, &e.GoingCount, &e.NotGoingCount, &e.UserRsvp,
 	)

@@ -8,6 +8,7 @@ export interface User {
 export interface Event {
     id: string;
     tribe_id: string;
+    tribe_name?: string;
     creator_id: string;
     creator_name?: string;
     creator_avatar_url?: string;

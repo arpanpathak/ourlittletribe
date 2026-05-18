@@ -103,6 +103,11 @@ export default function HomeFeed({
                                                     <p style={{ fontSize: '0.9em', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <MapPin size={16} /> {event.location}
                                                     </p>
+                                                    {event.tribe_name && (
+                                                        <p style={{ fontSize: '0.85em', color: 'var(--color-primary-dark)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}>
+                                                            🏘️ Tribe: {event.tribe_name}
+                                                        </p>
+                                                    )}
 
                                                     {/* Event Start Date-Time */}
                                                     <p style={{ fontSize: '0.85rem', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '4px', margin: '4px 0 8px 0', fontWeight: 500 }}>
@@ -240,6 +245,11 @@ export default function HomeFeed({
                                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-accent)' }}>
                                             📅 {new Date(selectedEvent.start_time).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                                         </span>
+                                        {selectedEvent.tribe_name && (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary-dark)', fontWeight: 'bold' }}>
+                                                🏘️ Tribe: {selectedEvent.tribe_name}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                                 <button className="icon-btn" onClick={() => setSelectedEvent(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px' }}>
