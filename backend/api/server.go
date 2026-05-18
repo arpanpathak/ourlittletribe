@@ -69,6 +69,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handleVoteEvent(w, r)
 			return
 		}
+		if strings.HasSuffix(pathId, ":rsvp") {
+			eventId := strings.TrimSuffix(pathId, ":rsvp")
+			r.SetPathValue("eventId", eventId)
+			handleRsvpEvent(w, r)
+			return
+		}
 		http.NotFound(w, r)
 	}))
 }

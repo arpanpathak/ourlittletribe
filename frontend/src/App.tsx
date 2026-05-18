@@ -171,6 +171,22 @@ export default function App() {
     }
   };
 
+  const handleRsvpEvent = async (eventId: string, status: 'going' | 'not_going' | 'none') => {
+    try {
+      const res = await fetch(`${API_BASE}/v1/events/${eventId}:rsvp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        fetchEvents(); // Refresh feed to update RSVP details
+      }
+    } catch (err) {
+      console.error("Failed to RSVP", err);
+    }
+  };
+
   const handleLogin = () => {
     window.location.href = `${API_BASE}/v1/auth/google/login`;
   };
@@ -205,6 +221,7 @@ export default function App() {
             setIsDraftingEvent={setIsDraftingEvent}
             onCreateEvent={handleCreateEvent}
             onApproveEvent={handleApproveEvent}
+            onRsvpEvent={handleRsvpEvent}
           />
         )}
 

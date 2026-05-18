@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogOut, CalendarOff, MapPin } from 'lucide-react';
+import { LogOut, CalendarOff, MapPin, CheckCircle, XCircle } from 'lucide-react';
 import type { User, Event, Tribe } from '../types';
 import DraftEventForm from '../components/events/DraftEventForm';
 
@@ -12,10 +12,11 @@ interface HomeFeedProps {
     setIsDraftingEvent: (val: boolean) => void;
     onCreateEvent: (title: string, desc: string, coverImage: string, location: string, tribeId: string) => Promise<void>;
     onApproveEvent: (eventId: string) => Promise<void>;
+    onRsvpEvent: (eventId: string, status: 'going' | 'not_going' | 'none') => Promise<void>;
 }
 
 export default function HomeFeed({
-    user, events, tribes, onLogin, isDraftingEvent, setIsDraftingEvent, onCreateEvent, onApproveEvent
+    user, events, tribes, onLogin, isDraftingEvent, setIsDraftingEvent, onCreateEvent, onApproveEvent, onRsvpEvent
 }: HomeFeedProps) {
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
@@ -75,7 +76,39 @@ export default function HomeFeed({
                                                     <p style={{ fontSize: '0.9em', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <MapPin size={16} /> {event.location}
                                                     </p>
-                                                    <p className="subtitle" style={{ marginTop: '12px', marginBottom: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
+                                                    
+                                                    {/* Creator details directly on the card */}
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '8px 0 12px 0' }}>
+                                                        {event.creator_avatar_url ? (
+                                                            <img src={event.creator_avatar_url} alt={event.creator_name} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+                                                        ) : (
+                                                            <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'var(--color-bg)', fontWeight: 'bold' }}>
+                                                                {(event.creator_name || 'U')[0]}
+                                                            </div>
+                                                        )}
+                                                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                                            by <strong>{event.creator_name || 'Tribe Member'}</strong>
+                                                        </span>
+                                                    </div>
+
+                                                    {/* RSVP indicators */}
+                                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', fontSize: '0.8rem' }}>
+                                                        <span style={{ background: 'rgba(255,255,255,0.06)', padding: '4px 8px', borderRadius: '12px', color: 'var(--color-text-muted)' }}>
+                                                            🟢 {event.going_count || 0} Going
+                                                        </span>
+                                                        {event.not_going_count && event.not_going_count > 0 ? (
+                                                            <span style={{ background: 'rgba(255,255,255,0.06)', padding: '4px 8px', borderRadius: '12px', color: 'var(--color-text-muted)' }}>
+                                                                🔴 {event.not_going_count} Not Going
+                                                            </span>
+                                                        ) : null}
+                                                        {event.user_rsvp && event.user_rsvp !== 'none' && (
+                                                            <span style={{ background: 'rgba(var(--color-accent-rgb), 0.1)', border: '1px solid var(--color-accent)', padding: '3px 8px', borderRadius: '12px', color: 'var(--color-accent)', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                                                                {event.user_rsvp === 'going' ? 'Going' : 'Not Going'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <p className="subtitle" style={{ marginTop: '4px', marginBottom: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
                                                         {event.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ')}
                                                     </p>
                                                 </div>
@@ -121,7 +154,7 @@ export default function HomeFeed({
                     onClick={(e) => { if (e.target === e.currentTarget) setSelectedEvent(null); }}
                     style={{ backdropFilter: 'blur(8px)', zIndex: 1000 }}
                 >
-                    <div className="modal-content glass-panel" style={{ maxWidth: '600px', width: '90%', maxHeight: '80vh', overflowY: 'auto', padding: '0' }}>
+                    <div className="modal-content glass-panel" style={{ maxWidth: '600px', width: '90%', maxHeight: '85vh', overflowY: 'auto', padding: '0', display: 'flex', flexDirection: 'column' }}>
                         {selectedEvent.cover_image_url && (
                             <img
                                 src={selectedEvent.cover_image_url}
@@ -130,22 +163,98 @@ export default function HomeFeed({
                             />
                         )}
                         <div style={{ padding: '24px' }}>
-                            <div className="modal-header" style={{ marginBottom: '20px' }}>
+                            <div className="modal-header" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
-                                    <h2 style={{ color: 'var(--color-primary)' }}>{selectedEvent.title}</h2>
-                                    <p style={{ fontSize: '0.9em', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-muted)' }}>
+                                    <h2 style={{ color: 'var(--color-primary)', margin: 0 }}>{selectedEvent.title}</h2>
+                                    <p style={{ fontSize: '0.9em', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-muted)' }}>
                                         <MapPin size={16} /> {selectedEvent.location}
                                     </p>
                                 </div>
-                                <button className="icon-btn" onClick={() => setSelectedEvent(null)}>
-                                    <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>&times;</span>
+                                <button className="icon-btn" onClick={() => setSelectedEvent(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px' }}>
+                                    <span style={{ fontSize: '1.5rem', color: 'var(--color-text-muted)' }}>&times;</span>
                                 </button>
                             </div>
 
-                            {/* Render rich text natively */}
-                            <div className="tribe-description" style={{ color: 'var(--color-text)', lineHeight: '1.6', marginBottom: '30px' }} dangerouslySetInnerHTML={{ __html: selectedEvent.description }} />
+                            {/* Creator Block */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '16px 0', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                {selectedEvent.creator_avatar_url ? (
+                                    <img src={selectedEvent.creator_avatar_url} alt={selectedEvent.creator_name} style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
+                                ) : (
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.95rem', color: 'var(--color-bg)', fontWeight: 'bold' }}>
+                                        {(selectedEvent.creator_name || 'U')[0]}
+                                    </div>
+                                )}
+                                <div>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: 0 }}>Organized by</p>
+                                    <p style={{ fontSize: '0.9rem', fontWeight: 'bold', margin: 0, color: 'var(--color-text)' }}>{selectedEvent.creator_name || 'Tribe Member'}</p>
+                                </div>
+                            </div>
 
-                            <div style={{ display: 'flex', gap: '12px' }}>
+                            {/* Event Description */}
+                            <div style={{ margin: '20px 0' }}>
+                                <h4 style={{ color: 'var(--color-primary)', marginBottom: '8px', fontSize: '0.95rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Event Details</h4>
+                                <div className="tribe-description" style={{ color: 'var(--color-text)', lineHeight: '1.6', fontSize: '0.95rem' }} dangerouslySetInnerHTML={{ __html: selectedEvent.description }} />
+                            </div>
+
+                            {/* RSVP Section */}
+                            <div style={{ margin: '24px 0', padding: '16px', background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', color: 'var(--color-primary)' }}>Are you going?</h4>
+                                
+                                <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                                    <button 
+                                        className={`btn ${selectedEvent.user_rsvp === 'going' ? 'btn-primary' : 'btn-secondary'}`}
+                                        style={{ flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s ease' }}
+                                        onClick={async () => {
+                                            const newRsvp = selectedEvent.user_rsvp === 'going' ? 'none' : 'going';
+                                            await onRsvpEvent(selectedEvent.id, newRsvp);
+                                            setSelectedEvent(prev => prev ? { 
+                                                ...prev, 
+                                                user_rsvp: newRsvp,
+                                                going_count: newRsvp === 'going' ? (prev.going_count || 0) + 1 : (prev.going_count || 1) - 1,
+                                                not_going_count: prev.user_rsvp === 'not_going' ? (prev.not_going_count || 1) - 1 : prev.not_going_count
+                                            } : null);
+                                        }}
+                                    >
+                                        <CheckCircle size={16} /> Going ({selectedEvent.going_count || 0})
+                                    </button>
+                                    
+                                    <button 
+                                        className={`btn`}
+                                        style={{ 
+                                            flex: 1, 
+                                            padding: '10px 16px', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justify: 'center', 
+                                            gap: '8px',
+                                            transition: 'all 0.2s ease',
+                                            borderColor: selectedEvent.user_rsvp === 'not_going' ? '#ff4d4d' : 'rgba(255, 255, 255, 0.2)',
+                                            backgroundColor: selectedEvent.user_rsvp === 'not_going' ? 'rgba(255, 77, 77, 0.2)' : 'transparent',
+                                            color: selectedEvent.user_rsvp === 'not_going' ? '#ff4d4d' : 'var(--color-text)'
+                                        }}
+                                        onClick={async () => {
+                                            const newRsvp = selectedEvent.user_rsvp === 'not_going' ? 'none' : 'not_going';
+                                            await onRsvpEvent(selectedEvent.id, newRsvp);
+                                            setSelectedEvent(prev => prev ? { 
+                                                ...prev, 
+                                                user_rsvp: newRsvp,
+                                                not_going_count: newRsvp === 'not_going' ? (prev.not_going_count || 0) + 1 : (prev.not_going_count || 1) - 1,
+                                                going_count: prev.user_rsvp === 'going' ? (prev.going_count || 1) - 1 : prev.going_count
+                                            } : null);
+                                        }}
+                                    >
+                                        <XCircle size={16} /> Not Going ({selectedEvent.not_going_count || 0})
+                                    </button>
+                                </div>
+
+                                {selectedEvent.user_rsvp && selectedEvent.user_rsvp !== 'none' && (
+                                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-accent)', textAlign: 'center', opacity: 0.9 }}>
+                                        Marked as <strong>{selectedEvent.user_rsvp === 'going' ? 'Going' : 'Not Going'}</strong>. Click again to remove your RSVP.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
                                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedEvent(null)}>Go Back</button>
                             </div>
                         </div>

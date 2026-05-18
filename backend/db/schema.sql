@@ -46,3 +46,12 @@ CREATE TABLE IF NOT EXISTS event_votes (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(event_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS event_rsvps (
+    event_id UUID REFERENCES events(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL CHECK (status IN ('going', 'not_going')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(event_id, user_id)
+);
+
