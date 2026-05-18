@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { LogOut, TreePine, Users } from 'lucide-react';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import type { User, Tribe } from '../types';
 
 interface TribesViewProps {
@@ -38,25 +40,35 @@ export default function TribesView({
             {isCreatingTribe && user && (
                 <form onSubmit={onCreateTribe} className="glass-panel" style={{ padding: '20px', borderRadius: 'var(--radius-md)', marginBottom: 'var(--spacing-lg)', maxWidth: '600px', margin: '0 auto' }}>
                     <h3 style={{ marginBottom: '16px', color: 'var(--color-primary)' }}>Form a New Tribe</h3>
-                    <div className="search-container mb-3" style={{ background: 'rgba(0,0,0,0.2)' }}>
-                        <input
-                            type="text"
-                            placeholder="Tribe Name (e.g. Seattle Hikers)"
-                            value={newTribeName}
-                            onChange={e => setNewTribeName(e.target.value)}
-                            required
-                        />
+                    
+                    <div className="form-group mb-3">
+                        <label className="subtitle" style={{ display: 'block', marginBottom: '4px' }}>Tribe Name</label>
+                        <div className="search-container" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                            <input
+                                type="text"
+                                placeholder="Seattle Hikers"
+                                value={newTribeName}
+                                onChange={e => setNewTribeName(e.target.value)}
+                                required
+                            />
+                        </div>
                     </div>
-                    <div className="search-container mb-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
-                        <input
-                            type="text"
-                            placeholder="What is this tribe about?"
-                            value={newTribeDesc}
-                            onChange={e => setNewTribeDesc(e.target.value)}
-                            required
-                        />
+
+                    <div className="form-group mb-4">
+                        <label className="subtitle" style={{ display: 'block', marginBottom: '4px' }}>What is this tribe about?</label>
+                        <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                            <ReactQuill
+                                theme="snow"
+                                value={newTribeDesc}
+                                onChange={setNewTribeDesc}
+                                style={{ height: '180px', color: 'var(--color-text)' }}
+                            />
+                        </div>
                     </div>
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Form Tribe</button>
+
+                    <div style={{ marginTop: '50px' }}>
+                        <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Form Tribe</button>
+                    </div>
                 </form>
             )}
 
@@ -69,12 +81,12 @@ export default function TribesView({
             ) : tribes.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {tribes.map(tribe => (
-                        <div key={tribe.id} className="glass-panel" style={{ padding: '20px', borderRadius: 'var(--radius-md)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => setSelectedTribe(tribe)}>
-                                    <h3 style={{ color: 'var(--color-text)', marginBottom: '4px' }}>{tribe.name}</h3>
-                                    <p className="subtitle" style={{ fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                                        {tribe.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') /* Strip HTML for summary */}
+                        <div key={tribe.id} className="glass-panel" style={{ padding: '20px', borderRadius: 'var(--radius-md)', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                                <div style={{ cursor: 'pointer', flex: 1, minWidth: 0 }} onClick={() => setSelectedTribe(tribe)}>
+                                    <h3 style={{ color: 'var(--color-text)', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tribe.name}</h3>
+                                    <p className="subtitle" style={{ fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%' }}>
+                                        {tribe.description ? tribe.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : ''}
                                     </p>
                                     <p style={{ fontSize: '0.8rem', color: 'var(--color-primary-dark)', marginTop: '4px' }}>
                                         <Users size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
@@ -82,23 +94,25 @@ export default function TribesView({
                                     </p>
                                 </div>
 
-                                {tribe.is_member ? (
-                                    <button
-                                        className="btn btn-secondary"
-                                        style={{ padding: '6px 14px', fontSize: '0.9rem', borderColor: 'var(--color-error)', color: 'var(--color-error)' }}
-                                        onClick={(e) => { e.stopPropagation(); onLeaveTribe(tribe.id); }}
-                                    >
-                                        Leave
-                                    </button>
-                                ) : (
-                                    <button
-                                        className="btn btn-secondary"
-                                        style={{ padding: '6px 14px', fontSize: '0.9rem' }}
-                                        onClick={(e) => { e.stopPropagation(); onJoinTribe(tribe.id); }}
-                                    >
-                                        Join
-                                    </button>
-                                )}
+                                <div style={{ flexShrink: 0 }}>
+                                    {tribe.is_member ? (
+                                        <button
+                                            className="btn btn-secondary"
+                                            style={{ padding: '6px 14px', fontSize: '0.9rem', borderColor: 'var(--color-error)', color: 'var(--color-error)' }}
+                                            onClick={(e) => { e.stopPropagation(); onLeaveTribe(tribe.id); }}
+                                        >
+                                            Leave
+                                        </button>
+                                    ) : (
+                                        <button
+                                            className="btn btn-secondary"
+                                            style={{ padding: '6px 14px', fontSize: '0.9rem' }}
+                                            onClick={(e) => { e.stopPropagation(); onJoinTribe(tribe.id); }}
+                                        >
+                                            Join
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -118,16 +132,26 @@ export default function TribesView({
                     onClick={(e) => { if (e.target === e.currentTarget) setSelectedTribe(null); }}
                     style={{ backdropFilter: 'blur(8px)', zIndex: 1000 }}
                 >
-                    <div className="modal-content glass-panel" style={{ maxWidth: '600px', width: '90%', maxHeight: '80vh', overflowY: 'auto' }}>
-                        <div className="modal-header" style={{ marginBottom: '20px' }}>
-                            <h2 style={{ color: 'var(--color-primary)' }}>{selectedTribe.name}</h2>
-                            <button className="icon-btn" onClick={() => setSelectedTribe(null)}>
-                                <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>&times;</span>
+                    <div className="modal-content glass-panel" style={{ maxWidth: '600px', width: '90%', maxHeight: '85vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '24px' }}>
+                        <div className="modal-header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 style={{ color: 'var(--color-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '85%' }}>{selectedTribe.name}</h2>
+                            <button className="icon-btn" onClick={() => setSelectedTribe(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px' }}>
+                                <span style={{ fontSize: '1.5rem', color: 'var(--color-text-muted)', lineHeight: 1 }}>&times;</span>
                             </button>
                         </div>
 
-                        {/* Render rich text natively */}
-                        <div className="tribe-description" style={{ color: 'var(--color-text)', lineHeight: '1.6', marginBottom: '20px' }} dangerouslySetInnerHTML={{ __html: selectedTribe.description }} />
+                        {/* Render rich text natively with wrap safety */}
+                        <div 
+                            className="tribe-description" 
+                            style={{ 
+                                color: 'var(--color-text)', 
+                                lineHeight: '1.6', 
+                                marginBottom: '24px',
+                                wordBreak: 'break-word',
+                                overflowWrap: 'anywhere'
+                            }} 
+                            dangerouslySetInnerHTML={{ __html: selectedTribe.description || '' }} 
+                        />
 
                         <div style={{ marginBottom: '15px', color: 'var(--color-primary-dark)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Users size={18} />
@@ -153,7 +177,7 @@ export default function TribesView({
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', gap: '12px' }}>
+                        <div style={{ display: 'flex', gap: '12px', marginTop: 'auto' }}>
                             <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedTribe(null)}>Go Back</button>
                         </div>
                     </div>
