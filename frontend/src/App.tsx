@@ -228,6 +228,7 @@ export default function App() {
           <TribesView
             user={user}
             tribes={tribes}
+            events={events}
             isCreatingTribe={isCreatingTribe}
             setIsCreatingTribe={setIsCreatingTribe}
             newTribeName={newTribeName}
@@ -238,6 +239,8 @@ export default function App() {
             onJoinTribe={handleJoinTribe}
             onLeaveTribe={handleLeaveTribe}
             onLogin={handleLogin}
+            onApproveEvent={handleApproveEvent}
+            onRsvpEvent={handleRsvpEvent}
           />
         )}
 
