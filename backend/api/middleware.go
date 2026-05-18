@@ -12,9 +12,10 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/time/rate"
-	
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"outlittletribe.us/backend/constants"
 )
 
 var (
@@ -78,16 +79,16 @@ func getVisitor(ip string) *rate.Limiter {
 // SecurityHeadersMiddleware adds standard security headers to all responses.
 func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set(constants.HeaderXContentTypeOptions, "nosniff")
+		w.Header().Set(constants.HeaderXFrameOptions, "DENY")
+		w.Header().Set(constants.HeaderXXSSProtection, "1; mode=block")
 
 		frontendURL := os.Getenv("FRONTEND_URL")
 		if frontendURL == "" {
-			frontendURL = "http://localhost:5173"
+			frontendURL = constants.DefaultFrontendURL
 		}
 		// In production this should be more strict
-		w.Header().Set("Content-Security-Policy", "default-src 'self' " + frontendURL + " https://accounts.google.com")
+		w.Header().Set("Content-Security-Policy", "default-src 'self' "+frontendURL+" "+constants.GoogleAccountsCSP)
 
 		next.ServeHTTP(w, r)
 	})
@@ -102,7 +103,7 @@ func RateLimitMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Trusting X-Forwarded-For if behind a proxy
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if xff := r.Header.Get(constants.HeaderXForwardedFor); xff != "" {
 			ip = xff
 		}
 
@@ -120,12 +121,12 @@ func CorsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		frontendURL := os.Getenv("FRONTEND_URL")
 		if frontendURL == "" {
-			frontendURL = "http://localhost:5173"
+			frontendURL = constants.DefaultFrontendURL
 		}
-		w.Header().Set("Access-Control-Allow-Origin", frontendURL) // Allow dynamic frontend
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set(constants.HeaderAccessControlAllowOrigin, frontendURL) // Allow dynamic frontend
+		w.Header().Set(constants.HeaderAccessControlAllowMethods, "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set(constants.HeaderAccessControlAllowHeaders, "Content-Type, Authorization")
+		w.Header().Set(constants.HeaderAccessControlAllowCredentials, "true")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return

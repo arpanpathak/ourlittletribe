@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"outlittletribe.us/backend/constants"
 	"outlittletribe.us/backend/db"
 )
 
@@ -26,14 +27,14 @@ func init() {
 	clientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
 	callbackURL := os.Getenv("GOOGLE_CALLBACK_URL")
 	if callbackURL == "" {
-		callbackURL = "http://localhost:8080/v1/auth/google/callback"
+		callbackURL = constants.DefaultCallbackURL
 	}
 
 	googleOauthConfig = &oauth2.Config{
 		RedirectURL:  callbackURL,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"},
+		Scopes:       []string{constants.GoogleScopeEmail, constants.GoogleScopeProfile},
 		Endpoint:     google.Endpoint,
 	}
 
@@ -60,7 +61,7 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
+	response, err := http.Get(constants.GoogleUserInfoURL + "?access_token=" + token.AccessToken)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed getting user info: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -109,7 +110,7 @@ func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// Redirect to frontend
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
+		frontendURL = constants.DefaultFrontendURL
 	}
 	http.Redirect(w, r, frontendURL, http.StatusTemporaryRedirect)
 }
