@@ -5,7 +5,7 @@ import type { Tribe } from '../../types';
 
 interface DraftEventFormProps {
     tribes: Tribe[];
-    onSubmit: (title: string, desc: string, coverImageUrl: string, location: string, tribeId: string) => Promise<void>;
+    onSubmit: (title: string, desc: string, coverImageUrl: string, location: string, tribeId: string, startTime: string) => Promise<void>;
     onCancel: () => void;
 }
 
@@ -13,17 +13,18 @@ export default function DraftEventForm({ tribes, onSubmit, onCancel }: DraftEven
     const [title, setTitle] = useState('');
     const [location, setLocation] = useState('');
     const [description, setDescription] = useState('');
-    const [coverImage, setCoverImage] = useState(''); // New state for cover image
+    const [coverImage, setCoverImage] = useState('');
     const [selectedTribeId, setSelectedTribeId] = useState('');
+    const [startTime, setStartTime] = useState('');
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!title || !description || !location || !selectedTribeId) return;
+        if (!title || !description || !location || !selectedTribeId || !startTime) return;
 
         setIsSubmitting(true);
-        await onSubmit(title, description, coverImage, location, selectedTribeId); // Updated onSubmit call
+        await onSubmit(title, description, coverImage, location, selectedTribeId, startTime);
         setIsSubmitting(false);
     };
 
@@ -74,6 +75,19 @@ export default function DraftEventForm({ tribes, onSubmit, onCancel }: DraftEven
             </div>
 
             <div className="form-group mb-3">
+                <label className="subtitle" style={{ display: 'block', marginBottom: '4px' }}>Event Date & Time</label>
+                <div className="search-container" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                    <input
+                        type="datetime-local"
+                        value={startTime}
+                        onChange={e => setStartTime(e.target.value)}
+                        required
+                        style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--color-text)', padding: '8px', outline: 'none' }}
+                    />
+                </div>
+            </div>
+
+            <div className="form-group mb-3">
                 <label className="subtitle" style={{ display: 'block', marginBottom: '4px' }}>General Location</label>
                 <div className="search-container" style={{ background: 'rgba(0,0,0,0.2)' }}>
                     <input
@@ -88,7 +102,6 @@ export default function DraftEventForm({ tribes, onSubmit, onCancel }: DraftEven
 
             <div className="form-group mb-4">
                 <label className="subtitle" style={{ display: 'block', marginBottom: '4px' }}>What are we doing?</label>
-                {/* Using react-quill for rich text, overriding the snow theme with our CSS variables implicitly */}
                 <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                     <ReactQuill
                         theme="snow"

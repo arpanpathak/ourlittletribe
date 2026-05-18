@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LogOut, CalendarOff, MapPin, CheckCircle, XCircle } from 'lucide-react';
 import type { User, Event, Tribe } from '../types';
 import DraftEventForm from '../components/events/DraftEventForm';
@@ -10,7 +10,7 @@ interface HomeFeedProps {
     onLogin: () => void;
     isDraftingEvent: boolean;
     setIsDraftingEvent: (val: boolean) => void;
-    onCreateEvent: (title: string, desc: string, coverImage: string, location: string, tribeId: string) => Promise<void>;
+    onCreateEvent: (title: string, desc: string, coverImage: string, location: string, tribeId: string, startTime: string) => Promise<void>;
     onApproveEvent: (eventId: string) => Promise<void>;
     onRsvpEvent: (eventId: string, status: 'going' | 'not_going' | 'none') => Promise<void>;
 }
@@ -19,6 +19,32 @@ export default function HomeFeed({
     user, events, tribes, onLogin, isDraftingEvent, setIsDraftingEvent, onCreateEvent, onApproveEvent, onRsvpEvent
 }: HomeFeedProps) {
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+    const [shareCopied, setShareCopied] = useState(false);
+
+    // Dynamic sharing growth loop: listen for ?event=UUID in the URL and open the modal automatically
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const eventId = urlParams.get('event');
+        if (eventId) {
+            const found = events.find(e => e.id === eventId);
+            if (found) {
+                setSelectedEvent(found);
+            } else if (user) {
+                // Fetch directly from the backend if it's not in their local feed list
+                fetch(`/v1/events/${eventId}`, { credentials: 'include' })
+                    .then(res => {
+                        if (res.ok) return res.json();
+                        throw new Error('Shared event not found');
+                    })
+                    .then(data => {
+                        setSelectedEvent(data);
+                    })
+                    .catch(err => {
+                        console.error("Failed fetching shared event:", err);
+                    });
+            }
+        }
+    }, [events, user]);
 
     return (
         <div className="view">
@@ -73,8 +99,13 @@ export default function HomeFeed({
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                 <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => setSelectedEvent(event)}>
                                                     <h3 style={{ color: 'var(--color-primary)' }}>{event.title}</h3>
-                                                    <p style={{ fontSize: '0.9em', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <p style={{ fontSize: '0.9em', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <MapPin size={16} /> {event.location}
+                                                    </p>
+
+                                                    {/* Event Start Date-Time */}
+                                                    <p style={{ fontSize: '0.85rem', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '4px', margin: '4px 0 8px 0', fontWeight: 500 }}>
+                                                        📅 {new Date(event.start_time).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                                                     </p>
                                                     
                                                     {/* Creator details directly on the card */}
@@ -91,21 +122,37 @@ export default function HomeFeed({
                                                         </span>
                                                     </div>
 
-                                                    {/* RSVP indicators */}
-                                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', fontSize: '0.8rem' }}>
-                                                        <span style={{ background: 'rgba(255,255,255,0.06)', padding: '4px 8px', borderRadius: '12px', color: 'var(--color-text-muted)' }}>
-                                                            🟢 {event.going_count || 0} Going
-                                                        </span>
-                                                        {event.not_going_count && event.not_going_count > 0 ? (
+                                                    {/* RSVP indicators and Share Action */}
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                                        <div style={{ display: 'flex', gap: '8px', fontSize: '0.8rem' }}>
                                                             <span style={{ background: 'rgba(255,255,255,0.06)', padding: '4px 8px', borderRadius: '12px', color: 'var(--color-text-muted)' }}>
-                                                                🔴 {event.not_going_count} Not Going
+                                                                🟢 {event.going_count || 0} Going
                                                             </span>
-                                                        ) : null}
-                                                        {event.user_rsvp && event.user_rsvp !== 'none' && (
-                                                            <span style={{ background: 'rgba(var(--color-accent-rgb), 0.1)', border: '1px solid var(--color-accent)', padding: '3px 8px', borderRadius: '12px', color: 'var(--color-accent)', fontWeight: 'bold', fontSize: '0.75rem' }}>
-                                                                {event.user_rsvp === 'going' ? 'Going' : 'Not Going'}
-                                                            </span>
-                                                        )}
+                                                            {event.not_going_count && event.not_going_count > 0 ? (
+                                                                <span style={{ background: 'rgba(255,255,255,0.06)', padding: '4px 8px', borderRadius: '12px', color: 'var(--color-text-muted)' }}>
+                                                                    🔴 {event.not_going_count} Not Going
+                                                                </span>
+                                                            ) : null}
+                                                            {event.user_rsvp && event.user_rsvp !== 'none' && (
+                                                                <span style={{ background: 'rgba(var(--color-accent-rgb), 0.1)', border: '1px solid var(--color-accent)', padding: '3px 8px', borderRadius: '12px', color: 'var(--color-accent)', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                                                                    {event.user_rsvp === 'going' ? 'Going' : 'Not Going'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        <button 
+                                                            className="icon-btn" 
+                                                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: 'var(--color-accent)', padding: '4px 8px' }}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const shareUrl = `${window.location.origin}?event=${event.id}`;
+                                                                navigator.clipboard.writeText(shareUrl).then(() => {
+                                                                    alert("Event link copied to clipboard!");
+                                                                });
+                                                            }}
+                                                        >
+                                                            <span>📤 Share</span>
+                                                        </button>
                                                     </div>
 
                                                     <p className="subtitle" style={{ marginTop: '4px', marginBottom: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
@@ -166,9 +213,16 @@ export default function HomeFeed({
                             <div className="modal-header" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
                                     <h2 style={{ color: 'var(--color-primary)', margin: 0 }}>{selectedEvent.title}</h2>
-                                    <p style={{ fontSize: '0.9em', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-muted)' }}>
-                                        <MapPin size={16} /> {selectedEvent.location}
-                                    </p>
+                                    
+                                    {/* Date & Location Details */}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '0.9em', marginTop: '8px', color: 'var(--color-text-muted)' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <MapPin size={16} /> {selectedEvent.location}
+                                        </span>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-accent)' }}>
+                                            📅 {new Date(selectedEvent.start_time).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                                        </span>
+                                    </div>
                                 </div>
                                 <button className="icon-btn" onClick={() => setSelectedEvent(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px' }}>
                                     <span style={{ fontSize: '1.5rem', color: 'var(--color-text-muted)' }}>&times;</span>
@@ -256,6 +310,19 @@ export default function HomeFeed({
 
                             <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
                                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedEvent(null)}>Go Back</button>
+                                <button 
+                                    className="btn btn-primary" 
+                                    style={{ flex: 1, backgroundColor: 'var(--color-accent)', color: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                    onClick={() => {
+                                        const shareUrl = `${window.location.origin}?event=${selectedEvent.id}`;
+                                        navigator.clipboard.writeText(shareUrl).then(() => {
+                                            setShareCopied(true);
+                                            setTimeout(() => setShareCopied(false), 2000);
+                                        });
+                                    }}
+                                >
+                                    {shareCopied ? '🔗 Link Copied!' : '📤 Share Event'}
+                                </button>
                             </div>
                         </div>
                     </div>

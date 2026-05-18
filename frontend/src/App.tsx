@@ -121,9 +121,8 @@ export default function App() {
     }
   };
 
-  const handleCreateEvent = async (title: string, desc: string, coverImage: string, location: string, tribeId: string) => {
-    // Add 1 hour to current time for start_time since MVP doesn't have a date picker yet
-    const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const handleCreateEvent = async (title: string, desc: string, coverImage: string, location: string, tribeId: string, startTime: string) => {
+    const isoStartTime = new Date(startTime).toISOString();
 
     try {
       const res = await fetch(`${API_BASE}/v1/events`, {
@@ -136,7 +135,7 @@ export default function App() {
           cover_image_url: coverImage,
           location: location,
           tribe_id: tribeId,
-          start_time: startTime,
+          start_time: isoStartTime,
           lat: 47.6062, // Defaulting MVP coords to Seattle
           lng: -122.3321
         })
