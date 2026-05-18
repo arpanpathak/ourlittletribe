@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LogOut, CalendarOff, MapPin, CheckCircle, XCircle } from 'lucide-react';
 import type { User, Event, Tribe } from '../types';
 import DraftEventForm from '../components/events/DraftEventForm';
+import 'react-quill-new/dist/quill.snow.css';
 
 interface HomeFeedProps {
     user: User | null;
@@ -155,8 +156,8 @@ export default function HomeFeed({
                                                         </button>
                                                     </div>
 
-                                                    <p className="subtitle" style={{ marginTop: '4px', marginBottom: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                                                        {event.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ')}
+                                                    <p className="subtitle" style={{ marginTop: '4px', marginBottom: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                                        {event.description ? event.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : ''}
                                                     </p>
                                                 </div>
                                                 {!event.is_official && <span className="badge" style={{ background: 'var(--color-accent)', padding: '4px 8px', borderRadius: '12px', fontSize: '0.8rem', color: 'black' }}>Draft</span>}
@@ -247,7 +248,20 @@ export default function HomeFeed({
                             {/* Event Description */}
                             <div style={{ margin: '20px 0' }}>
                                 <h4 style={{ color: 'var(--color-primary)', marginBottom: '8px', fontSize: '0.95rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Event Details</h4>
-                                <div className="tribe-description" style={{ color: 'var(--color-text)', lineHeight: '1.6', fontSize: '0.95rem' }} dangerouslySetInnerHTML={{ __html: selectedEvent.description }} />
+                                <div className="ql-snow">
+                                    <div 
+                                        className="ql-editor tribe-description" 
+                                        style={{ 
+                                            padding: 0, 
+                                            color: 'var(--color-text)', 
+                                            lineHeight: '1.6', 
+                                            fontSize: '0.95rem',
+                                            wordBreak: 'break-word',
+                                            overflowWrap: 'anywhere'
+                                        }} 
+                                        dangerouslySetInnerHTML={{ __html: selectedEvent.description || '' }} 
+                                    />
+                                </div>
                             </div>
 
                             {/* RSVP Section */}
