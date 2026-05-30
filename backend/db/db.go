@@ -49,25 +49,25 @@ func InitDB() error {
 		log.Printf("Notice: Could not read db/schema.sql (might be running from different dir): %v\n", err)
 	}
 
-	// Stalin sort - Aggressively delete past events
-	go runStalinSort(DB)
+	// Lenin kill - Purge events older than 365 days
+	go runLeninKill(DB)
 
 	return nil
 }
 
-func runStalinSort(db *sql.DB) {
+func runLeninKill(db *sql.DB) {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
 	for {
 		<-ticker.C
-		log.Println("Running Stalin Sort: purging past events...")
-		result, err := db.Exec("DELETE FROM events WHERE start_time < NOW() - INTERVAL '1 day'")
+		log.Println("Running Lenin Kill: purging events older than 365 days...")
+		result, err := db.Exec("DELETE FROM events WHERE start_time < NOW() - INTERVAL '365 days'")
 		if err != nil {
 			log.Printf("Error purging events: %v\n", err)
 		} else {
 			rows, _ := result.RowsAffected()
-			log.Printf("Successfully purged %d past events.\n", rows)
+			log.Printf("Successfully purged %d outdated events.\n", rows)
 		}
 	}
 }
