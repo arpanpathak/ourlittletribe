@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="art art-spot" width="480" height="320" viewBox="0 0 240 160" aria-hidden="true" focusable="false"><style>svg { --surface: #ffffff; --surface-2: #f3f3f0; --surface-3: #ebebe7; --border: #e4e4df; --border-strong: #d2d2cc; --text: #191c1a; --text-2: #4a514d; --text-3: #737a76; --accent: #1f6f4e; --info: #2563a8; }
+/* ── Illustrations ──────────────────────────────────── */
+svg {
+  --art-sky-1: #cfe6f1; --art-sky-2: #f4efe1; --art-sun: #f6c25a; --art-cloud: #ffffff;
+  --art-far: #9db9c6; --art-snow: #ffffff; --art-mid: #73a08a; --art-tree-far: #5b8873;
+  --art-near: #4d7c63; --art-tree: #2c5a45; --art-tree-2: #3b6c53; --art-trail: #dcc79d;
+  --art-ground: #3c6a52; --art-trunk: #6b4a35; --art-ink: #10362a; --art-ink-soft: #3d5a50; --art-blob: #e4efe8;
+}
+
+.art { display: block; }
+.art .a-night { display: none; }
+
+
+.art .a-shadow { fill: #000; opacity: 0.12; }
+.art * { transform-box: fill-box; }
+.a-leg, .a-arm { transform-origin: 50% 0; }
+.a-walk .a-leg-a { animation: a-step 0.9s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.a-walk .a-leg-b { animation: a-step 0.9s ease-in-out infinite alternate-reverse; animation-delay: var(--d, 0s); }
+.a-walk .a-arm { animation: a-swing 0.9s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.a-walk .a-upper { animation: a-bob 0.45s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.a-wave .a-arm { animation: a-wave 1.3s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.a-wave .a-upper, .a-stand .a-upper { animation: a-breathe 3s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.a-eye { transform-origin: center; animation: a-blink 4.5s infinite; animation-delay: var(--d, 0s); }
+.a-sway { transform-origin: 50% 100%; animation: a-sway 6s ease-in-out infinite alternate; }
+.a-drift { animation: a-drift 38s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.a-spin { animation: spin 70s linear infinite; }
+.a-twinkle { transform-origin: center; animation: a-twinkle 3s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.a-fly { animation: a-fly 14s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.a-flap { transform-origin: center; animation: a-flap 0.5s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.a-float { animation: a-float 4s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.a-bob { animation: a-float 1.6s ease-in-out infinite alternate; }
+.a-flag { transform-origin: 0 50%; animation: a-flag 1.4s ease-in-out infinite alternate; }
+.a-flash { transform-origin: 0% 100%; animation: a-flash 2.4s ease-out infinite; }
+.a-needle { transform-origin: center; animation: a-needle 3.2s ease-in-out infinite; }
+.a-scan { animation: a-scan 4s ease-in-out infinite alternate; }
+.a-route { animation: a-route 1.2s linear infinite; }
+.a-drop { transform-origin: 50% 100%; animation: a-drop 1.6s ease-in-out infinite; }
+.a-flame { transform-origin: 50% 100%; animation: a-flame 0.7s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.a-draw { stroke-dasharray: 20; stroke-dashoffset: 20; animation: a-draw 3s ease-in-out infinite; }
+.a-tick { stroke-dasharray: 22; stroke-dashoffset: 22; animation: a-tick 3.6s ease-in-out infinite; animation-delay: var(--d, 0s); }
+@keyframes a-step { from { transform: rotate(-17deg); } to { transform: rotate(17deg); } }
+@keyframes a-swing { from { transform: rotate(-22deg); } to { transform: rotate(22deg); } }
+@keyframes a-bob { from { transform: translateY(0); } to { transform: translateY(-2.5px); } }
+@keyframes a-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+@keyframes a-wave { 0%, 100% { transform: rotate(-145deg); } 50% { transform: rotate(-178deg); } }
+@keyframes a-blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes a-sway { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
+@keyframes a-drift { from { transform: translateX(-30px); } to { transform: translateX(40px); } }
+@keyframes a-twinkle { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.6); } }
+@keyframes a-fly { from { transform: translate(0, 0); } to { transform: translate(120px, -24px); } }
+@keyframes a-flap { from { transform: scaleY(1); } to { transform: scaleY(-0.4); } }
+@keyframes a-float { from { transform: translateY(0); } to { transform: translateY(-5px); } }
+@keyframes a-flag { from { transform: skewY(-4deg) scaleX(1); } to { transform: skewY(4deg) scaleX(0.92); } }
+@keyframes a-flash { 0%, 70%, 100% { opacity: 0; transform: scale(0.6); } 78% { opacity: 1; transform: scale(1); } }
+@keyframes a-needle { 0%, 100% { transform: rotate(-30deg); } 40% { transform: rotate(40deg); } 70% { transform: rotate(10deg); } }
+@keyframes a-scan { from { transform: translate(-46px, 6px); } to { transform: translate(46px, -4px); } }
+@keyframes a-route { to { stroke-dashoffset: -14; } }
+@keyframes a-drop { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-9px); } 60% { transform: translateY(0) scaleY(0.9); } }
+@keyframes a-flame { from { transform: scale(1, 1); } to { transform: scale(0.9, 1.12); } }
+@keyframes a-draw { 0%, 25% { stroke-dashoffset: 20; } 50%, 100% { stroke-dashoffset: 0; } }
+@keyframes a-tick { 0%, 15% { stroke-dashoffset: 22; } 35%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 22; } }
+.art-spot { width: 210px; height: 140px; margin-bottom: 2px; }
+.empty .art-spot + h3 { margin-top: 2px; }
+
+.banner { position: relative; overflow: hidden; border-radius: 18px; min-height: 230px; display: flex; align-items: flex-start; border: 1px solid var(--border); }
+.banner .art-hero { position: absolute; inset: 0; width: 100%; height: 100%; }
+.banner-text { position: relative; padding: 28px 30px; max-width: 520px; display: flex; flex-direction: column; gap: 8px; }
+.banner-text h1 { color: var(--art-ink); }
+.banner-text p { color: var(--art-ink); opacity: 0.82; font-size: 15px; }
+.banner-text .row { margin-top: 8px; }
+@media (max-width: 600px) { .banner { min-height: 250px; border-radius: 14px; } .banner-text { padding: 20px; } }
+
+
+@keyframes spin { to { transform: rotate(360deg); } }</style><ellipse cx="120" cy="88" rx="96" ry="66" style="fill:var(--art-blob)"/>
+<g class="a-float" style="--d:-1s"><g transform="rotate(-12 70 70)"><rect x="40" y="40" width="58" height="64" rx="4" style="fill:var(--surface);stroke:var(--border)"/><rect x="45" y="45" width="48" height="42" rx="2" style="fill:var(--art-sky-1)"/><path d="M45 87 l14 -18 l10 10 l8 -8 l16 16z" style="fill:var(--art-mid)"/></g></g>
+<g class="a-float" style="--d:-2.2s"><g transform="rotate(10 178 64)"><rect x="150" y="34" width="56" height="62" rx="4" style="fill:var(--surface);stroke:var(--border)"/><rect x="155" y="39" width="46" height="40" rx="2" style="fill:var(--art-sky-2)"/><circle cx="188" cy="52" r="6" style="fill:var(--art-sun)"/><path d="M155 79 l16 -16 l12 10 l18 -12 v18z" style="fill:var(--art-near)"/></g></g>
+<rect x="72" y="66" width="98" height="66" rx="12" fill="#34404c"/><rect x="88" y="56" width="30" height="14" rx="4" fill="#34404c"/>
+<circle cx="121" cy="99" r="23" fill="#22303b"/><circle cx="121" cy="99" r="15" fill="#4c6a85"/><circle cx="116" cy="94" r="5" fill="#a9c6dd"/>
+<rect x="146" y="73" width="14" height="8" rx="2" fill="#f7c35f"/>
+<g class="a-flash"><path d="M153 77 l0 -26 M153 77 l18 -18 M153 77 l26 0" stroke="#f7c35f" stroke-width="3" stroke-linecap="round"/></g></svg>

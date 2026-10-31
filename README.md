@@ -87,7 +87,7 @@ Jetson AGX Thor it is TensorRT Edge-LLM serving Qwen3.6-35B-A3B (NVFP4).
 ## Tests
 
 ```bash
-cargo test --workspace                                      # 64 tests, no network
+cargo test --workspace                                      # 66 tests, no network
 cargo test -p tribe-places --test live -- --ignored         # real map and weather services
 OLT_LLM_URL=http://127.0.0.1:8081/v1 \
   cargo test -p tribe-brain --test live -- --ignored --nocapture   # the real model
@@ -95,18 +95,23 @@ OLT_LLM_URL=http://127.0.0.1:8081/v1 \
 
 ## Deploy on the Thor
 
-Same pattern as the Thor Tigress Cub: a user service on localhost, published
-by Tailscale Funnel, with a forwarding page on voltforge.tech.
+The app runs as a user service on `127.0.0.1:8090`. A second Tailscale node
+named `ourlittletribe` runs beside it (unprivileged, userspace networking) and
+publishes it with Funnel, so it has its own stable address:
+**https://ourlittletribe.taildb9a39.ts.net**. The Thor's own node and the
+Tigress Cub are untouched.
 
 ```bash
-deploy/deploy.sh                                                   # build, copy, start the service
-ssh thor 'sudo tailscale funnel --bg --https=8443 http://127.0.0.1:8090'   # once
+deploy/deploy.sh    # build, copy, restart; prints the two one-time commands below
+ssh thor 'tailscale --socket=$XDG_RUNTIME_DIR/ourlittletribe-tailscaled.sock up --hostname=ourlittletribe'
+ssh thor 'tailscale --socket=$XDG_RUNTIME_DIR/ourlittletribe-tailscaled.sock funnel --bg http://127.0.0.1:8090'
 ```
 
-The app is published on port 8443, separate from the chat on 443, so the two
-never share cookies or browser storage. Copy `deploy/ourlittletribe.html`
-into the `arpanpathak/voltforge.tech` repository to make
-`https://voltforge.tech/ourlittletribe` open it.
+`deploy/ourlittletribe.html` is a forwarding page: copied into the
+`arpanpathak/voltforge.tech` repository, it makes
+`https://voltforge.tech/ourlittletribe` open the app. The design of all of this
+is in the [book](book/src/ch10-going-live.md); what comes next is in the
+[roadmap](ROADMAP.md).
 
 ## Measured on 2026-10-31
 

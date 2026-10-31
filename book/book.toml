@@ -1,0 +1,23 @@
+[book]
+title = "OurLittleTribe: System Design"
+description = "How a small app for planning outings is built: one Rust binary, one SQLite file, and a local model on a Jetson Thor"
+authors = ["Arpan Pathak"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "build"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/arpanpathak/ourlittletribe"
+site-url = "/ourlittletribe/"
+default-theme = "light"
+preferred-dark-theme = "navy"
+additional-css = ["theme/evergreen.css"]
+additional-js = ["theme/figures.js"]
+smart-punctuation = true
+
+[output.html.fold]
+enable = true
+level = 1

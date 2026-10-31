@@ -13,7 +13,6 @@ Skip ordinary clothing unless the conditions make it a real need. \
 `shop_tags` lists 1 to 4 OpenStreetMap shop=* values of stores that sell the item, most likely first: only the value, as in outdoor, supermarket, convenience, chemist, pet, sports, never the word shop itself. \
 Do not repeat items already on the list. At most 12 items.";
 
-/// Instructions for answering one search.
 /// Instructions for reading what someone typed into a map search.
 pub const PLACE_SYSTEM: &str = "You help a map search box. People type loose, partial or abbreviated descriptions of a place: \
 nicknames, abbreviations, the person a building is named after, or an area followed by a feature inside it. \
@@ -64,13 +63,14 @@ Be warm, clear and practical. Use only facts from the details given, the current
 about the places; never invent prices, permits, distances or times. Keep what the current text says unless told to change it. \
 Write temperatures as both °F and °C. At most 200 words unless asked for more. Answer with the full new text only.";
 
+/// Instructions for answering one search.
 pub const SEARCH_SYSTEM: &str = "You help one person on a group trip find what they are searching for. \
 Turn the search into concrete things to buy, using the trip's facts. \
 In `why`, say in under 15 words how the item answers the search on this trip. \
 `personal` means one per person, `shared` means one for the group. `quantity` is the total for the whole group. \
 `shop_tags` lists 1 to 4 OpenStreetMap shop=* values of stores that sell the item, most likely first: only the value, as in outdoor, supermarket, convenience, chemist, pet, sports, never the word shop itself.";
 
-/// The forecast at the meeting point, on the day.
+/// The forecast for the day, at the venue or else the meeting point.
 #[derive(Debug, Clone)]
 pub struct WeatherFacts {
     /// Highest temperature, °C.

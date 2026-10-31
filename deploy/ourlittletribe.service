@@ -1,5 +1,5 @@
 [Unit]
-Description=OurLittleTribe on 127.0.0.1:8090 (published by Tailscale Funnel on :8443)
+Description=OurLittleTribe on 127.0.0.1:8090 (published by the ourlittletribe Tailscale node)
 After=network-online.target thor-edge-llm.service
 Wants=network-online.target
 
