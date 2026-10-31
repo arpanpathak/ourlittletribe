@@ -1,7 +1,5 @@
 //! The facts of a trip, written out for the model, and the instructions it gets.
 
-use std::fmt::Write;
-
 /// Instructions for planning a whole list.
 pub const PLAN_SYSTEM: &str = "You help a small group get ready for a real-world gathering. \
 From the facts given, decide what the group should buy or bring. \
@@ -133,91 +131,117 @@ pub struct TripFacts {
     pub hourly: Vec<String>,
 }
 
+/// Lines of text for a prompt, built one section at a time.
+#[derive(Default)]
+struct Lines(Vec<String>);
+
+impl Lines {
+    fn add(&mut self, line: String) {
+        self.0.push(line);
+    }
+
+    /// A heading followed by one `- item` line per item; nothing when there are none.
+    fn add_list(&mut self, heading: &str, items: &[String]) {
+        if items.is_empty() {
+            return;
+        }
+        self.add(heading.to_string());
+        for item in items {
+            self.add(format!("- {item}"));
+        }
+    }
+
+    fn into_text(self) -> String {
+        let mut text = self.0.join("\n");
+        text.push('\n');
+        text
+    }
+}
+
 impl TripFacts {
-    /// The facts as plain lines for the model's prompt.
-    pub fn describe(&self) -> String {
-        let mut text = String::new();
-        let _ = writeln!(text, "Event: {}", self.title);
-        let _ = writeln!(text, "Meeting place: {}", self.place_name);
-        let _ = writeln!(text, "Starts: {} (local time)", self.starts_local);
-        let _ = writeln!(text, "People going: {}", self.group_size.max(1));
-        match self.description.trim() {
-            "" => {
-                let _ = writeln!(text, "Description: none given");
-            }
-            description => {
-                let _ = writeln!(
-                    text,
-                    "Description from the organiser:\n\"\"\"\n{description}\n\"\"\""
-                );
-            }
-        }
-        if !self.itinerary.is_empty() {
-            let _ = writeln!(text, "Other places on the plan, in order:");
-            for place in &self.itinerary {
-                let _ = writeln!(text, "- {place}");
-            }
-        }
-        let forecast_place = match self.conditions_place.trim() {
+    /// Where the forecast and elevation are for.
+    fn forecast_place(&self) -> &str {
+        match self.conditions_place.trim() {
             "" => "the meeting point",
             place => place,
-        };
+        }
+    }
+
+    fn add_plan(&self, lines: &mut Lines) {
+        lines.add(format!("Event: {}", self.title));
+        lines.add(format!("Meeting place: {}", self.place_name));
+        lines.add(format!("Starts: {} (local time)", self.starts_local));
+        lines.add(format!("People going: {}", self.group_size.max(1)));
+
+        match self.description.trim() {
+            "" => lines.add("Description: none given".to_string()),
+            description => lines.add(format!(
+                "Description from the organiser:\n\"\"\"\n{description}\n\"\"\""
+            )),
+        }
+
+        lines.add_list("Other places on the plan, in order:", &self.itinerary);
+    }
+
+    fn add_conditions(&self, lines: &mut Lines) {
+        let place = self.forecast_place();
+
         if let Some(elevation) = self.elevation_m {
-            let _ = writeln!(text, "Elevation at {forecast_place}: {elevation:.0} m");
+            lines.add(format!("Elevation at {place}: {elevation:.0} m"));
         }
-        match &self.weather {
-            Some(weather) => {
-                let _ = writeln!(
-                    text,
-                    "Forecast for that day at {}: high {:.0} °C, low {:.0} °C, \
-                     precipitation chance {:.0}% ({:.1} mm), snowfall {:.1} cm, wind up to {:.0} km/h, UV index {:.1}, \
-                     sunrise {}, sunset {}",
-                    forecast_place,
-                    weather.max_temp_c,
-                    weather.min_temp_c,
-                    weather.precipitation_chance,
-                    weather.precipitation_mm,
-                    weather.snowfall_cm,
-                    weather.max_wind_kmh,
-                    weather.max_uv_index,
-                    weather.sunrise_local,
-                    weather.sunset_local
-                );
-            }
-            None => {
-                let _ = writeln!(
-                    text,
-                    "Forecast: not available yet; use what is typical for the place and month."
-                );
-            }
-        }
-        if !self.hourly.is_empty() {
-            let _ = writeln!(text, "Hour by hour at {forecast_place}:");
-            for hour in &self.hourly {
-                let _ = writeln!(text, "- {hour}");
-            }
-        }
+
+        let Some(weather) = &self.weather else {
+            lines.add(
+                "Forecast: not available yet; use what is typical for the place and month."
+                    .to_string(),
+            );
+            return;
+        };
+        lines.add(format!(
+            "Forecast for that day at {place}: high {:.0} °C, low {:.0} °C, precipitation chance {:.0}% ({:.1} mm), \
+             snowfall {:.1} cm, wind up to {:.0} km/h, UV index {:.1}, sunrise {}, sunset {}",
+            weather.max_temp_c,
+            weather.min_temp_c,
+            weather.precipitation_chance,
+            weather.precipitation_mm,
+            weather.snowfall_cm,
+            weather.max_wind_kmh,
+            weather.max_uv_index,
+            weather.sunrise_local,
+            weather.sunset_local
+        ));
+        lines.add_list(&format!("Hour by hour at {place}:"), &self.hourly);
+    }
+
+    fn add_list_and_history(&self, lines: &mut Lines) {
         if let Some(drive) = &self.drive {
-            let _ = writeln!(
-                text,
+            lines.add(format!(
                 "Drive to the meeting point: {:.0} minutes, {:.0} km",
                 drive.minutes, drive.km
-            );
+            ));
         }
+
         if !self.already_listed.is_empty() {
-            let _ = writeln!(
-                text,
+            lines.add(format!(
                 "Already on the list: {}",
                 self.already_listed.join("; ")
-            );
+            ));
         }
-        if !self.learned_pairings.is_empty() {
-            let _ = writeln!(text, "What earlier groups bought together:");
-            for pairing in &self.learned_pairings {
-                let _ = writeln!(text, "- {pairing}");
-            }
-        }
-        text
+
+        lines.add_list(
+            "What earlier groups bought together:",
+            &self.learned_pairings,
+        );
+    }
+
+    /// The facts as plain lines for the model: the plan, the conditions, then
+    /// the drive, the list so far and what earlier groups bought.
+    pub fn describe(&self) -> String {
+        let mut lines = Lines::default();
+        self.add_plan(&mut lines);
+        self.add_conditions(&mut lines);
+        self.add_list_and_history(&mut lines);
+        lines.into_text()
     }
 }
 

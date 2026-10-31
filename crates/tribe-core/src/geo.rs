@@ -35,6 +35,60 @@ impl LatLng {
     }
 }
 
+/// A box on the map, in degrees.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Bounds {
+    /// Westmost longitude.
+    pub west: f64,
+    /// Southmost latitude.
+    pub south: f64,
+    /// Eastmost longitude.
+    pub east: f64,
+    /// Northmost latitude.
+    pub north: f64,
+}
+
+impl Bounds {
+    /// A box reaching `half_degrees` out from `point` each way.
+    pub fn around(point: LatLng, half_degrees: f64) -> Bounds {
+        Bounds {
+            west: point.lng - half_degrees,
+            south: point.lat - half_degrees,
+            east: point.lng + half_degrees,
+            north: point.lat + half_degrees,
+        }
+    }
+
+    /// The same box grown by `fraction` of its size on every side, and at least
+    /// `minimum_degrees` across in each direction.
+    pub fn padded(self, fraction: f64, minimum_degrees: f64) -> Bounds {
+        let pad_x = padding(self.east - self.west, fraction, minimum_degrees);
+        let pad_y = padding(self.north - self.south, fraction, minimum_degrees);
+
+        Bounds {
+            west: self.west - pad_x,
+            south: self.south - pad_y,
+            east: self.east + pad_x,
+            north: self.north + pad_y,
+        }
+    }
+
+    /// Whether `point` is inside the box, edges included.
+    pub fn contains(self, point: LatLng) -> bool {
+        let inside_lat = (self.south..=self.north).contains(&point.lat);
+        let inside_lng = (self.west..=self.east).contains(&point.lng);
+        inside_lat && inside_lng
+    }
+}
+
+/// How much to add on each side of a span: `fraction` of it, or enough to make
+/// it `minimum` wide, whichever is more.
+fn padding(span: f64, fraction: f64, minimum: f64) -> f64 {
+    let by_fraction = span * fraction;
+    let to_minimum = (minimum - span) / 2.0;
+    by_fraction.max(to_minimum).max(0.0)
+}
+
 /// Great-circle distance between two points, in kilometres.
 pub fn haversine_km(from: LatLng, to: LatLng) -> f64 {
     let from_lat = from.lat.to_radians();

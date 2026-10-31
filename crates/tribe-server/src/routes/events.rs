@@ -1,26 +1,46 @@
-//! Events: list, plan, view, RSVP, vote, and each person's starting point.
+//! Events: list, plan, view, change, delete; answers, votes and starting points.
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
-use tribe_core::basket::{EvidenceThreshold, Pairing, bought_with};
+use tribe_core::basket::{Basket, EvidenceThreshold, Pairing, bought_with};
 use tribe_core::geo::LatLng;
-use tribe_db::events::{self, Attendee, Event, NewEvent};
+use tribe_core::itinerary::{Place, StopKind};
+use tribe_db::activity_log::{self, About};
+use tribe_db::events::{self, Attendee, Event, EventPlan, Vote};
+use tribe_db::ids::{EventId, TribeId};
 use tribe_db::images::{self, Photo};
+use tribe_db::kinds::{Action, Rsvp};
 use tribe_db::prep::{self, PrepItem};
-use tribe_db::stops::{self, NewStop, Stop, StopKind};
-use tribe_db::{activity_log, tribes, unix_now};
+use tribe_db::stops::{self, NewStop, Stop};
+use tribe_db::users::User;
+use tribe_db::{tribes, unix_now};
 
-use super::{bounded, managed_event, require_member};
+use super::access::{can_manage, event_for, managed_event, require_member};
+use super::bounded;
 use crate::auth::CurrentUser;
+use crate::conditions::{self, Conditions};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
-use crate::trip::{self, Conditions};
 
-/// Filter for the event list.
+/// Events stay in "upcoming" until six hours after they start.
+const STILL_UPCOMING_SECONDS: i64 = 6 * 3600;
+
+/// An event can start at most this long ago when it is planned or changed.
+const START_GRACE_SECONDS: i64 = 3600;
+
+/// Places besides the meeting point, at most.
+const MOST_STOPS: usize = 12;
+
+/// Pairings shown under each item, at most.
+const PAIRINGS_PER_ITEM: usize = 3;
+
+/// Query of `GET /api/events`.
 #[derive(Deserialize)]
 pub struct EventFilter {
-    tribe: Option<String>,
+    /// Only this tribe's events, when given.
+    tribe: Option<TribeId>,
 }
 
 /// `GET /api/events?tribe=…`: upcoming events, soonest first.
@@ -29,53 +49,55 @@ pub async fn list(
     CurrentUser(user): CurrentUser,
     Query(filter): Query<EventFilter>,
 ) -> ApiResult<Json<Vec<Event>>> {
+    let cutoff = unix_now() - STILL_UPCOMING_SECONDS;
     let found = state
         .db
         .call(move |connection| {
-            events::upcoming(
-                connection,
-                &user.id,
-                filter.tribe.as_deref(),
-                unix_now() - 6 * 3600,
-                100,
-            )
+            events::upcoming(connection, &user.id, filter.tribe.as_ref(), cutoff, 100)
         })
         .await?;
     Ok(Json(found))
 }
 
-/// What an event says: filled in when planning it and when editing it.
+/// What a planner fills in, when planning an event or changing it.
 #[derive(Deserialize)]
 pub struct EventFields {
+    /// Title, 1 to 120 characters.
     title: String,
+    /// What the plan is, in Markdown, at most 8,000 characters.
     #[serde(default)]
     description: String,
-    place_name: String,
-    lat: f64,
-    lng: f64,
+    /// Where everyone gathers first.
+    meeting_point: Place,
+    /// Start time, Unix seconds.
     starts_at: i64,
+    /// The meeting place's offset from UTC, minutes.
     #[serde(default)]
     tz_offset_minutes: i64,
-    /// Other places the event goes, in order; `None` leaves them as they are.
+    /// The other places, in order; leaving it out keeps the current ones.
     #[serde(default)]
-    stops: Option<Vec<StopFields>>,
+    stops: Option<Vec<NewStop>>,
 }
 
-/// One stop as the form sends it.
-#[derive(Deserialize)]
-pub struct StopFields {
-    kind: StopKind,
-    name: String,
-    lat: f64,
-    lng: f64,
-    #[serde(default)]
-    note: String,
+/// An event's plan and its stops, checked.
+struct CheckedFields {
+    /// The plan.
+    plan: EventPlan,
+    /// The stops, when they were sent.
+    stops: Option<Vec<NewStop>>,
 }
 
-/// Most stops one event may have.
-const MOST_STOPS: usize = 12;
+fn checked_place(place: Place, problem: &'static str) -> ApiResult<Place> {
+    let name = bounded(&place.name, 200, "a place name is too long")?;
+    if name.is_empty() {
+        return Err(ApiError::Invalid(problem));
+    }
+    let point = LatLng::new(place.point.lat, place.point.lng)
+        .ok_or(ApiError::Invalid("a place is not on the map"))?;
+    Ok(Place { name, point })
+}
 
-fn validated_stops(stops: Vec<StopFields>) -> ApiResult<Vec<NewStop>> {
+fn checked_stops(stops: Vec<NewStop>) -> ApiResult<Vec<NewStop>> {
     if stops.len() > MOST_STOPS {
         return Err(ApiError::Invalid("an event can have at most 12 stops"));
     }
@@ -87,20 +109,13 @@ fn validated_stops(stops: Vec<StopFields>) -> ApiResult<Vec<NewStop>> {
     {
         return Err(ApiError::Invalid("an event has one venue at most"));
     }
+
     stops
         .into_iter()
         .map(|stop| {
-            let name = bounded(&stop.name, 200, "a stop's name is too long")?;
-            if name.is_empty() {
-                return Err(ApiError::Invalid("every stop needs a place"));
-            }
-            let point = LatLng::new(stop.lat, stop.lng)
-                .ok_or(ApiError::Invalid("a stop is not on the map"))?;
             Ok(NewStop {
                 kind: stop.kind,
-                name,
-                lat: point.lat,
-                lng: point.lng,
+                place: checked_place(stop.place, "every stop needs a place")?,
                 note: bounded(&stop.note, 200, "a stop's note is too long")?,
             })
         })
@@ -108,209 +123,227 @@ fn validated_stops(stops: Vec<StopFields>) -> ApiResult<Vec<NewStop>> {
 }
 
 impl EventFields {
-    /// Checks every field and returns them trimmed, with the stops when they were sent.
-    fn validated(self) -> ApiResult<(NewEvent, Option<Vec<NewStop>>)> {
-        let stops = match self.stops {
-            Some(stops) => Some(validated_stops(stops)?),
-            None => None,
-        };
+    fn checked(self) -> ApiResult<CheckedFields> {
         let title = bounded(&self.title, 120, "title is too long")?;
         if title.is_empty() {
             return Err(ApiError::Invalid("give the event a title"));
         }
-        let place_name = bounded(&self.place_name, 200, "place name is too long")?;
-        if place_name.is_empty() {
-            return Err(ApiError::Invalid("say where to meet"));
-        }
-        let point = LatLng::new(self.lat, self.lng)
-            .ok_or(ApiError::Invalid("pick the meeting point on the map"))?;
-        if self.starts_at < unix_now() - 3600 {
+        if self.starts_at < unix_now() - START_GRACE_SECONDS {
             return Err(ApiError::Invalid("the start time is in the past"));
         }
         if !(-14 * 60..=14 * 60).contains(&self.tz_offset_minutes) {
             return Err(ApiError::Invalid("time zone offset is out of range"));
         }
-        let event = NewEvent {
+
+        let plan = EventPlan {
             title,
             description: bounded(&self.description, 8000, "description is too long")?,
-            place_name,
-            lat: point.lat,
-            lng: point.lng,
+            meeting_point: checked_place(self.meeting_point, "say where to meet")?,
             starts_at: self.starts_at,
             tz_offset_minutes: self.tz_offset_minutes,
         };
-        Ok((event, stops))
+        let stops = self.stops.map(checked_stops).transpose()?;
+        Ok(CheckedFields { plan, stops })
     }
 }
 
-/// Body of a new event.
+/// Body of `POST /api/events`.
 #[derive(Deserialize)]
-pub struct EventForm {
-    tribe_id: String,
+pub struct NewEventForm {
+    /// The tribe it belongs to; you must be a member.
+    tribe_id: TribeId,
+    /// What it says.
     #[serde(flatten)]
     fields: EventFields,
 }
 
-/// `POST /api/events`.
+/// `POST /api/events`: plans an event in one of your tribes.
 pub async fn create(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Json(form): Json<EventForm>,
-) -> ApiResult<Json<Event>> {
-    require_member(&state, &form.tribe_id, &user.id).await?;
-    let (new_event, new_stops) = form.fields.validated()?;
+    Json(form): Json<NewEventForm>,
+) -> ApiResult<(StatusCode, Json<Event>)> {
+    require_member(&state, &form.tribe_id, &user).await?;
+    let checked = form.fields.checked()?;
     let tribe_id = form.tribe_id;
+
     let event = state
         .db
         .call(move |connection| {
-            let event = events::create(connection, &tribe_id, &user.id, &new_event)?;
-            stops::replace(connection, &event.id, &new_stops.unwrap_or_default())?;
+            let event = events::create(connection, &tribe_id, &user.id, &checked.plan)?;
+            stops::replace(connection, &event.id, &checked.stops.unwrap_or_default())?;
+
             let summary = format!("{} planned {}", user.name, event.title);
             activity_log::record(
                 connection,
                 &user.id,
-                "planned_event",
-                "event",
-                &event.id,
+                Action::PlannedEvent,
+                &About::Event(event.id.clone()),
                 &summary,
             )?;
             Ok(event)
         })
         .await?;
-    Ok(Json(event))
+
+    Ok((StatusCode::CREATED, Json(event)))
 }
 
-/// `PATCH /api/events/{event_id}`: for the planner, the tribe's organizers and admins.
+/// `PATCH /api/events/{event_id}`: for the planner and the tribe's organizers.
 pub async fn update(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Path(event_id): Path<String>,
+    Path(event_id): Path<EventId>,
     Json(fields): Json<EventFields>,
 ) -> ApiResult<Json<Event>> {
     managed_event(&state, &event_id, &user).await?;
-    let (change, new_stops) = fields.validated()?;
-    let moved_or_retimed_id = event_id.clone();
+    let checked = fields.checked()?;
+    let changed_id = event_id.clone();
+
     let event = state
         .db
         .call(move |connection| {
-            let event = events::update(connection, &event_id, &user.id, &change)?;
-            if let Some(new_stops) = new_stops {
+            let event = events::update(connection, &event_id, &user.id, &checked.plan)?;
+            if let Some(new_stops) = checked.stops {
                 stops::replace(connection, &event_id, &new_stops)?;
             }
             Ok(event)
         })
         .await?;
-    state.conditions.forget(&moved_or_retimed_id);
-    state
-        .briefings
-        .forget(&format!("{moved_or_retimed_id}|true"));
-    state
-        .briefings
-        .forget(&format!("{moved_or_retimed_id}|false"));
+
+    state.caches.forget_event(&changed_id);
     Ok(Json(event))
 }
 
-/// An item on the list with what earlier groups bought alongside it.
+/// An item on the list, with what earlier groups bought alongside it.
 #[derive(Serialize)]
 pub struct ItemView {
+    /// The item; its fields sit beside `often_with` in JSON.
     #[serde(flatten)]
     item: PrepItem,
+    /// Items groups bought with it, once there is enough evidence.
     often_with: Vec<Pairing>,
 }
 
 /// Everything the event page shows.
 #[derive(Serialize)]
 pub struct EventDetail {
+    /// The event.
     event: Event,
+    /// Its other places, in order.
     stops: Vec<Stop>,
+    /// Everyone going.
     attendees: Vec<Attendee>,
+    /// The packing list.
     items: Vec<ItemView>,
+    /// Forecast and elevation where it happens.
     conditions: Conditions,
+    /// Shared photos, newest first.
     photos: Vec<Photo>,
+    /// Where you said you start from.
     my_origin: Option<LatLng>,
+    /// Whether you belong to its tribe.
     is_member: bool,
+    /// Whether you may change it.
     can_manage: bool,
+    /// Whether the model is set up, so its features can be offered.
     model_ready: bool,
 }
 
-/// `GET /api/events/{event_id}`.
+/// What the database holds for an event page.
+struct StoredDetail {
+    /// The other places, in order.
+    stops: Vec<Stop>,
+    /// Everyone going.
+    attendees: Vec<Attendee>,
+    /// The packing list.
+    items: Vec<PrepItem>,
+    /// Every finished list, for pairings.
+    baskets: Vec<Basket>,
+    /// Shared photos.
+    photos: Vec<Photo>,
+    /// Where the viewer starts from.
+    origin: Option<LatLng>,
+    /// Whether the viewer belongs to the tribe.
+    is_member: bool,
+}
+
+fn with_pairings(items: Vec<PrepItem>, baskets: &[Basket]) -> Vec<ItemView> {
+    items
+        .into_iter()
+        .map(|item| {
+            let mut often_with = bought_with(baskets, &item.name, EvidenceThreshold::default());
+            often_with.truncate(PAIRINGS_PER_ITEM);
+            ItemView { item, often_with }
+        })
+        .collect()
+}
+
+/// `GET /api/events/{event_id}`: the whole event page.
 pub async fn detail(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Path(event_id): Path<String>,
+    Path(event_id): Path<EventId>,
 ) -> ApiResult<Json<EventDetail>> {
-    let viewer = user.clone();
-    let (event, event_stops, attendees, items, baskets, photos, origin, is_member, is_organizer) =
-        state
-            .db
-            .call(move |connection| {
-                let event = events::get(connection, &event_id, &viewer.id)?;
-                let members = tribes::members(connection, &event.tribe_id)?;
-                let is_member = members.iter().any(|member| member.user_id == viewer.id);
-                let is_organizer = members
-                    .iter()
-                    .any(|member| member.user_id == viewer.id && member.role == "organizer");
-                Ok((
-                    event,
-                    stops::for_event(connection, &event_id)?,
-                    events::attendees(connection, &event_id)?,
-                    prep::list(connection, &event_id)?,
-                    prep::baskets(connection)?,
-                    images::photos(connection, &event_id)?,
-                    events::origin(connection, &event_id, &viewer.id)?,
-                    is_member,
-                    is_organizer,
-                ))
+    let event = event_for(&state, &event_id, &user).await?;
+    let tribe_id = event.tribe_id.clone();
+    let viewer_id = user.id.clone();
+
+    let stored = state
+        .db
+        .call(move |connection| {
+            Ok(StoredDetail {
+                stops: stops::for_event(connection, &event_id)?,
+                attendees: events::attendees(connection, &event_id)?,
+                items: prep::list(connection, &event_id)?,
+                baskets: prep::baskets(connection)?,
+                photos: images::photos(connection, &event_id)?,
+                origin: events::origin(connection, &event_id, &viewer_id)?,
+                is_member: tribes::role_of(connection, &tribe_id, &viewer_id)?.is_some(),
             })
-            .await?;
-    let conditions = trip::conditions(&state, &event).await;
-    let mut item_views = Vec::with_capacity(items.len());
-    for item in items {
-        let mut often_with = bought_with(&baskets, &item.name, EvidenceThreshold::default());
-        often_with.truncate(3);
-        item_views.push(ItemView { item, often_with });
-    }
-    let can_manage =
-        is_organizer || user.is_admin || event.creator_id.as_deref() == Some(user.id.as_str());
+        })
+        .await?;
+
     Ok(Json(EventDetail {
-        stops: event_stops,
-        attendees,
-        items: item_views,
-        conditions,
-        photos,
-        my_origin: origin.map(|(lat, lng)| LatLng { lat, lng }),
-        is_member,
-        can_manage,
+        conditions: conditions::for_event(&state, &event).await,
+        can_manage: can_manage(&state, &event, &user).await?,
         model_ready: state.brain.is_some(),
+        items: with_pairings(stored.items, &stored.baskets),
+        stops: stored.stops,
+        attendees: stored.attendees,
+        photos: stored.photos,
+        my_origin: stored.origin,
+        is_member: stored.is_member,
         event,
     }))
 }
 
-/// `DELETE /api/events/{event_id}`: for the planner, the tribe's organizers and admins.
+/// `DELETE /api/events/{event_id}`: for the planner and the tribe's organizers.
 pub async fn remove(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Path(event_id): Path<String>,
-) -> ApiResult<Json<serde_json::Value>> {
+    Path(event_id): Path<EventId>,
+) -> ApiResult<StatusCode> {
     managed_event(&state, &event_id, &user).await?;
     state
         .db
         .call(move |connection| events::delete(connection, &event_id))
         .await?;
-    Ok(Json(serde_json::json!({ "status": "deleted" })))
+    Ok(StatusCode::NO_CONTENT)
 }
 
-/// Body of an RSVP.
+/// Body of `PUT /api/events/{event_id}/rsvp`.
 #[derive(Deserialize)]
 pub struct RsvpForm {
-    going: bool,
+    /// `going` or `not_going`.
+    answer: Rsvp,
 }
 
-/// `POST /api/events/{event_id}/rsvp`.
-pub async fn rsvp(
+/// `PUT /api/events/{event_id}/rsvp`: your answer. Going joins you to the
+/// tribe; not going forgets where you start from.
+pub async fn set_rsvp(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Path(event_id): Path<String>,
+    Path(event_id): Path<EventId>,
     Json(form): Json<RsvpForm>,
 ) -> ApiResult<Json<Event>> {
     let event = state
@@ -318,82 +351,104 @@ pub async fn rsvp(
         .call(move |connection| {
             let before = events::get(connection, &event_id, &user.id)?;
             tribes::join(connection, &before.tribe_id, &user.id)?;
-            events::rsvp(connection, &event_id, &user.id, form.going)?;
-            if form.going && before.my_rsvp.as_deref() != Some("going") {
-                let summary = format!("{} is going to {}", user.name, before.title);
-                activity_log::record(connection, &user.id, "going", "event", &event_id, &summary)?;
+            events::set_rsvp(connection, &event_id, &user.id, form.answer)?;
+
+            match (form.answer, before.my_rsvp) {
+                (Rsvp::Going, Some(Rsvp::Going)) => {}
+                (Rsvp::Going, _) => {
+                    let summary = format!("{} is going to {}", user.name, before.title);
+                    activity_log::record(
+                        connection,
+                        &user.id,
+                        Action::Going,
+                        &About::Event(event_id.clone()),
+                        &summary,
+                    )?;
+                }
+                (Rsvp::NotGoing, _) => events::clear_origin(connection, &event_id, &user.id)?,
             }
-            if !form.going {
-                events::clear_origin(connection, &event_id, &user.id)?;
-            }
+
             events::get(connection, &event_id, &user.id)
         })
         .await?;
     Ok(Json(event))
 }
 
-/// Body of a vote.
+/// Body of `PUT /api/events/{event_id}/vote`.
 #[derive(Deserialize)]
 pub struct VoteForm {
-    vote: i64,
+    /// `up` or `down`.
+    vote: Vote,
 }
 
-/// `POST /api/events/{event_id}/vote`: 1, -1, or 0 to remove.
-pub async fn vote(
-    State(state): State<AppState>,
-    CurrentUser(user): CurrentUser,
-    Path(event_id): Path<String>,
-    Json(form): Json<VoteForm>,
-) -> ApiResult<Json<Event>> {
-    if !(-1..=1).contains(&form.vote) {
-        return Err(ApiError::Invalid("vote must be 1, -1 or 0"));
-    }
+async fn store_vote(
+    state: &AppState,
+    event_id: EventId,
+    user: User,
+    vote: Option<Vote>,
+) -> ApiResult<Event> {
     let event = state
         .db
         .call(move |connection| {
             events::get(connection, &event_id, &user.id)?;
-            events::vote(connection, &event_id, &user.id, form.vote)?;
+            events::set_vote(connection, &event_id, &user.id, vote)?;
             events::get(connection, &event_id, &user.id)
         })
         .await?;
-    Ok(Json(event))
+    Ok(event)
 }
 
-/// Body of a starting point.
-#[derive(Deserialize)]
-pub struct OriginForm {
-    lat: f64,
-    lng: f64,
+/// `PUT /api/events/{event_id}/vote`: a thumbs up or down.
+pub async fn set_vote(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(event_id): Path<EventId>,
+    Json(form): Json<VoteForm>,
+) -> ApiResult<Json<Event>> {
+    Ok(Json(
+        store_vote(&state, event_id, user, Some(form.vote)).await?,
+    ))
 }
 
-/// `PUT /api/events/{event_id}/origin`: where the viewer sets off from; deleted a day after the event.
+/// `DELETE /api/events/{event_id}/vote`: takes your vote back.
+pub async fn remove_vote(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(event_id): Path<EventId>,
+) -> ApiResult<Json<Event>> {
+    Ok(Json(store_vote(&state, event_id, user, None).await?))
+}
+
+/// `PUT /api/events/{event_id}/origin`: where you set off from, for finding
+/// stores on your way. It is deleted a day after the event.
 pub async fn set_origin(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Path(event_id): Path<String>,
-    Json(form): Json<OriginForm>,
+    Path(event_id): Path<EventId>,
+    Json(origin): Json<LatLng>,
 ) -> ApiResult<Json<LatLng>> {
-    let point =
-        LatLng::new(form.lat, form.lng).ok_or(ApiError::Invalid("that point is not on the map"))?;
+    let point = LatLng::new(origin.lat, origin.lng)
+        .ok_or(ApiError::Invalid("that point is not on the map"))?;
+
     state
         .db
         .call(move |connection| {
             events::get(connection, &event_id, &user.id)?;
-            events::set_origin(connection, &event_id, &user.id, point.lat, point.lng)
+            events::set_origin(connection, &event_id, &user.id, point)
         })
         .await?;
     Ok(Json(point))
 }
 
-/// `DELETE /api/events/{event_id}/origin`.
+/// `DELETE /api/events/{event_id}/origin`: forgets where you set off from.
 pub async fn clear_origin(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Path(event_id): Path<String>,
-) -> ApiResult<Json<serde_json::Value>> {
+    Path(event_id): Path<EventId>,
+) -> ApiResult<StatusCode> {
     state
         .db
         .call(move |connection| events::clear_origin(connection, &event_id, &user.id))
         .await?;
-    Ok(Json(serde_json::json!({ "status": "cleared" })))
+    Ok(StatusCode::NO_CONTENT)
 }

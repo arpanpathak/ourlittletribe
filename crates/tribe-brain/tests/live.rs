@@ -55,7 +55,7 @@ async fn plans_a_snowy_hike() -> Result<(), BrainError> {
     );
     for item in &items {
         println!(
-            "- {} [{} x{}] {:?}: {}",
+            "- {} [{:?} x{}] {:?}: {}",
             item.name, item.scope, item.quantity, item.shop_tags, item.why
         );
     }
@@ -72,7 +72,7 @@ async fn answers_a_search() -> Result<(), BrainError> {
         .await?;
     for item in &items {
         println!(
-            "- {} [{} x{}] {:?}: {}",
+            "- {} [{:?} x{}] {:?}: {}",
             item.name, item.scope, item.quantity, item.shop_tags, item.why
         );
     }

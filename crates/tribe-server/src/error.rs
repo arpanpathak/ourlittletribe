@@ -11,6 +11,9 @@ pub enum ApiError {
     /// No valid session cookie.
     #[error("please sign in")]
     SignedOut,
+    /// The email or password did not match an account.
+    #[error("wrong email or password")]
+    WrongPassword,
     /// Signed in, but not allowed to do this.
     #[error("{0}")]
     Forbidden(&'static str),
@@ -65,7 +68,7 @@ impl From<tribe_brain::BrainError> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status = match &self {
-            ApiError::SignedOut => StatusCode::UNAUTHORIZED,
+            ApiError::SignedOut | ApiError::WrongPassword => StatusCode::UNAUTHORIZED,
             ApiError::Forbidden(_) => StatusCode::FORBIDDEN,
             ApiError::NotFound => StatusCode::NOT_FOUND,
             ApiError::Invalid(_) => StatusCode::BAD_REQUEST,

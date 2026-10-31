@@ -8,5 +8,6 @@
 pub mod basket;
 pub mod clock;
 pub mod geo;
+pub mod itinerary;
 pub mod osm;
 pub mod recommend;

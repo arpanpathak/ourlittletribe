@@ -1,5 +1,8 @@
 //! Small helpers for OpenStreetMap tag values.
 
+/// OpenStreetMap `shop=*` values, such as `outdoor` or `supermarket`, most likely first.
+pub type ShopTags = Vec<String>;
+
 /// Whether `tag` is a plain OpenStreetMap value such as `supermarket` or `pet`.
 ///
 /// Model output and user input are checked with this before a tag goes into

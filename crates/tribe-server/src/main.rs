@@ -5,11 +5,13 @@
 //! environment variables; see [`state::Config`].
 
 mod auth;
+mod conditions;
 mod error;
+mod facts;
 mod place_search;
 mod routes;
 mod state;
-mod trip;
+mod stores_on_route;
 mod web;
 
 use std::sync::Arc;
@@ -22,7 +24,7 @@ use tribe_db::{Db, images, maintenance, unix_now};
 use tribe_media::MediaStore;
 use tribe_places::{Endpoints, Places};
 
-use crate::state::{AppState, Config, RateLimit, TimedCache};
+use crate::state::{AppState, Caches, Config, Limits};
 
 const USER_AGENT: &str = concat!(
     "OurLittleTribe/",
@@ -43,7 +45,7 @@ async fn purge_every_hour(db: Db, media: Arc<MediaStore>) {
             Err(error) => tracing::error!(%error, "hourly clean-up failed"),
         }
         let in_use = match db.call(|connection| images::all_ids(connection)).await {
-            Ok(ids) => ids,
+            Ok(ids) => ids.into_iter().map(|id| id.to_string()).collect(),
             Err(error) => {
                 tracing::error!(%error, "listing pictures failed");
                 continue;
@@ -117,17 +119,9 @@ async fn main() -> anyhow::Result<()> {
         places,
         brain,
         config: Arc::new(config.clone()),
-        sign_ups: Arc::new(RateLimit::new(30, Duration::from_secs(3600))),
-        failed_sign_ins: Arc::new(RateLimit::new(60, Duration::from_secs(600))),
-        conditions: Arc::new(TimedCache::new(Duration::from_secs(1800))),
-        store_lookups: Arc::new(TimedCache::new(Duration::from_secs(1800))),
-        briefings: Arc::new(TimedCache::new(Duration::from_secs(3600))),
-        store_search_resting: Arc::new(TimedCache::new(Duration::from_secs(180))),
-        place_guesses: Arc::new(TimedCache::new(Duration::from_secs(1800))),
-        regions: Arc::new(TimedCache::new(Duration::from_secs(86400))),
-        areas: Arc::new(TimedCache::new(Duration::from_secs(86400))),
+        limits: Arc::new(Limits::standard()),
+        caches: Arc::new(Caches::new()),
         media: media.clone(),
-        uploads: Arc::new(RateLimit::new(300, Duration::from_secs(3600))),
         picture_jobs: Arc::new(Semaphore::new(2)),
     };
 

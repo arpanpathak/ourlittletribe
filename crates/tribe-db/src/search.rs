@@ -3,111 +3,136 @@
 use rusqlite::{Connection, ToSql, params};
 use serde::Serialize;
 
-use crate::DbResult;
 use crate::events::{self, Event};
+use crate::ids::{EventId, TribeId, UserId};
 use crate::tribes::{self, Tribe};
 use crate::users::{self, User};
+use crate::{DbResult, collect_rows};
 
 /// What a search found.
 #[derive(Debug, Clone, Serialize)]
 pub struct SearchResults {
-    /// Matching tribes.
+    /// Tribes whose name, description or home area matches.
     pub tribes: Vec<Tribe>,
-    /// Matching events that have not started.
+    /// Events that have not started, whose title, description or place matches.
     pub events: Vec<Event>,
-    /// Matching people, without their emails.
+    /// People whose name or home area matches, without their emails.
     pub people: Vec<User>,
 }
 
-fn like_pattern(query: &str) -> String {
-    let escaped = query
+/// Most results of each kind.
+const MOST_RESULTS: u32 = 20;
+
+/// The text as a `LIKE` pattern that matches it anywhere, with `%`, `_` and `\` taken literally.
+fn like_pattern(text: &str) -> String {
+    let escaped = text
         .replace('\\', "\\\\")
         .replace('%', "\\%")
         .replace('_', "\\_");
     format!("%{escaped}%")
 }
 
-fn matching_ids(
+/// The ids a query returns, in its order.
+fn ids<Id: rusqlite::types::FromSql>(
     connection: &Connection,
     sql: &str,
     parameters: &[&dyn ToSql],
-) -> DbResult<Vec<String>> {
+) -> DbResult<Vec<Id>> {
     let mut statement = connection.prepare(sql)?;
-    let ids = statement
-        .query_map(parameters, |row| row.get(0))?
-        .collect::<Result<Vec<String>, _>>()?;
-    Ok(ids)
+    collect_rows(statement.query_map(parameters, |row| row.get(0))?)
 }
 
-/// Finds tribes, upcoming events and people whose names or descriptions contain `query`.
+fn matching_tribes(
+    connection: &Connection,
+    viewer_id: &UserId,
+    pattern: &str,
+) -> DbResult<Vec<Tribe>> {
+    let tribe_ids: Vec<TribeId> = ids(
+        connection,
+        "SELECT id FROM tribes
+         WHERE name LIKE ?1 ESCAPE '\\' OR description LIKE ?1 ESCAPE '\\' OR home_area LIKE ?1 ESCAPE '\\'
+         LIMIT ?2",
+        params![pattern, MOST_RESULTS],
+    )?;
+    tribe_ids
+        .iter()
+        .map(|tribe_id| tribes::get(connection, tribe_id, viewer_id))
+        .collect()
+}
+
+fn matching_events(
+    connection: &Connection,
+    viewer_id: &UserId,
+    pattern: &str,
+    now: i64,
+) -> DbResult<Vec<Event>> {
+    let event_ids: Vec<EventId> = ids(
+        connection,
+        "SELECT id FROM events
+         WHERE (title LIKE ?1 ESCAPE '\\' OR description LIKE ?1 ESCAPE '\\' OR place_name LIKE ?1 ESCAPE '\\')
+           AND starts_at >= ?2
+         ORDER BY starts_at LIMIT ?3",
+        params![pattern, now, MOST_RESULTS],
+    )?;
+    event_ids
+        .iter()
+        .map(|event_id| events::get(connection, event_id, viewer_id))
+        .collect()
+}
+
+fn matching_people(connection: &Connection, pattern: &str) -> DbResult<Vec<User>> {
+    let user_ids: Vec<UserId> = ids(
+        connection,
+        "SELECT id FROM users WHERE name LIKE ?1 ESCAPE '\\' OR home_area LIKE ?1 ESCAPE '\\' LIMIT ?2",
+        params![pattern, MOST_RESULTS],
+    )?;
+    user_ids
+        .iter()
+        .map(|user_id| users::get(connection, user_id).map(User::public))
+        .collect()
+}
+
+/// Tribes, upcoming events and people whose words contain `text`.
 pub fn search(
     connection: &Connection,
-    viewer_id: &str,
-    query: &str,
+    viewer_id: &UserId,
+    text: &str,
     now: i64,
 ) -> DbResult<SearchResults> {
-    let pattern = like_pattern(query.trim());
-
-    let tribe_ids = matching_ids(
-        connection,
-        "SELECT id FROM tribes WHERE name LIKE ?1 ESCAPE '\\' OR description LIKE ?1 ESCAPE '\\' OR home_area LIKE ?1 ESCAPE '\\' LIMIT 20",
-        params![pattern],
-    )?;
-    let mut found_tribes = Vec::new();
-    for tribe_id in tribe_ids {
-        found_tribes.push(tribes::get(connection, &tribe_id, viewer_id)?);
-    }
-
-    let event_ids = matching_ids(
-        connection,
-        "SELECT id FROM events WHERE (title LIKE ?1 ESCAPE '\\' OR description LIKE ?1 ESCAPE '\\' OR place_name LIKE ?1 ESCAPE '\\')
-           AND starts_at >= ?2 ORDER BY starts_at LIMIT 20",
-        params![pattern, now],
-    )?;
-    let mut found_events = Vec::new();
-    for event_id in event_ids {
-        found_events.push(events::get(connection, &event_id, viewer_id)?);
-    }
-
-    let user_ids = matching_ids(
-        connection,
-        "SELECT id FROM users WHERE name LIKE ?1 ESCAPE '\\' OR home_area LIKE ?1 ESCAPE '\\' LIMIT 20",
-        params![pattern],
-    )?;
-    let mut found_people = Vec::new();
-    for user_id in user_ids {
-        found_people.push(users::get(connection, &user_id)?.public());
-    }
+    let pattern = like_pattern(text.trim());
 
     Ok(SearchResults {
-        tribes: found_tribes,
-        events: found_events,
-        people: found_people,
+        tribes: matching_tribes(connection, viewer_id, &pattern)?,
+        events: matching_events(connection, viewer_id, &pattern, now)?,
+        people: matching_people(connection, &pattern)?,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{schema, tribes as tribe_queries, users as user_queries};
+    use crate::schema;
+    use crate::tribes::TribeText;
 
     #[test]
-    fn finds_tribe_by_description_and_hides_email() -> DbResult<()> {
-        let mut connection = rusqlite::Connection::open_in_memory()?;
+    fn finds_a_tribe_by_description_and_hides_emails() -> DbResult<()> {
+        let mut connection = Connection::open_in_memory()?;
         schema::prepare(&connection)?;
-        let ada = user_queries::create(&connection, "a@example.com", "Ada Hiker", "hash")?;
-        tribe_queries::create(
-            &mut connection,
-            &ada.id,
-            "Cascade Walkers",
-            "Weekend hikes near Snoqualmie",
-            "",
-            "peak",
-        )?;
-        let results = search(&connection, &ada.id, "snoqualmie", 0)?;
-        assert_eq!(results.tribes.len(), 1);
-        let results = search(&connection, &ada.id, "hiker", 0)?;
-        let Some(person) = results.people.first() else {
+        let ada = users::create(&connection, "a@example.com", "Ada Hiker", "hash")?;
+        let text = TribeText {
+            name: "Cascade Walkers".to_string(),
+            description: "Weekend hikes near Snoqualmie".to_string(),
+            ..TribeText::default()
+        };
+        tribes::create(&mut connection, &ada.id, &text)?;
+
+        assert_eq!(
+            search(&connection, &ada.id, "snoqualmie", 0)?.tribes.len(),
+            1
+        );
+
+        let people = search(&connection, &ada.id, "hiker", 0)?.people;
+        let Some(person) = people.first() else {
             panic!("person not found");
         };
         assert!(person.email.is_empty());
@@ -115,12 +140,12 @@ mod tests {
     }
 
     #[test]
-    fn percent_sign_is_matched_literally() -> DbResult<()> {
-        let connection = rusqlite::Connection::open_in_memory()?;
+    fn a_percent_sign_is_matched_literally() -> DbResult<()> {
+        let connection = Connection::open_in_memory()?;
         schema::prepare(&connection)?;
-        let ada = user_queries::create(&connection, "a@example.com", "Ada", "hash")?;
-        let results = search(&connection, &ada.id, "%", 0)?;
-        assert!(results.people.is_empty());
+        let ada = users::create(&connection, "a@example.com", "Ada", "hash")?;
+
+        assert!(search(&connection, &ada.id, "%", 0)?.people.is_empty());
         Ok(())
     }
 }

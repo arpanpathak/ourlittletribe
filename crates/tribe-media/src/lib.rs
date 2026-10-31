@@ -147,14 +147,39 @@ pub fn is_valid_id(id: &str) -> bool {
             })
 }
 
-/// Splits a served file name such as `{id}.jpg` or `{id}_s.jpg` into its id and size.
-pub fn parse_file_name(file_name: &str) -> Option<(&str, Size)> {
+/// A served file: which picture, and which copy of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MediaFile<'a> {
+    /// The picture's id.
+    pub id: &'a str,
+    /// The large or the small copy.
+    pub size: Size,
+}
+
+/// Reads a served file name, `{id}.jpg` or `{id}_s.jpg`; anything else is refused.
+pub fn parse_file_name(file_name: &str) -> Option<MediaFile<'_>> {
     let stem = file_name.strip_suffix(".jpg")?;
-    let (id, size) = match stem.strip_suffix("_s") {
-        Some(id) => (id, Size::Small),
-        None => (stem, Size::Large),
+
+    let file = match stem.strip_suffix("_s") {
+        Some(id) => MediaFile {
+            id,
+            size: Size::Small,
+        },
+        None => MediaFile {
+            id: stem,
+            size: Size::Large,
+        },
     };
-    is_valid_id(id).then_some((id, size))
+    is_valid_id(file.id).then_some(file)
+}
+
+/// Whether a file in the folder can go: a picture no one uses, or a half-written upload.
+/// Files the store did not make are left alone.
+fn is_unused(file_name: &str, keep: &HashSet<String>) -> bool {
+    match parse_file_name(file_name) {
+        Some(file) => !keep.contains(file.id),
+        None => file_name.ends_with(".part"),
+    }
 }
 
 /// The folder that holds the pictures.
@@ -225,24 +250,21 @@ impl MediaStore {
     /// Used after events are purged, since their picture rows go with them.
     pub fn sweep(&self, keep: &HashSet<String>) -> Result<usize, MediaError> {
         let mut removed = 0;
+
         for entry in std::fs::read_dir(&self.folder)? {
             let entry = entry?;
             let file_name = entry.file_name();
             let Some(name) = file_name.to_str() else {
                 continue;
             };
-            let id = match parse_file_name(name) {
-                Some((id, _)) => id,
-                None => match name.strip_suffix(".part") {
-                    Some(_) => "",
-                    None => continue,
-                },
-            };
-            if !keep.contains(id) {
-                std::fs::remove_file(entry.path())?;
-                removed += 1;
+            if !is_unused(name, keep) {
+                continue;
             }
+
+            std::fs::remove_file(entry.path())?;
+            removed += 1;
         }
+
         Ok(removed)
     }
 }
@@ -306,11 +328,17 @@ mod tests {
         let id = "0b9c1f5e-2a4d-4c3b-9e8f-1a2b3c4d5e6f";
         assert_eq!(
             parse_file_name(&format!("{id}.jpg")),
-            Some((id, Size::Large))
+            Some(MediaFile {
+                id,
+                size: Size::Large
+            })
         );
         assert_eq!(
             parse_file_name(&format!("{id}_s.jpg")),
-            Some((id, Size::Small))
+            Some(MediaFile {
+                id,
+                size: Size::Small
+            })
         );
         assert_eq!(parse_file_name("../../etc/passwd.jpg"), None);
         assert_eq!(parse_file_name(&format!("{id}.png")), None);

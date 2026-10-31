@@ -11,6 +11,7 @@
 //! All are free and need no key. Each base URL can be changed, so an
 //! instance can use its own copies.
 
+pub mod address;
 pub mod nominatim;
 pub mod osrm;
 pub mod overpass;

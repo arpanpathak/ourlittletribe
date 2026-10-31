@@ -2,35 +2,48 @@
 //! geocoder. Used when Photon is down or refuses; requests are spaced a
 //! second apart, as Nominatim's usage policy asks.
 
-use serde::Deserialize;
-use tribe_core::geo::LatLng;
+use std::time::Instant;
 
-use crate::photon::{Bounds, PlaceMatch};
+use serde::Deserialize;
+use tribe_core::geo::{Bounds, LatLng};
+
+use crate::address::{Address, PlaceMatch, clean};
 use crate::{NOMINATIM_SPACING, Places, PlacesError};
 
 /// How far around the searcher counts as nearby, in degrees each way (about 150 km).
 const NEARBY_HALF_DEGREES: f64 = 1.5;
 
+/// A place Nominatim found, with its outline when it has one.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Found {
+    /// The place.
+    pub place: PlaceMatch,
+    /// Its bounding box as Nominatim gives it; a building's is tiny, a park's is its extent.
+    pub outline: Option<Bounds>,
+}
+
+/// One result as Nominatim's JSON has it.
 #[derive(Deserialize)]
-struct Found {
+struct NominatimPlace {
     lat: String,
     lon: String,
     #[serde(default)]
     name: String,
+    /// The full comma-separated address, used when nothing else names the place.
     #[serde(default)]
     display_name: String,
     #[serde(default, rename = "type")]
     kind: String,
-    /// South, north, west, east.
+    /// South, north, west, east, as text.
     #[serde(default)]
     boundingbox: Vec<String>,
     #[serde(default)]
-    address: Address,
+    address: NominatimAddress,
 }
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
-struct Address {
+struct NominatimAddress {
     house_number: Option<String>,
     road: Option<String>,
     city: Option<String>,
@@ -42,80 +55,87 @@ struct Address {
     country: Option<String>,
 }
 
-impl Found {
-    fn into_place(self) -> Option<(PlaceMatch, Option<Bounds>)> {
-        let point = LatLng::new(self.lat.parse().ok()?, self.lon.parse().ok()?)?;
-        let address = &self.address;
-        let street = match (&address.house_number, &address.road) {
-            (Some(number), Some(road)) => Some(format!("{number} {road}")),
-            (None, Some(road)) => Some(road.clone()),
-            _ => None,
-        };
-        let first_part = self
-            .display_name
-            .split(',')
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        let name = match (self.name.trim(), &street) {
-            ("", Some(street)) => street.clone(),
-            ("", None) => first_part,
-            (name, _) => name.to_string(),
-        };
-        if name.is_empty() {
-            return None;
-        }
-        let town = [
-            &address.city,
-            &address.town,
-            &address.village,
-            &address.hamlet,
-            &address.county,
+impl NominatimAddress {
+    /// The most specific settlement named: city, town, village, hamlet, then county.
+    fn town(&self) -> Option<String> {
+        [
+            &self.city,
+            &self.town,
+            &self.village,
+            &self.hamlet,
+            &self.county,
         ]
         .into_iter()
-        .find_map(|part| part.as_deref());
-        let mut parts: Vec<&str> = Vec::new();
-        if let Some(street) = &street
-            && *street != name
-        {
-            parts.push(street);
-        }
-        for part in [town, address.state.as_deref(), address.country.as_deref()]
-            .into_iter()
-            .flatten()
-        {
-            if part != name && !parts.contains(&part) {
-                parts.push(part);
-            }
-        }
-        let bounds = match self.boundingbox.as_slice() {
-            [south, north, west, east] => {
-                match (south.parse(), north.parse(), west.parse(), east.parse()) {
-                    (Ok(south), Ok(north), Ok(west), Ok(east)) => Some(Bounds {
-                        west,
-                        south,
-                        east,
-                        north,
-                    }),
-                    _ => None,
-                }
-            }
-            _ => None,
-        };
-        let place = PlaceMatch {
-            name,
-            detail: parts.join(", "),
-            kind: self.kind.replace('_', " "),
-            lat: point.lat,
-            lng: point.lng,
-        };
-        Some((place, bounds))
+        .find_map(|part| clean(part.as_deref()))
     }
 }
 
+impl NominatimPlace {
+    fn location(&self) -> Option<LatLng> {
+        LatLng::new(self.lat.parse().ok()?, self.lon.parse().ok()?)
+    }
+
+    /// The first part of the full address, such as "Jackson Visitor Center".
+    fn first_part_of_display_name(&self) -> Option<String> {
+        clean(self.display_name.split(',').next())
+    }
+
+    fn address(&self) -> Address {
+        let parts = &self.address;
+        let street = clean(parts.road.as_deref());
+        let name = clean(Some(&self.name)).or_else(|| match street {
+            Some(_) => None,
+            None => self.first_part_of_display_name(),
+        });
+
+        Address {
+            name,
+            house_number: clean(parts.house_number.as_deref()),
+            street,
+            town: parts.town(),
+            state: clean(parts.state.as_deref()),
+            country: clean(parts.country.as_deref()),
+        }
+    }
+
+    fn outline(&self) -> Option<Bounds> {
+        let [south, north, west, east] = self.boundingbox.as_slice() else {
+            return None;
+        };
+
+        match (south.parse(), north.parse(), west.parse(), east.parse()) {
+            (Ok(south), Ok(north), Ok(west), Ok(east)) => Some(Bounds {
+                west,
+                south,
+                east,
+                north,
+            }),
+            _ => None,
+        }
+    }
+
+    fn into_found(self) -> Option<Found> {
+        let location = self.location()?;
+        let outline = self.outline();
+        let place = self.address().into_match(location, &self.kind)?;
+        Some(Found { place, outline })
+    }
+}
+
+/// A box as Nominatim's `viewbox` parameter: west, north, east, south.
+fn viewbox_parameter(view: Bounds) -> String {
+    format!("{},{},{},{}", view.west, view.north, view.east, view.south)
+}
+
+fn found_of(places: Vec<NominatimPlace>) -> Vec<Found> {
+    places
+        .into_iter()
+        .filter_map(NominatimPlace::into_found)
+        .collect()
+}
+
 impl Places {
-    /// Waits for Nominatim's turn, then sends the request.
+    /// Waits for Nominatim's turn, a second after the last request, then asks.
     async fn nominatim_json<T: serde::de::DeserializeOwned>(
         &self,
         path: &str,
@@ -123,12 +143,13 @@ impl Places {
     ) -> Result<T, PlacesError> {
         let mut last_sent = self.nominatim_turn.lock().await;
         if let Some(sent) = *last_sent {
-            let since = sent.elapsed();
-            if since < NOMINATIM_SPACING {
-                tokio::time::sleep(NOMINATIM_SPACING - since).await;
+            let waited = sent.elapsed();
+            if waited < NOMINATIM_SPACING {
+                tokio::time::sleep(NOMINATIM_SPACING - waited).await;
             }
         }
-        *last_sent = Some(std::time::Instant::now());
+        *last_sent = Some(Instant::now());
+
         let request = self
             .http
             .get(format!("{}/{path}", self.endpoints.nominatim))
@@ -141,36 +162,53 @@ impl Places {
         self.get_json("Nominatim", request).await
     }
 
-    /// Places matching `query`, each with its bounding box. `within`, when
-    /// given, is a hard limit; otherwise places near `near` are tried first,
-    /// then anywhere.
+    /// Places matching `query` inside `view`; nothing outside it.
+    async fn nominatim_bounded(
+        &self,
+        query: &str,
+        view: Bounds,
+        limit: u8,
+    ) -> Result<Vec<Found>, PlacesError> {
+        let parameters = [
+            ("q", query.to_string()),
+            ("limit", limit.to_string()),
+            ("viewbox", viewbox_parameter(view)),
+            ("bounded", "1".to_string()),
+        ];
+        let places: Vec<NominatimPlace> = self.nominatim_json("search", &parameters).await?;
+        Ok(found_of(places))
+    }
+
+    /// Places matching `query` anywhere.
+    async fn nominatim_anywhere(&self, query: &str, limit: u8) -> Result<Vec<Found>, PlacesError> {
+        let parameters = [("q", query.to_string()), ("limit", limit.to_string())];
+        let places: Vec<NominatimPlace> = self.nominatim_json("search", &parameters).await?;
+        Ok(found_of(places))
+    }
+
+    /// Places matching `query`. Inside `within` only, when given; otherwise near
+    /// `near` first, then anywhere if nothing nearby matches.
     pub(crate) async fn nominatim_search(
         &self,
         query: &str,
         near: Option<LatLng>,
         within: Option<Bounds>,
         limit: u8,
-    ) -> Result<Vec<(PlaceMatch, Option<Bounds>)>, PlacesError> {
-        let bounded =
-            within.or_else(|| near.map(|point| Bounds::around(point, NEARBY_HALF_DEGREES)));
-        if let Some(view) = bounded {
-            let parameters = [
-                ("q", query.to_string()),
-                ("limit", limit.to_string()),
-                (
-                    "viewbox",
-                    format!("{},{},{},{}", view.west, view.north, view.east, view.south),
-                ),
-                ("bounded", "1".to_string()),
-            ];
-            let found: Vec<Found> = self.nominatim_json("search", &parameters).await?;
-            if !found.is_empty() || within.is_some() {
-                return Ok(found.into_iter().filter_map(Found::into_place).collect());
+    ) -> Result<Vec<Found>, PlacesError> {
+        if let Some(area) = within {
+            return self.nominatim_bounded(query, area, limit).await;
+        }
+
+        if let Some(point) = near {
+            let nearby = self
+                .nominatim_bounded(query, Bounds::around(point, NEARBY_HALF_DEGREES), limit)
+                .await?;
+            if !nearby.is_empty() {
+                return Ok(nearby);
             }
         }
-        let parameters = [("q", query.to_string()), ("limit", limit.to_string())];
-        let found: Vec<Found> = self.nominatim_json("search", &parameters).await?;
-        Ok(found.into_iter().filter_map(Found::into_place).collect())
+
+        self.nominatim_anywhere(query, limit).await
     }
 
     /// The nearest named place or address to `point`.
@@ -183,13 +221,13 @@ impl Places {
             ("lon", point.lng.to_string()),
             ("zoom", "18".to_string()),
         ];
-        let found: Found = match self.nominatim_json("reverse", &parameters).await {
-            Ok(found) => found,
-            // Nominatim answers `{"error": …}` for points with nothing near, such as open sea.
+
+        let place: NominatimPlace = match self.nominatim_json("reverse", &parameters).await {
+            Ok(place) => place,
             Err(PlacesError::Http { .. }) => return Ok(None),
             Err(error) => return Err(error),
         };
-        Ok(found.into_place().map(|(place, _)| place))
+        Ok(place.into_found().map(|found| found.place))
     }
 }
 
@@ -198,17 +236,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_result_becomes_a_place_with_its_box() {
-        let found: Found = match serde_json::from_str(
-            r#"{"lat":"46.78","lon":"-121.73","name":"Jackson Visitor Center","type":"office",
+    fn a_result_becomes_a_place_with_its_outline() {
+        let sample = r#"{"lat":"46.78","lon":"-121.73","name":"Jackson Visitor Center","type":"office",
             "display_name":"Jackson Visitor Center, 52415, Paradise Road, Paradise, Pierce County, Washington, United States",
             "boundingbox":["46.7859","46.7862","-121.7357","-121.7353"],
-            "address":{"house_number":"52415","road":"Paradise Road","county":"Pierce County","state":"Washington","country":"United States"}}"#,
-        ) {
-            Ok(found) => found,
+            "address":{"house_number":"52415","road":"Paradise Road","county":"Pierce County","state":"Washington","country":"United States"}}"#;
+        let place: NominatimPlace = match serde_json::from_str(sample) {
+            Ok(place) => place,
             Err(error) => panic!("bad sample: {error}"),
         };
-        let Some((place, Some(bounds))) = found.into_place() else {
+
+        let Some(Found {
+            place,
+            outline: Some(outline),
+        }) = place.into_found()
+        else {
             panic!("no place");
         };
         assert_eq!(place.name, "Jackson Visitor Center");
@@ -216,6 +258,6 @@ mod tests {
             place.detail,
             "52415 Paradise Road, Pierce County, Washington, United States"
         );
-        assert!(bounds.south < bounds.north && bounds.west < bounds.east);
+        assert!(outline.south < outline.north && outline.west < outline.east);
     }
 }

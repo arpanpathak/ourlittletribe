@@ -1,89 +1,85 @@
-//! Stores found on OpenStreetMap, cached so the map can show them without asking again.
+//! Shops found on OpenStreetMap, remembered so a busy map server does not
+//! leave a trip with no stores at all.
 
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, Row, params};
 use serde::Serialize;
+use tribe_core::geo::{Bounds, LatLng};
 
-use crate::{DbResult, new_id, unix_now};
+use crate::ids::StoreId;
+use crate::{DbResult, collect_rows, unix_now};
 
-/// A store as read from OpenStreetMap.
-#[derive(Debug, Clone)]
+/// A shop as OpenStreetMap describes it.
+#[derive(Debug, Clone, Serialize)]
 pub struct OsmStore {
-    /// `node/123` or `way/456`.
+    /// `node/123` or `way/456`, for linking to openstreetmap.org.
     pub osm_ref: String,
     /// Name.
     pub name: String,
     /// The OpenStreetMap `shop` value, such as `supermarket`.
     pub shop_tag: String,
-    /// Latitude.
-    pub lat: f64,
-    /// Longitude.
-    pub lng: f64,
+    /// Where it is; written as `lat` and `lng` in JSON.
+    #[serde(flatten)]
+    pub location: LatLng,
     /// Street address, when the map has one.
     pub address: String,
-    /// The OpenStreetMap `opening_hours` value, when the map has one.
+    /// Opening hours in OpenStreetMap's format, when the map has them.
     pub opening_hours: String,
 }
 
-/// A cached store.
+/// A remembered shop.
 #[derive(Debug, Clone, Serialize)]
 pub struct Store {
     /// Database id.
-    pub id: String,
-    /// `node/123` or `way/456`, for linking to openstreetmap.org.
-    pub osm_ref: String,
-    /// Name.
-    pub name: String,
-    /// The OpenStreetMap `shop` value.
-    pub shop_tag: String,
-    /// Latitude.
-    pub lat: f64,
-    /// Longitude.
-    pub lng: f64,
-    /// Street address.
-    pub address: String,
-    /// Opening hours in OpenStreetMap's format.
-    pub opening_hours: String,
+    pub id: StoreId,
+    /// What OpenStreetMap says about it; its fields sit beside `id` in JSON.
+    #[serde(flatten)]
+    pub osm: OsmStore,
 }
 
-/// Cached stores inside a box whose `shop` value is one of `shop_tags`; used when OpenStreetMap can't be asked.
-pub fn within(
-    connection: &Connection,
-    south: f64,
-    west: f64,
-    north: f64,
-    east: f64,
-    shop_tags: &[String],
-) -> DbResult<Vec<Store>> {
+fn read_store(row: &Row<'_>) -> rusqlite::Result<Store> {
+    let osm = OsmStore {
+        osm_ref: row.get(1)?,
+        name: row.get(2)?,
+        shop_tag: row.get(3)?,
+        location: LatLng {
+            lat: row.get(4)?,
+            lng: row.get(5)?,
+        },
+        address: row.get(6)?,
+        opening_hours: row.get(7)?,
+    };
+    Ok(Store {
+        id: row.get(0)?,
+        osm,
+    })
+}
+
+/// Remembered shops inside `area` whose kind is one of `shop_tags`.
+pub fn within(connection: &Connection, area: Bounds, shop_tags: &[String]) -> DbResult<Vec<Store>> {
     let mut statement = connection.prepare(
         "SELECT id, osm_ref, name, shop_tag, lat, lng, address, opening_hours FROM stores
          WHERE lat BETWEEN ?1 AND ?3 AND lng BETWEEN ?2 AND ?4
          LIMIT 2000",
     )?;
-    let found = statement
-        .query_map(params![south, west, north, east], |row| {
-            Ok(Store {
-                id: row.get(0)?,
-                osm_ref: row.get(1)?,
-                name: row.get(2)?,
-                shop_tag: row.get(3)?,
-                lat: row.get(4)?,
-                lng: row.get(5)?,
-                address: row.get(6)?,
-                opening_hours: row.get(7)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(found
+    let found = collect_rows(statement.query_map(
+        params![area.south, area.west, area.north, area.east],
+        read_store,
+    )?)?;
+
+    let wanted = found
         .into_iter()
-        .filter(|store| shop_tags.contains(&store.shop_tag))
-        .collect())
+        .filter(|store| shop_tags.contains(&store.osm.shop_tag))
+        .collect();
+    Ok(wanted)
 }
 
-/// Inserts or refreshes stores, and returns them with their database ids.
+/// Inserts or refreshes shops, and returns them with their database ids.
+/// A shop seen again keeps its id.
 pub fn upsert(connection: &mut Connection, found: &[OsmStore]) -> DbResult<Vec<Store>> {
     let now = unix_now();
     let transaction = connection.transaction()?;
     let mut stored = Vec::with_capacity(found.len());
+
     {
         let mut statement = transaction.prepare(
             "INSERT INTO stores (id, osm_ref, name, shop_tag, lat, lng, address, opening_hours, updated_at)
@@ -93,33 +89,27 @@ pub fn upsert(connection: &mut Connection, found: &[OsmStore]) -> DbResult<Vec<S
                address = excluded.address, opening_hours = excluded.opening_hours, updated_at = excluded.updated_at
              RETURNING id",
         )?;
-        for store in found {
-            let id: String = statement.query_row(
-                params![
-                    new_id(),
-                    store.osm_ref,
-                    store.name,
-                    store.shop_tag,
-                    store.lat,
-                    store.lng,
-                    store.address,
-                    store.opening_hours,
-                    now
-                ],
-                |row| row.get(0),
-            )?;
+
+        for osm in found {
+            let values = params![
+                StoreId::random(),
+                osm.osm_ref,
+                osm.name,
+                osm.shop_tag,
+                osm.location.lat,
+                osm.location.lng,
+                osm.address,
+                osm.opening_hours,
+                now
+            ];
+            let id: StoreId = statement.query_row(values, |row| row.get(0))?;
             stored.push(Store {
                 id,
-                osm_ref: store.osm_ref.clone(),
-                name: store.name.clone(),
-                shop_tag: store.shop_tag.clone(),
-                lat: store.lat,
-                lng: store.lng,
-                address: store.address.clone(),
-                opening_hours: store.opening_hours.clone(),
+                osm: osm.clone(),
             });
         }
     }
+
     transaction.commit()?;
     Ok(stored)
 }
@@ -129,44 +119,56 @@ mod tests {
     use super::*;
     use crate::schema;
 
-    #[test]
-    fn upsert_keeps_id_for_same_osm_ref() -> DbResult<()> {
-        let mut connection = Connection::open_in_memory()?;
-        schema::prepare(&connection)?;
-        let mut store = OsmStore {
+    fn mercantile(name: &str) -> OsmStore {
+        OsmStore {
             osm_ref: "node/1".to_string(),
-            name: "Ashford Mercantile".to_string(),
+            name: name.to_string(),
             shop_tag: "convenience".to_string(),
-            lat: 46.76,
-            lng: -122.03,
+            location: LatLng {
+                lat: 46.76,
+                lng: -122.03,
+            },
             address: String::new(),
             opening_hours: String::new(),
+        }
+    }
+
+    #[test]
+    fn a_shop_seen_again_keeps_its_id() -> DbResult<()> {
+        let mut connection = Connection::open_in_memory()?;
+        schema::prepare(&connection)?;
+
+        let first = upsert(&mut connection, &[mercantile("Ashford Mercantile")])?;
+        let second = upsert(&mut connection, &[mercantile("Ashford Mercantile & Deli")])?;
+
+        assert_eq!(first[0].id, second[0].id);
+        assert_eq!(second[0].osm.name, "Ashford Mercantile & Deli");
+        Ok(())
+    }
+
+    #[test]
+    fn within_filters_by_area_and_kind() -> DbResult<()> {
+        let mut connection = Connection::open_in_memory()?;
+        schema::prepare(&connection)?;
+        upsert(&mut connection, &[mercantile("Ashford Mercantile")])?;
+
+        let ashford = Bounds {
+            west: -123.0,
+            south: 46.0,
+            east: -122.0,
+            north: 47.0,
         };
-        let first = upsert(&mut connection, std::slice::from_ref(&store))?;
-        store.name = "Ashford Mercantile & Deli".to_string();
-        let second = upsert(&mut connection, std::slice::from_ref(&store))?;
-        let (Some(first), Some(second)) = (first.first(), second.first()) else {
-            panic!("nothing stored");
+        let north_of_it = Bounds {
+            west: -123.0,
+            south: 47.0,
+            east: -122.0,
+            north: 48.0,
         };
-        assert_eq!(first.id, second.id);
-        assert_eq!(second.name, "Ashford Mercantile & Deli");
-        let tags = vec!["convenience".to_string()];
-        assert_eq!(
-            within(&connection, 46.0, -123.0, 47.0, -122.0, &tags)?.len(),
-            1
-        );
-        assert!(within(&connection, 47.0, -123.0, 48.0, -122.0, &tags)?.is_empty());
-        assert!(
-            within(
-                &connection,
-                46.0,
-                -123.0,
-                47.0,
-                -122.0,
-                &["outdoor".to_string()]
-            )?
-            .is_empty()
-        );
+        let convenience = vec!["convenience".to_string()];
+
+        assert_eq!(within(&connection, ashford, &convenience)?.len(), 1);
+        assert!(within(&connection, north_of_it, &convenience)?.is_empty());
+        assert!(within(&connection, ashford, &["outdoor".to_string()])?.is_empty());
         Ok(())
     }
 }

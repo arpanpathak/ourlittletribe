@@ -45,9 +45,8 @@ pub struct HourForecast {
     pub precipitation_mm: f64,
     /// Snowfall, cm.
     pub snowfall_cm: f64,
-    /// WMO weather code: 0 clear, 1–3 partly cloudy to overcast, 45–48 fog,
-    /// 51–67 drizzle and rain, 71–77 snow, 80–82 showers, 85–86 snow showers, 95–99 thunderstorms.
-    pub weather_code: u8,
+    /// What the sky is doing.
+    pub sky: Sky,
     /// Cloud cover, percent.
     pub cloud_cover: f64,
     /// Wind, km/h.
@@ -56,6 +55,74 @@ pub struct HourForecast {
     pub gusts_kmh: f64,
     /// Height above sea level where it freezes, metres.
     pub freezing_level_m: Option<f64>,
+}
+
+/// What the sky is doing in an hour, decoded from its WMO weather code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Sky {
+    /// Code 0.
+    Clear,
+    /// Code 1.
+    MainlyClear,
+    /// Code 2.
+    PartlyCloudy,
+    /// Code 3.
+    Overcast,
+    /// Codes 45 and 48.
+    Fog,
+    /// Codes 51 to 57.
+    Drizzle,
+    /// Codes 61 to 67.
+    Rain,
+    /// Codes 71 to 77.
+    Snow,
+    /// Codes 80 to 82.
+    RainShowers,
+    /// Codes 85 and 86.
+    SnowShowers,
+    /// Codes 95 to 99.
+    Thunderstorm,
+    /// Any other code.
+    Unknown,
+}
+
+impl Sky {
+    /// The sky for a WMO weather code, as Open-Meteo documents them.
+    pub fn from_wmo_code(code: u8) -> Sky {
+        match code {
+            0 => Sky::Clear,
+            1 => Sky::MainlyClear,
+            2 => Sky::PartlyCloudy,
+            3 => Sky::Overcast,
+            45 | 48 => Sky::Fog,
+            51..=57 => Sky::Drizzle,
+            61..=67 => Sky::Rain,
+            71..=77 => Sky::Snow,
+            80..=82 => Sky::RainShowers,
+            85 | 86 => Sky::SnowShowers,
+            95..=99 => Sky::Thunderstorm,
+            _ => Sky::Unknown,
+        }
+    }
+
+    /// The sky in a few words, such as "partly cloudy".
+    pub fn words(self) -> &'static str {
+        match self {
+            Sky::Clear => "clear",
+            Sky::MainlyClear => "mainly clear",
+            Sky::PartlyCloudy => "partly cloudy",
+            Sky::Overcast => "overcast",
+            Sky::Fog => "fog",
+            Sky::Drizzle => "drizzle",
+            Sky::Rain => "rain",
+            Sky::Snow => "snow",
+            Sky::RainShowers => "rain showers",
+            Sky::SnowShowers => "snow showers",
+            Sky::Thunderstorm => "thunderstorms",
+            Sky::Unknown => "mixed",
+        }
+    }
 }
 
 /// Hours of the forecast kept before and after an event starts.
@@ -100,7 +167,7 @@ impl HourlyColumns {
                 precipitation_chance: column_value(&self.precipitation_probability, index),
                 precipitation_mm: column_value(&self.precipitation, index),
                 snowfall_cm: column_value(&self.snowfall, index),
-                weather_code: column_value(&self.weather_code, index),
+                sky: Sky::from_wmo_code(column_value(&self.weather_code, index)),
                 cloud_cover: column_value(&self.cloud_cover, index),
                 wind_kmh: column_value(&self.wind_speed_10m, index),
                 gusts_kmh: column_value(&self.wind_gusts_10m, index),

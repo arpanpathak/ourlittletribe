@@ -15,6 +15,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
+/// The names of the items one group marked as got for one event.
+pub type Basket = Vec<String>;
+
 /// How much evidence a pair needs before it is shown.
 #[derive(Debug, Clone, Copy)]
 pub struct EvidenceThreshold {
@@ -55,11 +58,7 @@ pub fn normalize_item(name: &str) -> String {
 }
 
 /// Items bought with `item`, strongest first, or empty when the evidence is too thin.
-pub fn bought_with(
-    baskets: &[Vec<String>],
-    item: &str,
-    threshold: EvidenceThreshold,
-) -> Vec<Pairing> {
+pub fn bought_with(baskets: &[Basket], item: &str, threshold: EvidenceThreshold) -> Vec<Pairing> {
     if baskets.len() < threshold.min_baskets {
         return Vec::new();
     }

@@ -16,7 +16,7 @@ pub const STORE_RETENTION_SECONDS: i64 = 90 * 24 * 3600;
 /// What one clean-up removed.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PurgeReport {
-    /// Events older than a year ("Lenin Kill").
+    /// Events that started more than a year ago.
     pub events: usize,
     /// Trip starting points of events that are over.
     pub origins: usize,

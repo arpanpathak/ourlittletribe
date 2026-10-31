@@ -1,54 +1,109 @@
-//! A feed of what people did: joined a tribe, planned an event, said they're going.
+//! The feed: what people did in the tribes the viewer belongs to.
 
-use rusqlite::{Connection, params};
+use rusqlite::types::Type;
+use rusqlite::{Connection, Row, params};
 use serde::Serialize;
 
-use crate::{DbResult, new_id, unix_now};
+use crate::ids::{ActivityId, EventId, ImageId, TribeId, UserId};
+use crate::kinds::{Action, Target};
+use crate::{DbResult, collect_rows, unix_now};
+
+/// What an activity entry is about.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", content = "id", rename_all = "snake_case")]
+pub enum About {
+    /// A tribe.
+    Tribe(TribeId),
+    /// An event.
+    Event(EventId),
+}
+
+impl About {
+    fn target(&self) -> Target {
+        match self {
+            About::Tribe(_) => Target::Tribe,
+            About::Event(_) => Target::Event,
+        }
+    }
+
+    fn id(&self) -> &str {
+        match self {
+            About::Tribe(tribe_id) => tribe_id.as_str(),
+            About::Event(event_id) => event_id.as_str(),
+        }
+    }
+
+    fn from_columns(target: Target, id: String) -> About {
+        match target {
+            Target::Tribe => About::Tribe(TribeId::from(id)),
+            Target::Event => About::Event(EventId::from(id)),
+        }
+    }
+}
 
 /// One entry in the feed.
 #[derive(Debug, Clone, Serialize)]
 pub struct ActivityEntry {
     /// Entry id.
-    pub id: String,
+    pub id: ActivityId,
     /// Who did it.
-    pub user_id: String,
+    pub user_id: UserId,
     /// Their display name.
     pub user_name: String,
-    /// Their profile picture's id.
-    pub user_avatar: Option<String>,
-    /// A short verb such as `joined_tribe`.
-    pub action: String,
-    /// `tribe` or `event`.
-    pub target_type: String,
-    /// The tribe or event id.
-    pub target_id: String,
+    /// Their profile picture.
+    pub user_avatar: Option<ImageId>,
+    /// What they did.
+    pub action: Action,
+    /// The tribe or event it was about.
+    pub about: About,
     /// A sentence describing it, for display.
     pub summary: String,
-    /// When it happened.
+    /// When it happened, Unix seconds.
     pub created_at: i64,
 }
 
-/// Adds an entry.
+/// Adds an entry to the feed.
 pub fn record(
     connection: &Connection,
-    user_id: &str,
-    action: &str,
-    target_type: &str,
-    target_id: &str,
+    user_id: &UserId,
+    action: Action,
+    about: &About,
     summary: &str,
 ) -> DbResult<()> {
     connection.execute(
         "INSERT INTO activity_log (id, user_id, action, target_type, target_id, summary, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![new_id(), user_id, action, target_type, target_id, summary, unix_now()],
+        params![ActivityId::random(), user_id, action, about.target(), about.id(), summary, unix_now()],
     )?;
     Ok(())
 }
 
-/// The latest entries from tribes `viewer_id` belongs to, newest first.
+fn read_entry(row: &Row<'_>) -> rusqlite::Result<ActivityEntry> {
+    let target_text: String = row.get(4)?;
+    let Ok(target) = target_text.parse::<Target>() else {
+        return Err(rusqlite::Error::InvalidColumnType(
+            4,
+            target_text,
+            Type::Text,
+        ));
+    };
+
+    Ok(ActivityEntry {
+        id: row.get(0)?,
+        user_id: row.get(1)?,
+        user_name: row.get(2)?,
+        action: row.get(3)?,
+        about: About::from_columns(target, row.get(5)?),
+        summary: row.get(6)?,
+        created_at: row.get(7)?,
+        user_avatar: row.get(8)?,
+    })
+}
+
+/// The latest entries about the tribes the viewer belongs to and their events, newest first.
 pub fn recent_for(
     connection: &Connection,
-    viewer_id: &str,
+    viewer_id: &UserId,
     limit: u32,
 ) -> DbResult<Vec<ActivityEntry>> {
     let mut statement = connection.prepare(
@@ -62,20 +117,22 @@ pub fn recent_for(
          ORDER BY a.created_at DESC
          LIMIT ?2",
     )?;
-    let entries = statement
-        .query_map(params![viewer_id, limit], |row| {
-            Ok(ActivityEntry {
-                id: row.get(0)?,
-                user_id: row.get(1)?,
-                user_name: row.get(2)?,
-                action: row.get(3)?,
-                target_type: row.get(4)?,
-                target_id: row.get(5)?,
-                summary: row.get(6)?,
-                created_at: row.get(7)?,
-                user_avatar: row.get(8)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(entries)
+    collect_rows(statement.query_map(params![viewer_id, limit], read_entry)?)
+}
+
+/// Whether the person already has an entry with `action` about `about` since `since` (Unix seconds).
+pub fn has_recent(
+    connection: &Connection,
+    user_id: &UserId,
+    action: Action,
+    about: &About,
+    since: i64,
+) -> DbResult<bool> {
+    let found = connection.query_row(
+        "SELECT EXISTS (SELECT 1 FROM activity_log
+                        WHERE user_id = ?1 AND action = ?2 AND target_type = ?3 AND target_id = ?4 AND created_at > ?5)",
+        params![user_id, action, about.target(), about.id(), since],
+        |row| row.get(0),
+    )?;
+    Ok(found)
 }

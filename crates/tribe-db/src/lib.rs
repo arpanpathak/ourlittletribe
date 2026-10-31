@@ -7,7 +7,9 @@
 
 pub mod activity_log;
 pub mod events;
+pub mod ids;
 pub mod images;
+pub mod kinds;
 pub mod maintenance;
 pub mod prep;
 pub mod schema;
@@ -57,9 +59,10 @@ pub fn unix_now() -> i64 {
     }
 }
 
-/// A fresh random id for a new row.
-pub fn new_id() -> String {
-    uuid::Uuid::new_v4().to_string()
+/// Collects the rows of a query, stopping at the first that fails to read.
+pub(crate) fn collect_rows<T>(rows: impl Iterator<Item = rusqlite::Result<T>>) -> DbResult<Vec<T>> {
+    let collected = rows.collect::<Result<Vec<T>, rusqlite::Error>>()?;
+    Ok(collected)
 }
 
 /// Maps SQLite's uniqueness failure to [`DbError::AlreadyExists`] and leaves other errors as they are.
