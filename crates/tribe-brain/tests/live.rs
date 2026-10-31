@@ -38,6 +38,7 @@ fn snowy_hike() -> TripFacts {
         drive: Some(DriveFacts { minutes: 150.0, km: 167.0 }),
         already_listed: Vec::new(),
         learned_pairings: Vec::new(),
+        ..TripFacts::default()
     }
 }
 

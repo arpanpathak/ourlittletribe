@@ -803,3 +803,37 @@ dialog.lightbox { max-width: min(1100px, calc(100vw - 24px)); }
 .banner::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(90deg, color-mix(in srgb, var(--art-sky-1) 94%, transparent) 0%, color-mix(in srgb, var(--art-sky-1) 80%, transparent) 38%, transparent 62%); }
 .banner-text { z-index: 2; }
 @media (max-width: 700px) { .banner::before { background: linear-gradient(180deg, color-mix(in srgb, var(--art-sky-1) 92%, transparent) 0%, color-mix(in srgb, var(--art-sky-1) 70%, transparent) 55%, transparent 80%); } }
+
+/* ── Conditions: model briefing and hour strip ──────── */
+.briefing { border-radius: 12px; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.briefing-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.verdict { font-size: 12px; font-weight: 750; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; }
+.briefing-great .verdict, .briefing-good .verdict { background: var(--accent-soft); color: var(--accent-text); }
+.briefing-mixed .verdict { background: var(--warning-soft); color: var(--warning-text); }
+.briefing-poor .verdict { background: var(--danger-soft); color: var(--danger); }
+.briefing-great { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.briefing-poor { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.briefing-headline { font-size: 16.5px; font-weight: 650; color: var(--text); line-height: 1.35; }
+.briefing-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.briefing-points li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--text-2); line-height: 1.5; }
+.point-icon { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: none; background: var(--surface); border: 1px solid var(--border); color: var(--text-2); }
+.point-safety { color: var(--danger); }
+.point-timing { color: var(--info); }
+.point-wear { color: var(--accent-text); }
+.hours { display: flex; gap: 6px; overflow-x: auto; padding: 10px 2px 4px; scrollbar-width: thin; }
+.hour { flex: 0 0 64px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px; border-radius: 10px; background: var(--surface-2); border: 1px solid transparent; font-size: 12.5px; position: relative; }
+.hour.is-start { border-color: var(--accent); background: var(--accent-soft); }
+.hour.is-night { background: color-mix(in srgb, var(--surface-3) 70%, #1b2a3a 12%); }
+.hour-time { font-weight: 650; color: var(--text-2); font-size: 12px; }
+.hour.is-start .hour-time { color: var(--accent-text); }
+.hour-sky .icon { width: 22px; height: 22px; color: var(--text-2); }
+.hour-temp { font-weight: 700; font-size: 15px; color: var(--text); }
+.hour-rain { display: flex; align-items: center; gap: 4px; color: var(--info); font-weight: 600; font-size: 11.5px; }
+.rain-bar { width: 5px; height: 16px; border-radius: 3px; background: var(--surface-3); display: flex; align-items: flex-end; overflow: hidden; }
+.rain-bar > span { width: 100%; background: var(--info); border-radius: 3px; }
+.hour-wind { font-size: 11px; color: var(--text-3); }
+.hour-sunset { position: absolute; top: -9px; right: -4px; display: inline-flex; align-items: center; gap: 2px; font-size: 10px; font-weight: 700; color: #d9622b; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 1px 5px; }
+.fact-row { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; }
+.fact { display: inline-flex; align-items: center; gap: 6px; }
+.fact .icon { color: var(--text-3); }
+.fact b { font-weight: 650; color: var(--text); }

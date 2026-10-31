@@ -151,8 +151,11 @@ const AVATAR_COLORS = ["#2f6f55", "#b4532a", "#2d6a9f", "#7a5338", "#6b4fa0", "#
 export function avatar(name, size = 32, picture = null) {
   const color = AVATAR_COLORS[hashOf(name) % AVATAR_COLORS.length];
   if (picture) {
-    return h("span", { class: "avatar has-picture", title: name, style: `--size:${size}px` },
-      h("img", { src: pictureUrl(picture, true), alt: "", loading: "lazy", decoding: "async" }));
+    const holder = h("span", { class: "avatar has-picture", title: name, style: `--size:${size}px` });
+    const image = h("img", { src: pictureUrl(picture, true), alt: "", loading: "lazy", decoding: "async" });
+    image.addEventListener("error", () => holder.replaceWith(avatar(name, size)));
+    holder.appendChild(image);
+    return holder;
   }
   return h("span", { class: "avatar", title: name, style: `--size:${size}px;background:${color}` }, initials(name));
 }

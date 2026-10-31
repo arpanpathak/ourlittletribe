@@ -26,11 +26,88 @@ pub struct DayForecast {
     pub sunrise: i64,
     /// Sunset, Unix seconds.
     pub sunset: i64,
+    /// Hour by hour, from an hour before the event to about eight hours after it starts.
+    pub hours: Vec<HourForecast>,
 }
+
+/// One hour of the forecast.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct HourForecast {
+    /// Start of the hour, Unix seconds.
+    pub time: i64,
+    /// Air temperature, °C.
+    pub temp_c: f64,
+    /// How cold it feels with wind and humidity, °C.
+    pub feels_like_c: f64,
+    /// Chance of precipitation, percent.
+    pub precipitation_chance: f64,
+    /// Precipitation, mm.
+    pub precipitation_mm: f64,
+    /// Snowfall, cm.
+    pub snowfall_cm: f64,
+    /// WMO weather code: 0 clear, 1–3 partly cloudy to overcast, 45–48 fog,
+    /// 51–67 drizzle and rain, 71–77 snow, 80–82 showers, 85–86 snow showers, 95–99 thunderstorms.
+    pub weather_code: u8,
+    /// Cloud cover, percent.
+    pub cloud_cover: f64,
+    /// Wind, km/h.
+    pub wind_kmh: f64,
+    /// Gusts, km/h.
+    pub gusts_kmh: f64,
+    /// Height above sea level where it freezes, metres.
+    pub freezing_level_m: Option<f64>,
+}
+
+/// Hours of the forecast kept before and after an event starts.
+const HOURS_BEFORE: i64 = 1;
+const HOURS_AFTER: i64 = 9;
 
 #[derive(Deserialize)]
 struct ForecastResponse {
     daily: DailyColumns,
+    #[serde(default)]
+    hourly: Option<HourlyColumns>,
+}
+
+#[derive(Deserialize)]
+struct HourlyColumns {
+    time: Vec<i64>,
+    temperature_2m: Vec<Option<f64>>,
+    apparent_temperature: Vec<Option<f64>>,
+    precipitation_probability: Vec<Option<f64>>,
+    precipitation: Vec<Option<f64>>,
+    snowfall: Vec<Option<f64>>,
+    weather_code: Vec<Option<u8>>,
+    cloud_cover: Vec<Option<f64>>,
+    wind_speed_10m: Vec<Option<f64>>,
+    wind_gusts_10m: Vec<Option<f64>>,
+    freezing_level_height: Vec<Option<f64>>,
+}
+
+impl HourlyColumns {
+    /// The hours from shortly before `moment` to several hours after it.
+    fn around(&self, moment: i64) -> Vec<HourForecast> {
+        let first = moment - HOURS_BEFORE * 3600;
+        let last = moment + HOURS_AFTER * 3600;
+        self.time
+            .iter()
+            .enumerate()
+            .filter(|(_, time)| (first - 3599..=last).contains(*time))
+            .map(|(index, time)| HourForecast {
+                time: *time,
+                temp_c: column_value(&self.temperature_2m, index),
+                feels_like_c: column_value(&self.apparent_temperature, index),
+                precipitation_chance: column_value(&self.precipitation_probability, index),
+                precipitation_mm: column_value(&self.precipitation, index),
+                snowfall_cm: column_value(&self.snowfall, index),
+                weather_code: column_value(&self.weather_code, index),
+                cloud_cover: column_value(&self.cloud_cover, index),
+                wind_kmh: column_value(&self.wind_speed_10m, index),
+                gusts_kmh: column_value(&self.wind_gusts_10m, index),
+                freezing_level_m: self.freezing_level_height.get(index).copied().flatten(),
+            })
+            .collect()
+    }
 }
 
 #[derive(Deserialize)]
@@ -74,6 +151,7 @@ impl DailyColumns {
             max_uv_index: column_value(&self.uv_index_max, day),
             sunrise: column_value(&self.sunrise, day),
             sunset: column_value(&self.sunset, day),
+            hours: Vec::new(),
         }
     }
 }
@@ -93,15 +171,22 @@ impl Places {
                 "daily",
                 "temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,snowfall_sum,wind_speed_10m_max,uv_index_max,sunrise,sunset".to_string(),
             ),
+            (
+                "hourly",
+                "temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,cloud_cover,wind_speed_10m,wind_gusts_10m,freezing_level_height".to_string(),
+            ),
             ("timezone", "auto".to_string()),
             ("timeformat", "unixtime".to_string()),
             ("forecast_days", "16".to_string()),
         ]);
         let response: ForecastResponse = self.get_json("Open-Meteo", request).await?;
-        let forecast = response
-            .daily
-            .day_containing(moment)
-            .map(|day| response.daily.forecast_for(day));
+        let forecast = response.daily.day_containing(moment).map(|day| {
+            let mut forecast = response.daily.forecast_for(day);
+            if let Some(hourly) = &response.hourly {
+                forecast.hours = hourly.around(moment);
+            }
+            forecast
+        });
         Ok(forecast)
     }
 
@@ -136,6 +221,34 @@ mod tests {
         assert!((forecast.min_temp_c + 3.0).abs() < 1e-9);
         assert!((forecast.snowfall_cm - 2.0).abs() < 1e-9);
         assert_eq!(response.daily.day_containing(5_000_000), None);
+        Ok(())
+    }
+
+    #[test]
+    fn keeps_the_hours_around_the_event() -> Result<(), serde_json::Error> {
+        let times: Vec<String> = (0..24).map(|hour| (hour * 3600).to_string()).collect();
+        let column = |value: &str| vec![value; 24].join(",");
+        let body = format!(
+            r#"{{"time":[{}],"temperature_2m":[{}],"apparent_temperature":[{}],"precipitation_probability":[{}],
+            "precipitation":[{}],"snowfall":[{}],"weather_code":[{}],"cloud_cover":[{}],"wind_speed_10m":[{}],
+            "wind_gusts_10m":[{}],"freezing_level_height":[{}]}}"#,
+            times.join(","),
+            column("5.0"),
+            column("3.0"),
+            column("20"),
+            column("0.0"),
+            column("0.0"),
+            column("3"),
+            column("80"),
+            column("10.0"),
+            column("20.0"),
+            column("null"),
+        );
+        let hourly: HourlyColumns = serde_json::from_str(&body)?;
+        let hours = hourly.around(10 * 3600 + 900);
+        assert_eq!(hours.first().map(|hour| hour.time), Some(9 * 3600));
+        assert_eq!(hours.last().map(|hour| hour.time), Some(19 * 3600));
+        assert_eq!(hours[0].freezing_level_m, None);
         Ok(())
     }
 

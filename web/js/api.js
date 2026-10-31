@@ -83,6 +83,7 @@ export const api = {
   setOrigin: (eventId, point) => call("PUT", `events/${encode(eventId)}/origin`, point),
   clearOrigin: (eventId) => call("DELETE", `events/${encode(eventId)}/origin`),
 
+  briefing: (eventId, imperial) => call("GET", `events/${encode(eventId)}/briefing?units=${imperial ? "imperial" : "metric"}`),
   plan: (eventId) => call("POST", `events/${encode(eventId)}/plan`),
   addItem: (eventId, item) => call("POST", `events/${encode(eventId)}/items`, item),
   find: (eventId, query) => call("POST", `events/${encode(eventId)}/find`, { query }),

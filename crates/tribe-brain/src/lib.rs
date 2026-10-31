@@ -106,6 +106,53 @@ fn choice_schema() -> serde_json::Value {
     })
 }
 
+/// What the model says about the conditions for an event.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Briefing {
+    /// One sentence on the day, such as "Dry and clear until 2 PM, then showers move in".
+    pub headline: String,
+    /// `great`, `good`, `mixed` or `poor` for this plan.
+    pub verdict: String,
+    /// What it means, a sentence each.
+    pub points: Vec<BriefingPoint>,
+}
+
+/// One thing the group should know.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BriefingPoint {
+    /// `timing`, `wear`, `safety`, `comfort` or `road`.
+    pub kind: String,
+    /// The sentence.
+    pub text: String,
+}
+
+const VERDICTS: [&str; 4] = ["great", "good", "mixed", "poor"];
+const POINT_KINDS: [&str; 5] = ["timing", "wear", "safety", "comfort", "road"];
+
+fn briefing_schema() -> serde_json::Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "headline": { "type": "string" },
+            "verdict": { "type": "string", "enum": VERDICTS },
+            "points": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind": { "type": "string", "enum": POINT_KINDS },
+                        "text": { "type": "string" }
+                    },
+                    "required": ["kind", "text"],
+                    "additionalProperties": false
+                }
+            }
+        },
+        "required": ["headline", "verdict", "points"],
+        "additionalProperties": false
+    })
+}
+
 /// How many guesses to look up for one search.
 const MAX_PLACE_GUESSES: usize = 3;
 
@@ -406,6 +453,54 @@ impl Brain {
             }
         }
         Ok(chosen)
+    }
+
+    /// A short briefing on what the conditions mean for this trip.
+    /// With `imperial`, it writes °F, miles and feet, and 12-hour times.
+    pub async fn write_briefing(
+        &self,
+        facts: &TripFacts,
+        imperial: bool,
+    ) -> Result<Briefing, BrainError> {
+        let units = match imperial {
+            true => {
+                "Write for an American reader: convert to °F, mph, miles and feet, and write times like 1:15 PM."
+            }
+            false => {
+                "Write temperatures in °C, wind in km/h, distances in km and m, and times on the 24-hour clock."
+            }
+        };
+        let answer: Briefing = self
+            .ask_json(
+                prompt::BRIEFING_SYSTEM,
+                format!("{}\n{units}", facts.describe()),
+                "briefing",
+                briefing_schema(),
+                500,
+            )
+            .await?;
+        let verdict = match VERDICTS.contains(&answer.verdict.as_str()) {
+            true => answer.verdict,
+            false => "mixed".to_string(),
+        };
+        let points = answer
+            .points
+            .into_iter()
+            .filter(|point| !point.text.trim().is_empty())
+            .take(4)
+            .map(|point| BriefingPoint {
+                kind: match POINT_KINDS.contains(&point.kind.as_str()) {
+                    true => point.kind,
+                    false => "comfort".to_string(),
+                },
+                text: clip(point.text.trim(), 300),
+            })
+            .collect();
+        Ok(Briefing {
+            headline: clip(answer.headline.trim(), 160),
+            verdict,
+            points,
+        })
     }
 
     /// What this group should bring, given the facts of the trip.

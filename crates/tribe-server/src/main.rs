@@ -121,6 +121,7 @@ async fn main() -> anyhow::Result<()> {
         failed_sign_ins: Arc::new(RateLimit::new(60, Duration::from_secs(600))),
         conditions: Arc::new(TimedCache::new(Duration::from_secs(1800))),
         store_lookups: Arc::new(TimedCache::new(Duration::from_secs(1800))),
+        briefings: Arc::new(TimedCache::new(Duration::from_secs(3600))),
         store_search_resting: Arc::new(TimedCache::new(Duration::from_secs(180))),
         place_guesses: Arc::new(TimedCache::new(Duration::from_secs(1800))),
         regions: Arc::new(TimedCache::new(Duration::from_secs(86400))),

@@ -133,6 +133,7 @@ pub fn router(state: AppState) -> Router {
             put(events::set_origin).delete(events::clear_origin),
         )
         .route("/events/{event_id}/plan", post(prep::plan))
+        .route("/events/{event_id}/briefing", get(prep::briefing))
         .route("/events/{event_id}/items", post(prep::add))
         .route("/events/{event_id}/find", post(prep::find))
         .route("/events/{event_id}/trip", get(prep::trip))

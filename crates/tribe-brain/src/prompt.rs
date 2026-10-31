@@ -32,6 +32,16 @@ best: the numbers of the places that are what the person most likely meant, best
 Prefer places near the person unless the search names somewhere else. \
 Leave out places that only share a word with the search. If none fit, return an empty list.";
 
+/// Instructions for the conditions briefing on an event page.
+pub const BRIEFING_SYSTEM: &str = "You brief a small group on the conditions for an outing they planned. \
+Read the plan, the hour-by-hour forecast, the elevation, daylight and the places they will go, and say what it means \
+for this group on this day: when it is best to be out, when rain, wind, cold or dark arrives, whether the freezing level \
+or snow matters at their elevation, what to wear or change. Be concrete, with times and numbers from the facts, \
+in plain friendly words. Never invent facts; when the forecast is not available yet, say what is typical for the \
+place and season and that the forecast comes about 16 days before. \
+headline: one sentence, at most 14 words. verdict: great, good, mixed or poor for this plan. \
+points: 2 to 4 short sentences, each with a kind: timing, wear, safety, comfort or road.";
+
 pub const SEARCH_SYSTEM: &str = "You help one person on a group trip find what they are searching for. \
 Turn the search into concrete things to buy, using the trip's facts. \
 In `why`, say in under 15 words how the item answers the search on this trip. \
@@ -93,6 +103,12 @@ pub struct TripFacts {
     pub already_listed: Vec<String>,
     /// Lines like "groups that got trail mix also got electrolyte drink in 6 of 6 trips".
     pub learned_pairings: Vec<String>,
+    /// The other places in order, such as "Stop on the way: Ashford coffee (coffee and restrooms)".
+    pub itinerary: Vec<String>,
+    /// Where the forecast and elevation are for: the venue, or the meeting point.
+    pub conditions_place: String,
+    /// The forecast hour by hour around the event, one line each.
+    pub hourly: Vec<String>,
 }
 
 impl TripFacts {
@@ -114,16 +130,27 @@ impl TripFacts {
                 );
             }
         }
+        if !self.itinerary.is_empty() {
+            let _ = writeln!(text, "Other places on the plan, in order:");
+            for place in &self.itinerary {
+                let _ = writeln!(text, "- {place}");
+            }
+        }
+        let forecast_place = match self.conditions_place.trim() {
+            "" => "the meeting point",
+            place => place,
+        };
         if let Some(elevation) = self.elevation_m {
-            let _ = writeln!(text, "Meeting point elevation: {elevation:.0} m");
+            let _ = writeln!(text, "Elevation at {forecast_place}: {elevation:.0} m");
         }
         match &self.weather {
             Some(weather) => {
                 let _ = writeln!(
                     text,
-                    "Forecast for that day at the meeting point: high {:.0} °C, low {:.0} °C, \
+                    "Forecast for that day at {}: high {:.0} °C, low {:.0} °C, \
                      precipitation chance {:.0}% ({:.1} mm), snowfall {:.1} cm, wind up to {:.0} km/h, UV index {:.1}, \
                      sunrise {}, sunset {}",
+                    forecast_place,
                     weather.max_temp_c,
                     weather.min_temp_c,
                     weather.precipitation_chance,
@@ -140,6 +167,12 @@ impl TripFacts {
                     text,
                     "Forecast: not available yet; use what is typical for the place and month."
                 );
+            }
+        }
+        if !self.hourly.is_empty() {
+            let _ = writeln!(text, "Hour by hour at {forecast_place}:");
+            for hour in &self.hourly {
+                let _ = writeln!(text, "- {hour}");
             }
         }
         if let Some(drive) = &self.drive {
@@ -186,10 +219,11 @@ mod tests {
             }),
             already_listed: vec!["Water".to_string()],
             learned_pairings: Vec::new(),
+            ..TripFacts::default()
         };
         let text = facts.describe();
         assert!(text.contains("People going: 8"));
-        assert!(text.contains("elevation: 1646 m"));
+        assert!(text.contains("Elevation at the meeting point: 1646 m"));
         assert!(text.contains("not available yet"));
         assert!(text.contains("125 minutes"));
         assert!(text.contains("Already on the list: Water"));

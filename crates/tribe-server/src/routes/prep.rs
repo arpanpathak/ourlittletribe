@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use serde::{Deserialize, Serialize};
 use tribe_brain::{Brain, PlannedItem, clean_items};
 use tribe_core::geo::LatLng;
@@ -76,6 +76,37 @@ async fn drive_for(
 pub struct PlanResult {
     added: usize,
     items: Vec<PrepItem>,
+}
+
+/// Which units the reader uses.
+#[derive(Deserialize)]
+pub struct UnitsQuery {
+    units: Option<String>,
+}
+
+/// `GET /api/events/{event_id}/briefing?units=imperial`: what the model makes of the conditions for this
+/// plan, cached for an hour (and dropped when the event changes).
+pub async fn briefing(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(event_id): Path<String>,
+    Query(units): Query<UnitsQuery>,
+) -> ApiResult<Json<tribe_brain::Briefing>> {
+    let brain = brain(&state)?;
+    let imperial = units.units.as_deref() == Some("imperial");
+    let cache_key = format!("{event_id}|{imperial}");
+    if let Some(cached) = state.briefings.get(&cache_key) {
+        return Ok(Json(cached));
+    }
+    let lookup_id = event_id.clone();
+    let event = state
+        .db
+        .call(move |connection| events::get(connection, &lookup_id, &user.id))
+        .await?;
+    let facts = trip::trip_facts(&state, &event, None).await?;
+    let written = brain.write_briefing(&facts, imperial).await?;
+    state.briefings.put(cache_key, written.clone());
+    Ok(Json(written))
 }
 
 /// `POST /api/events/{event_id}/plan`: asks the model what the group should bring and adds it.

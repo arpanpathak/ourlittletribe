@@ -201,6 +201,12 @@ pub async fn update(
         })
         .await?;
     state.conditions.forget(&moved_or_retimed_id);
+    state
+        .briefings
+        .forget(&format!("{moved_or_retimed_id}|true"));
+    state
+        .briefings
+        .forget(&format!("{moved_or_retimed_id}|false"));
     Ok(Json(event))
 }
 

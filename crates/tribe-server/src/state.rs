@@ -165,6 +165,8 @@ pub struct AppState {
     pub failed_sign_ins: Arc<RateLimit>,
     /// Recent conditions (forecast and elevation) per event.
     pub conditions: Arc<TimedCache<crate::trip::Conditions>>,
+    /// The model's conditions briefing per event.
+    pub briefings: Arc<TimedCache<tribe_brain::Briefing>>,
     /// Recent store lookups per route and tag set.
     pub store_lookups: Arc<TimedCache<Vec<tribe_db::stores::Store>>>,
     /// Holds an entry for a few minutes after OpenStreetMap's store search fails, so pages

@@ -187,24 +187,84 @@ export async function renderEvent(view, eventId, initialTab) {
 
   /* ── Overview ───────────────────────────────────── */
 
+  /** An icon for a WMO weather code; `night` swaps the sun for the moon. */
+  function skyIcon(code, night = false) {
+    if (code === 0 || code === 1) return night ? "moon" : "sun";
+    if (code === 2) return night ? "cloud" : "cloudSun";
+    if (code === 3) return "cloud";
+    if (code === 45 || code === 48) return "fog";
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "snow";
+    if (code >= 95) return "storm";
+    if (code >= 51) return "rain";
+    return "cloud";
+  }
+
+  const VERDICT_WORDS = { great: "Great day for it", good: "Good conditions", mixed: "Mixed conditions", poor: "Tough conditions" };
+  const POINT_ICONS = { timing: "clock", wear: "thermometer", safety: "alert", comfort: "sun", road: "route" };
+
+  function briefingBlock(slot) {
+    if (!detail.model_ready) return;
+    mount(slot, h("div", { class: "thinking" }, h("span", { class: "spinner" }), "Reading the forecast for your plan…"));
+    api.briefing(eventId, imperial)
+      .then((briefing) => {
+        mount(slot,
+          h("div", { class: `briefing briefing-${briefing.verdict}` },
+            h("div", { class: "briefing-head" },
+              h("span", { class: "verdict" }, VERDICT_WORDS[briefing.verdict] || briefing.verdict),
+              h("span", { class: "badge badge-ai" }, icon("sparkles", "sm"), "Model briefing")),
+            h("p", { class: "briefing-headline" }, briefing.headline),
+            h("ul", { class: "briefing-points" }, briefing.points.map((point) =>
+              h("li", {}, h("span", { class: `point-icon point-${point.kind}` }, icon(POINT_ICONS[point.kind] || "info", "sm")), h("span", {}, point.text))))));
+      })
+      .catch((error) => mount(slot, h("p", { class: "small muted" }, `No briefing right now: ${error.message}`)));
+  }
+
+  function hourStrip(forecast, startsAt) {
+    const hours = forecast.hours || [];
+    if (!hours.length) return null;
+    const startHour = Math.floor(startsAt / 3600) * 3600;
+    return h("div", { class: "hours", role: "list", "aria-label": "Hour by hour" }, hours.map((hour) => {
+      const night = hour.time < forecast.sunrise - 1800 || hour.time >= forecast.sunset;
+      const isStart = hour.time === startHour;
+      const sunsetHere = forecast.sunset >= hour.time && forecast.sunset < hour.time + 3600;
+      return h("div", { class: `hour${isStart ? " is-start" : ""}${night ? " is-night" : ""}`, role: "listitem" },
+        h("span", { class: "hour-time" }, isStart ? "Start" : formatTime(hour.time).replace(":00", "")),
+        h("span", { class: "hour-sky", title: `Code ${hour.weather_code}` }, icon(skyIcon(hour.weather_code, night))),
+        h("span", { class: "hour-temp" }, temperature(hour.temp_c)),
+        h("span", { class: "hour-rain", title: "Chance of rain" },
+          h("span", { class: "rain-bar" }, h("span", { style: `height:${Math.max(2, Math.round(hour.precipitation_chance))}%` })),
+          `${Math.round(hour.precipitation_chance)}%`),
+        h("span", { class: "hour-wind", title: `Gusts ${speed(hour.gusts_kmh)}` }, speed(hour.wind_kmh)),
+        sunsetHere ? h("span", { class: "hour-sunset" }, icon("sunset", "sm"), formatTime(forecast.sunset)) : null);
+    }));
+  }
+
   function weatherCard() {
-    const { forecast, elevation_m: elevation } = detail.conditions;
-    const cells = [];
+    const { forecast, elevation_m: elevation, place_name: placeName } = detail.conditions;
+    const briefingSlot = h("div");
+    const facts = [];
     if (forecast) {
-      cells.push(["thermometer", "High / low", `${temperature(forecast.max_temp_c)} / ${temperature(forecast.min_temp_c)}`]);
-      cells.push(["rain", "Chance of rain", `${Math.round(forecast.precipitation_chance)}%`]);
-      if (forecast.snowfall_cm > 0) cells.push(["snow", "Snow", imperial ? `${(forecast.snowfall_cm / 2.54).toFixed(1)} in` : `${forecast.snowfall_cm.toFixed(1)} cm`]);
-      cells.push(["wind", "Wind", speed(forecast.max_wind_kmh)]);
-      if (forecast.max_uv_index >= 3) cells.push(["sun", "UV index", forecast.max_uv_index.toFixed(0)]);
-      if (forecast.sunset) cells.push(["sunset", "Sunset", formatTime(forecast.sunset)]);
+      facts.push(["thermometer", "High / low", `${temperature(forecast.max_temp_c)} / ${temperature(forecast.min_temp_c)}`]);
+      facts.push(["sunset", "Daylight", `${formatTime(forecast.sunrise)} – ${formatTime(forecast.sunset)}`]);
+      const levels = (forecast.hours || []).map((hour) => hour.freezing_level_m).filter((level) => level !== null && level !== undefined);
+      if (levels.length && elevation !== null && elevation !== undefined && Math.min(...levels) < elevation + 600) {
+        facts.push(["snow", "Freezing level", `${height(Math.min(...levels))} and up`]);
+      }
+      if (forecast.max_uv_index >= 3) facts.push(["sun", "UV index", forecast.max_uv_index.toFixed(0)]);
     }
-    if (elevation !== null && elevation !== undefined) cells.push(["mountain", "Elevation", height(elevation)]);
-    return h("section", { class: "card" },
-      h("div", { class: "card-head" }, h("h3", {}, "Conditions"), h("span", { class: "small muted" }, "Open-Meteo")),
-      h("div", { class: "card-body stack" },
-        cells.length ? h("div", { class: "weather" }, cells.map(([iconName, label, value]) =>
-          h("div", { class: "weather-cell" }, h("span", { class: "label" }, icon(iconName), label), h("span", { class: "value" }, value)))) : null,
-        forecast ? null : h("p", { class: "small muted" }, "The forecast appears about 16 days before the event.")));
+    if (elevation !== null && elevation !== undefined) facts.push(["mountain", "Elevation", height(elevation)]);
+    const card = h("section", { class: "card" },
+      h("div", { class: "card-head" },
+        h("div", {}, h("h3", {}, "Conditions"), h("div", { class: "small muted" }, `At ${placeName}`)),
+        h("span", { class: "small muted" }, "Forecast: Open-Meteo")),
+      h("div", { class: "card-body stack", style: "gap:16px" },
+        briefingSlot,
+        forecast ? hourStrip(forecast, detail.event.starts_at) : null,
+        facts.length ? h("div", { class: "fact-row" }, facts.map(([iconName, label, value]) =>
+          h("div", { class: "fact" }, icon(iconName, "sm"), h("span", { class: "muted" }, label), h("b", {}, value)))) : null,
+        forecast ? null : h("p", { class: "small muted" }, "The hour-by-hour forecast appears about 16 days before the event.")));
+    briefingBlock(briefingSlot);
+    return card;
   }
 
   /** Directions through the meeting point, the stops everyone makes, and the venue. */

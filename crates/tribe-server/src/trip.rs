@@ -16,9 +16,11 @@ use tribe_places::weather::DayForecast;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
-/// The forecast and elevation at an event's meeting point.
+/// The forecast and elevation where an event happens: its venue, or else its meeting point.
 #[derive(Debug, Clone, Serialize)]
 pub struct Conditions {
+    /// The place they are for.
+    pub place_name: String,
     /// Ground elevation, metres.
     pub elevation_m: Option<f64>,
     /// Forecast for the event's day, when within 16 days.
@@ -57,20 +59,41 @@ const MAX_ROUTED_CANDIDATES: usize = 40;
 const MAX_STOPS_SHOWN: usize = 12;
 const MAX_STOPS_PER_SHOP_TAG: usize = 3;
 
-/// The forecast and elevation at the meeting point, cached for 30 minutes.
+/// The forecast and elevation at the event's venue (or meeting point), cached for 30 minutes.
 pub async fn conditions(state: &AppState, event: &Event) -> Conditions {
     if let Some(cached) = state.conditions.get(&event.id) {
         return cached;
     }
-    let point = LatLng {
-        lat: event.lat,
-        lng: event.lng,
+    let event_id = event.id.clone();
+    let venue = state
+        .db
+        .call(move |connection| tribe_db::stops::for_event(connection, &event_id))
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .find(|stop| stop.kind == tribe_db::stops::StopKind::Venue);
+    let (place_name, point) = match venue {
+        Some(venue) => (
+            venue.name,
+            LatLng {
+                lat: venue.lat,
+                lng: venue.lng,
+            },
+        ),
+        None => (
+            event.place_name.clone(),
+            LatLng {
+                lat: event.lat,
+                lng: event.lng,
+            },
+        ),
     };
     let (elevation, forecast) = tokio::join!(
         state.places.elevation_m(point),
         state.places.day_forecast(point, event.starts_at)
     );
     let found = Conditions {
+        place_name,
         elevation_m: elevation.unwrap_or_else(|error| {
             tracing::warn!(%error, "elevation lookup failed");
             None
@@ -127,6 +150,36 @@ pub async fn trip_facts(
     }
     let learned = learned_pairings(state, &already_listed).await?;
     let offset = event.tz_offset_minutes;
+    let stops_event_id = event.id.clone();
+    let event_stops = state
+        .db
+        .call(move |connection| tribe_db::stops::for_event(connection, &stops_event_id))
+        .await?;
+    let itinerary = event_stops
+        .iter()
+        .map(|stop| {
+            let kind = match stop.kind {
+                tribe_db::stops::StopKind::Stop => "Stop on the way",
+                tribe_db::stops::StopKind::Optional => "Optional stop",
+                tribe_db::stops::StopKind::Venue => "Event venue",
+            };
+            match stop.note.is_empty() {
+                true => format!("{kind}: {}", stop.name),
+                false => format!("{kind}: {} ({})", stop.name, stop.note),
+            }
+        })
+        .collect();
+    let hourly = found
+        .forecast
+        .as_ref()
+        .map(|forecast| {
+            forecast
+                .hours
+                .iter()
+                .map(|hour| describe_hour(hour, offset))
+                .collect()
+        })
+        .unwrap_or_default();
     let weather = found.forecast.map(|forecast| WeatherFacts {
         max_temp_c: forecast.max_temp_c,
         min_temp_c: forecast.min_temp_c,
@@ -152,7 +205,52 @@ pub async fn trip_facts(
         }),
         already_listed,
         learned_pairings: learned,
+        itinerary,
+        conditions_place: found.place_name,
+        hourly,
     })
+}
+
+/// One forecast hour as a line for the model.
+fn describe_hour(hour: &tribe_places::weather::HourForecast, offset_minutes: i64) -> String {
+    let mut line = format!(
+        "{}: {:.0} °C (feels {:.0} °C), {}, precipitation chance {:.0}% ({:.1} mm",
+        format_local_clock(hour.time, offset_minutes),
+        hour.temp_c,
+        hour.feels_like_c,
+        sky_words(hour.weather_code),
+        hour.precipitation_chance,
+        hour.precipitation_mm,
+    );
+    if hour.snowfall_cm > 0.0 {
+        line.push_str(&format!(", {:.1} cm snow", hour.snowfall_cm));
+    }
+    line.push_str(&format!(
+        "), wind {:.0} km/h gusting {:.0}",
+        hour.wind_kmh, hour.gusts_kmh
+    ));
+    if let Some(level) = hour.freezing_level_m {
+        line.push_str(&format!(", freezing level {level:.0} m"));
+    }
+    line
+}
+
+/// The WMO weather code in words, as Open-Meteo documents it.
+fn sky_words(code: u8) -> &'static str {
+    match code {
+        0 => "clear",
+        1 => "mainly clear",
+        2 => "partly cloudy",
+        3 => "overcast",
+        45 | 48 => "fog",
+        51..=57 => "drizzle",
+        61..=67 => "rain",
+        71..=77 => "snow",
+        80..=82 => "rain showers",
+        85 | 86 => "snow showers",
+        95..=99 => "thunderstorms",
+        _ => "mixed",
+    }
 }
 
 /// Items the viewer still needs: their own copy of personal items, and shared items nobody has taken on.
