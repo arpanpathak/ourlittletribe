@@ -23,6 +23,13 @@ outing; the app then helps the group get ready for it:
 - **Learned, not hand-written, pairings.** "Groups often also got…" comes from
   what earlier groups marked as bought (support, confidence, lift), and stays
   hidden until there are at least 10 trips of evidence.
+- **Maps throughout.** Pick a meeting point by searching (Photon, built for
+  search-as-you-type), using your location, or clicking and dragging a pin;
+  a clicked point is named from the nearest address. The Events page shows
+  every upcoming outing on a map beside the list.
+- **Pictures.** Events and tribes have cover pictures, and people share photos
+  from an outing. Every upload is turned upright, resized, and re-encoded as a
+  plain JPEG, which removes EXIF data including GPS position.
 
 There are no ads, no merchant accounts and no tracking. A starting point is
 shared per event, only by choice, and deleted a day after the event.
@@ -33,13 +40,15 @@ shared per event, only by choice, and deleted a day after the event.
 |---|---|
 | `crates/tribe-core` | Pure logic: route geometry, store ranking, basket analysis, local time formatting |
 | `crates/tribe-db` | SQLite storage: users, sessions, tribes, events, prep items and marks, cached stores |
-| `crates/tribe-places` | Clients for Open-Meteo, OSRM, Overpass (OpenStreetMap) and Nominatim |
+| `crates/tribe-places` | Clients for Open-Meteo, OSRM, Overpass and Photon (OpenStreetMap) |
+| `crates/tribe-media` | Uploaded pictures: checked, turned upright, resized, re-encoded, stored on disk |
 | `crates/tribe-brain` | The model client: trip facts in, checked items out; one request at a time |
 | `crates/tribe-server` | The `ourlittletribe` binary: axum API, Argon2id accounts, the embedded web app |
-| `web/` | The app: plain ES modules and CSS, no build step. Leaflet is vendored; the PNW art is inline SVG |
+| `web/` | The app: plain ES modules and CSS, no build step. Leaflet and the Inter font are vendored |
 | `deploy/` | systemd unit, deploy script, and the voltforge.tech forwarding page |
 
-The whole app is one 8 MB binary with the web files compiled in.
+The whole app is one 9.4 MB binary with the web files compiled in. Uploaded
+pictures are the only files kept outside the database.
 
 ## Run it
 
@@ -53,6 +62,7 @@ OLT_LLM_URL=http://127.0.0.1:8081/v1 target/release/ourlittletribe
 |---|---|---|
 | `OLT_ADDR` | `127.0.0.1:8090` | where to listen |
 | `OLT_DB` | `ourlittletribe.db` | SQLite file |
+| `OLT_MEDIA` | `media` next to the database | folder for uploaded pictures |
 | `OLT_LLM_URL` | unset | OpenAI-style base URL ending in `/v1`; unset turns planning and search off |
 | `OLT_LLM_MODEL` | first listed | model id |
 | `OLT_LLM_KEY` | unset | bearer key, if the model server needs one |
@@ -64,7 +74,7 @@ Jetson AGX Thor it is TensorRT Edge-LLM serving Qwen3.6-35B-A3B (NVFP4).
 ## Tests
 
 ```bash
-cargo test --workspace                                      # 47 tests, no network
+cargo test --workspace                                      # 60 tests, no network
 cargo test -p tribe-places --test live -- --ignored         # real map and weather services
 OLT_LLM_URL=http://127.0.0.1:8081/v1 \
   cargo test -p tribe-brain --test live -- --ignored --nocapture   # the real model
@@ -96,8 +106,10 @@ into the `arpanpathak/voltforge.tech` repository to make
 
 ## Limits
 
-- The public OSRM, Overpass and Nominatim servers are rate-limited demo
-  services. A busy instance should run its own (the URLs live in `tribe_places::Endpoints`).
+- The public OSRM, Overpass and Photon servers are shared, rate-limited
+  services. Overpass in particular is often busy: the app tries a mirror, then
+  falls back to stores it has already seen and says so on the page. A busy
+  instance should run its own (the URLs live in `tribe_places::Endpoints`).
 - Store results only know a shop's *type* from OpenStreetMap, not its stock.
 - Sign-in is email and password; there is no email verification or password reset yet.
 - The Go/React prototype is still on `main`.

@@ -52,5 +52,8 @@ async fn forecast_elevation_and_search() -> Result<(), PlacesError> {
     let found = places.search_places("Paradise Mount Rainier", None, 3).await?;
     println!("{found:?}");
     assert!(!found.is_empty());
+    let named = places.place_at(PARADISE).await?;
+    println!("{named:?}");
+    assert!(named.is_some());
     Ok(())
 }

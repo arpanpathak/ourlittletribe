@@ -1,67 +1,99 @@
-// A person's profile; your own can be edited here, and you sign out here.
+// A person's profile: who they are, where they're going, their tribes. Your own can be edited.
 
 import { api } from "../api.js";
-import { skyline } from "../art.js";
-import { h, mount, toast, avatar, busyButton } from "../ui.js";
-import { session } from "../app.js";
-import { eventCard, tribeCard } from "./tribes.js";
+import { h, mount, icon, avatar, toast, tabBar, emptyState, field, openModal } from "../ui.js";
+import { session, refreshHeader } from "../app.js";
+import { eventCard, tribeCard } from "../components/cards.js";
 
-function editForm(person, onSaved) {
-  const form = h("form", { class: "card stack" },
-    h("h3", {}, "Edit profile"),
-    h("label", {}, "Name", h("input", { name: "name", required: true, maxlength: 60, value: person.name })),
-    h("label", {}, "Home area", h("input", { name: "home_area", maxlength: 80, value: person.home_area, placeholder: "Fremont, Seattle" })),
-    h("label", {}, "About you", h("textarea", { name: "bio", rows: 3, maxlength: 500 }, person.bio)),
-    h("button", { type: "submit", class: "button primary" }, "Save"));
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const data = new FormData(form);
-    try {
-      const updated = await api.updateMe({ name: data.get("name"), home_area: data.get("home_area"), bio: data.get("bio") });
-      session.user = updated;
-      toast("Saved", "success");
-      onSaved();
-    } catch (error) {
-      toast(error.message, "error");
-    }
+function editProfile(person) {
+  const name = h("input", { maxlength: 60, value: person.name });
+  const area = h("input", { maxlength: 80, value: person.home_area, placeholder: "e.g. Fremont, Seattle" });
+  const bio = h("textarea", { rows: 4, maxlength: 500, placeholder: "A line or two about you" }, person.bio);
+  const nameField = field("Name", name);
+  return openModal({
+    title: "Edit profile",
+    build: () => h("div", { class: "stack" }, nameField, field("Home area", area), field("About you", bio, { hint: "Up to 500 characters." })),
+    actions: (close) => {
+      const save = h("button", {
+        type: "button",
+        class: "btn btn-primary",
+        onclick: async () => {
+          if (!name.value.trim()) {
+            nameField.setError("Enter your name");
+            return;
+          }
+          save.disabled = true;
+          try {
+            close(await api.updateMe({ name: name.value.trim(), home_area: area.value.trim(), bio: bio.value.trim() }));
+          } catch (error) {
+            toast(error.message, "error");
+            save.disabled = false;
+          }
+        },
+      }, "Save");
+      return [h("button", { type: "button", class: "btn", onclick: () => close(undefined) }, "Cancel"), save];
+    },
   });
-  return form;
 }
 
 /** Draws a profile page. */
 export async function renderProfile(view, userId) {
-  const profile = await api.person(userId);
-  const { person, tribes, events } = profile;
+  const { person, tribes, events } = await api.person(userId);
   const isMe = person.id === session.user.id;
-  const editSlot = h("div");
-  const upcoming = events.filter((event) => event.starts_at > Date.now() / 1000 - 6 * 3600);
-  const past = events.filter((event) => event.starts_at <= Date.now() / 1000 - 6 * 3600);
+  const cutoff = Date.now() / 1000 - 6 * 3600;
+  const upcoming = events.filter((event) => event.starts_at > cutoff).sort((a, b) => a.starts_at - b.starts_at);
+  const past = events.filter((event) => event.starts_at <= cutoff);
+  let tab = "upcoming";
+  const body = h("div", { style: "margin-top:24px" });
+
+  function drawBody() {
+    const lists = {
+      upcoming: [upcoming, "calendar", "No upcoming plans", isMe ? "Events you say you're going to show up here." : null],
+      past: [past, "clock", "No past outings yet", null],
+    };
+    if (tab === "tribes") {
+      mount(body, tribes.length
+        ? h("div", { class: "grid-cards" }, tribes.map((tribe) => tribeCard(tribe)))
+        : h("div", { class: "card" }, emptyState("users", "No tribes yet", isMe ? "Join a tribe to see its plans." : null,
+            isMe ? h("a", { class: "btn btn-primary", href: "#/tribes" }, "Browse tribes") : null)));
+      return;
+    }
+    const [list, iconName, title, text] = lists[tab];
+    mount(body, list.length
+      ? h("div", { class: "grid-cards" }, list.map(eventCard))
+      : h("div", { class: "card" }, emptyState(iconName, title, text)));
+  }
 
   mount(view,
-    h("section", { class: "page-hero compact sky-dawn" },
-      h("div", { class: "page-hero-art", html: skyline("dawn") }),
-      h("div", { class: "page-hero-inner" },
-        h("div", { class: "hero-title-row" },
-          avatar(person.name, 72),
-          h("div", {},
-            h("h1", {}, person.name),
-            h("p", { class: "lead" }, [person.home_area, `${tribes.length} tribes`, `${past.length} outings`].filter(Boolean).join(" · ")))),
+    h("section", { class: "card card-pad" },
+      h("div", { class: "profile-head" },
+        avatar(person.name, 80),
+        h("div", { class: "grow stack", style: "gap:6px" },
+          h("h1", {}, person.name),
+          h("div", { class: "facts" },
+            person.home_area ? h("span", {}, icon("pin"), person.home_area) : null,
+            h("span", {}, icon("users"), `${tribes.length} ${tribes.length === 1 ? "tribe" : "tribes"}`),
+            h("span", {}, icon("calendar"), `Joined ${new Date(person.created_at * 1000).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`)),
+          person.bio ? h("p", { class: "text-2 pre", style: "margin-top:6px" }, person.bio) : null),
         isMe
-          ? h("div", { class: "hero-actions" },
-              h("button", { class: "button ghost", onclick: () => mount(editSlot, editForm(person, () => renderProfile(view, userId))) }, "Edit"),
-              busyButton("Sign out", async () => {
-                await api.logout();
-                session.user = null;
-                window.location.hash = "#/";
-                window.dispatchEvent(new CustomEvent("signed-out"));
-                window.location.reload();
-              }, { class: "button ghost" }))
+          ? h("button", {
+              type: "button",
+              class: "btn",
+              onclick: async () => {
+                const updated = await editProfile(person);
+                if (!updated) return;
+                session.user = updated;
+                refreshHeader();
+                toast("Profile saved", "success");
+                renderProfile(view, userId);
+              },
+            }, icon("edit"), "Edit profile")
           : null)),
-    editSlot,
-    person.bio ? h("div", { class: "card prose" }, h("p", { class: "pre" }, person.bio)) : null,
-    upcoming.length ? h("section", {}, h("h2", { class: "section-title" }, "Going to"), h("div", { class: "list" }, upcoming.map(eventCard))) : null,
-    h("section", {}, h("h2", { class: "section-title" }, "Tribes"),
-      tribes.length ? h("div", { class: "grid" }, tribes.map(tribeCard)) : h("p", { class: "muted" }, "No tribes yet.")),
-    past.length ? h("section", {}, h("h2", { class: "section-title" }, "Been to"), h("div", { class: "list" }, past.map(eventCard))) : null,
-  );
+    h("div", {},
+      tabBar([["upcoming", "Upcoming", upcoming.length], ["past", "Past", past.length], ["tribes", "Tribes", tribes.length]], tab, (value) => {
+        tab = value;
+        drawBody();
+      }),
+      body));
+  drawBody();
 }

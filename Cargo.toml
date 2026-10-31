@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/tribe-core", "crates/tribe-db", "crates/tribe-places", "crates/tribe-brain", "crates/tribe-server"]
+members = ["crates/tribe-core", "crates/tribe-db", "crates/tribe-places", "crates/tribe-brain", "crates/tribe-media", "crates/tribe-server"]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,6 +13,7 @@ tribe-core = { path = "crates/tribe-core" }
 tribe-db = { path = "crates/tribe-db" }
 tribe-places = { path = "crates/tribe-places" }
 tribe-brain = { path = "crates/tribe-brain" }
+tribe-media = { path = "crates/tribe-media" }
 anyhow = "1"
 axum = { version = "0.8", features = ["macros"] }
 argon2 = "0.5"
@@ -33,3 +34,13 @@ uuid = { version = "1", features = ["v4"] }
 lto = "thin"
 codegen-units = 4
 strip = true
+
+# Picture decoding is unbearably slow unoptimised; keep debug builds and tests quick.
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3

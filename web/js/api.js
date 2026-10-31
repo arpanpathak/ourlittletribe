@@ -8,11 +8,11 @@ export class ApiError extends Error {
   }
 }
 
-async function call(method, path, body) {
+async function send(method, path, body, contentType) {
   const options = { method, headers: {}, credentials: "same-origin" };
   if (body !== undefined) {
-    options.headers["Content-Type"] = "application/json";
-    options.body = JSON.stringify(body);
+    options.headers["Content-Type"] = contentType;
+    options.body = body;
   }
   const response = await fetch(`api/${path}`, options);
   const text = await response.text();
@@ -23,12 +23,19 @@ async function call(method, path, body) {
     data = null;
   }
   if (!response.ok) {
-    const message = data?.error || `Request failed (${response.status})`;
+    let message = data?.error || `Request failed (${response.status})`;
+    if (response.status === 413) message = "That picture is too large (15 MB at most)";
     if (response.status === 401) window.dispatchEvent(new CustomEvent("signed-out"));
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message.charAt(0).toUpperCase() + message.slice(1));
   }
   return data;
 }
+
+const call = (method, path, body) =>
+  send(method, path, body === undefined ? undefined : JSON.stringify(body), "application/json");
+
+/** Sends a picture file as the raw request body. */
+const upload = (path, file) => send("POST", path, file, file.type || "application/octet-stream");
 
 const encode = encodeURIComponent;
 
@@ -43,19 +50,29 @@ export const api = {
   feed: () => call("GET", "feed"),
   search: (query) => call("GET", `search?q=${encode(query)}`),
   places: (query, near) =>
-    call("GET", `places?q=${encode(query)}${near ? `&lat=${near.lat}&lng=${near.lng}` : ""}`),
+    call("GET", `places?q=${encode(query)}${near ? `&lat=${near.lat.toFixed(4)}&lng=${near.lng.toFixed(4)}` : ""}`),
+  placeAt: (point) => call("GET", `places/at?lat=${point.lat.toFixed(6)}&lng=${point.lng.toFixed(6)}`),
 
   tribes: () => call("GET", "tribes"),
   tribe: (tribeId) => call("GET", `tribes/${encode(tribeId)}`),
   createTribe: (tribe) => call("POST", "tribes", tribe),
+  updateTribe: (tribeId, change) => call("PATCH", `tribes/${encode(tribeId)}`, change),
+  setTribeCover: (tribeId, file) => upload(`tribes/${encode(tribeId)}/cover`, file),
+  removeTribeCover: (tribeId) => call("DELETE", `tribes/${encode(tribeId)}/cover`),
   joinTribe: (tribeId) => call("POST", `tribes/${encode(tribeId)}/join`),
   leaveTribe: (tribeId) => call("POST", `tribes/${encode(tribeId)}/leave`),
 
+  events: () => call("GET", "events"),
   event: (eventId) => call("GET", `events/${encode(eventId)}`),
   createEvent: (event) => call("POST", "events", event),
+  updateEvent: (eventId, change) => call("PATCH", `events/${encode(eventId)}`, change),
   deleteEvent: (eventId) => call("DELETE", `events/${encode(eventId)}`),
+  setEventCover: (eventId, file) => upload(`events/${encode(eventId)}/cover`, file),
+  removeEventCover: (eventId) => call("DELETE", `events/${encode(eventId)}/cover`),
+  addPhoto: (eventId, file, caption = "") =>
+    upload(`events/${encode(eventId)}/photos${caption ? `?caption=${encode(caption)}` : ""}`, file),
+  removePhoto: (imageId) => call("DELETE", `photos/${encode(imageId)}`),
   rsvp: (eventId, going) => call("POST", `events/${encode(eventId)}/rsvp`, { going }),
-  vote: (eventId, vote) => call("POST", `events/${encode(eventId)}/vote`, { vote }),
   setOrigin: (eventId, point) => call("PUT", `events/${encode(eventId)}/origin`, point),
   clearOrigin: (eventId) => call("DELETE", `events/${encode(eventId)}/origin`),
 

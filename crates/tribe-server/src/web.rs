@@ -14,27 +14,34 @@ const FILES: &[(&str, &[u8])] = &[
     web_file!("index.html"),
     web_file!("app.css"),
     web_file!("favicon.svg"),
-    web_file!("js/app.js"),
     web_file!("js/api.js"),
-    web_file!("js/ui.js"),
-    web_file!("js/art.js"),
+    web_file!("js/app.js"),
+    web_file!("js/icons.js"),
     web_file!("js/map.js"),
+    web_file!("js/theme.js"),
+    web_file!("js/ui.js"),
+    web_file!("vendor/leaflet.css"),
+    web_file!("vendor/leaflet.js"),
+    web_file!("js/components/cards.js"),
+    web_file!("js/components/picture_picker.js"),
+    web_file!("js/components/place_picker.js"),
     web_file!("js/views/auth.js"),
-    web_file!("js/views/home.js"),
-    web_file!("js/views/tribes.js"),
-    web_file!("js/views/tribe.js"),
-    web_file!("js/views/new_event.js"),
     web_file!("js/views/event.js"),
+    web_file!("js/views/event_form.js"),
+    web_file!("js/views/explore.js"),
+    web_file!("js/views/feed.js"),
     web_file!("js/views/profile.js"),
     web_file!("js/views/search.js"),
-    web_file!("vendor/leaflet.js"),
-    web_file!("vendor/leaflet.css"),
-    web_file!("vendor/images/layers.png"),
+    web_file!("js/views/tribe.js"),
+    web_file!("js/views/tribe_form.js"),
+    web_file!("js/views/tribes.js"),
+    web_file!("vendor/fonts/inter-latin-wght-normal.woff2"),
     web_file!("vendor/images/layers-2x.png"),
+    web_file!("vendor/images/layers.png"),
 ];
 
 const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
-img-src 'self' data: https://*.tile.opentopomap.org https://tile.openstreetmap.org; \
+img-src 'self' data: blob: https://*.tile.opentopomap.org https://tile.openstreetmap.org; \
 connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
 fn content_type(path: &str) -> &'static str {
@@ -44,6 +51,7 @@ fn content_type(path: &str) -> &'static str {
         Some("js") => "text/javascript; charset=utf-8",
         Some("svg") => "image/svg+xml",
         Some("png") => "image/png",
+        Some("woff2") => "font/woff2",
         _ => "application/octet-stream",
     }
 }
@@ -73,7 +81,8 @@ pub async fn serve(uri: Uri) -> Response {
     };
     let cache = match name {
         "index.html" => "no-cache",
-        _ => "public, max-age=300",
+        _ if name.starts_with("vendor/") => "public, max-age=604800",
+        _ => "no-cache",
     };
     let mut response = bytes.into_response();
     let headers = response.headers_mut();

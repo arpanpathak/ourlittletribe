@@ -61,6 +61,8 @@ pub struct Event {
     pub my_rsvp: Option<String>,
     /// The viewer's vote: 1, -1 or 0.
     pub my_vote: i64,
+    /// The cover picture's id, if one was uploaded.
+    pub cover_image: Option<String>,
 }
 
 /// Someone who said they are going.
@@ -77,7 +79,8 @@ const EVENT_SELECT: &str = "SELECT e.id, e.tribe_id, t.name, t.emblem, e.creator
         (SELECT COUNT(*) FROM event_rsvps r WHERE r.event_id = e.id AND r.status = 'going'),
         COALESCE((SELECT SUM(v.vote) FROM event_votes v WHERE v.event_id = e.id), 0),
         (SELECT r.status FROM event_rsvps r WHERE r.event_id = e.id AND r.user_id = ?1),
-        COALESCE((SELECT v.vote FROM event_votes v WHERE v.event_id = e.id AND v.user_id = ?1), 0)
+        COALESCE((SELECT v.vote FROM event_votes v WHERE v.event_id = e.id AND v.user_id = ?1), 0),
+        (SELECT i.id FROM images i WHERE i.event_id = e.id AND i.purpose = 'event_cover' ORDER BY i.created_at DESC LIMIT 1)
      FROM events e JOIN tribes t ON t.id = e.tribe_id";
 
 fn read_event(row: &Row<'_>) -> rusqlite::Result<Event> {
@@ -99,6 +102,7 @@ fn read_event(row: &Row<'_>) -> rusqlite::Result<Event> {
         net_votes: row.get(14)?,
         my_rsvp: row.get(15)?,
         my_vote: row.get(16)?,
+        cover_image: row.get(17)?,
     })
 }
 
@@ -136,6 +140,29 @@ pub fn create(connection: &mut Connection, tribe_id: &str, creator_id: &str, new
     get(connection, &id, creator_id)
 }
 
+/// Changes what an event says: title, description, place and time.
+pub fn update(connection: &Connection, event_id: &str, viewer_id: &str, change: &NewEvent) -> DbResult<Event> {
+    let changed = connection.execute(
+        "UPDATE events SET title = ?2, description = ?3, place_name = ?4, lat = ?5, lng = ?6,
+                starts_at = ?7, tz_offset_minutes = ?8
+         WHERE id = ?1",
+        params![
+            event_id,
+            change.title,
+            change.description,
+            change.place_name,
+            change.lat,
+            change.lng,
+            change.starts_at,
+            change.tz_offset_minutes
+        ],
+    )?;
+    match changed {
+        0 => Err(DbError::NotFound),
+        _ => get(connection, event_id, viewer_id),
+    }
+}
+
 /// One event, as seen by the viewer.
 pub fn get(connection: &Connection, event_id: &str, viewer_id: &str) -> DbResult<Event> {
     let sql = format!("{EVENT_SELECT} WHERE e.id = ?2");
@@ -160,6 +187,16 @@ pub fn upcoming(
     let mut statement = connection.prepare(&sql)?;
     let events = statement
         .query_map(params![viewer_id, from, tribe_id, limit], read_event)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(events)
+}
+
+/// A tribe's events that started before `before`, latest first.
+pub fn past(connection: &Connection, viewer_id: &str, tribe_id: &str, before: i64, limit: u32) -> DbResult<Vec<Event>> {
+    let sql = format!("{EVENT_SELECT} WHERE e.tribe_id = ?2 AND e.starts_at < ?3 ORDER BY e.starts_at DESC LIMIT ?4");
+    let mut statement = connection.prepare(&sql)?;
+    let events = statement
+        .query_map(params![viewer_id, tribe_id, before, limit], read_event)?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(events)
 }
@@ -315,6 +352,23 @@ mod tests {
         create(&mut connection, &readers.id, &ada.id, &sample_event(now + 7200))?;
         assert_eq!(upcoming(&connection, &ada.id, None, now, 50)?.len(), 2);
         assert_eq!(upcoming(&connection, &ada.id, Some(&walkers.id), now, 50)?.len(), 1);
+        assert_eq!(past(&connection, &ada.id, &walkers.id, now, 50)?.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn update_changes_the_plan() -> DbResult<()> {
+        let mut connection = Connection::open_in_memory()?;
+        schema::prepare(&connection)?;
+        let ada = users::create(&connection, "a@example.com", "Ada", "hash")?;
+        let tribe = tribes::create(&mut connection, &ada.id, "Walkers", "", "", "peak")?;
+        let event = create(&mut connection, &tribe.id, &ada.id, &sample_event(unix_now() + 60))?;
+        let mut change = sample_event(unix_now() + 7200);
+        change.title = "Skyline Trail, sunrise".to_string();
+        let updated = update(&connection, &event.id, &ada.id, &change)?;
+        assert_eq!(updated.title, "Skyline Trail, sunrise");
+        assert_eq!(updated.going_count, 1);
+        assert!(matches!(update(&connection, "missing", &ada.id, &change), Err(DbError::NotFound)));
         Ok(())
     }
 

@@ -45,6 +45,37 @@ pub struct Store {
     pub opening_hours: String,
 }
 
+/// Cached stores inside a box whose `shop` value is one of `shop_tags`; used when OpenStreetMap can't be asked.
+pub fn within(
+    connection: &Connection,
+    south: f64,
+    west: f64,
+    north: f64,
+    east: f64,
+    shop_tags: &[String],
+) -> DbResult<Vec<Store>> {
+    let mut statement = connection.prepare(
+        "SELECT id, osm_ref, name, shop_tag, lat, lng, address, opening_hours FROM stores
+         WHERE lat BETWEEN ?1 AND ?3 AND lng BETWEEN ?2 AND ?4
+         LIMIT 2000",
+    )?;
+    let found = statement
+        .query_map(params![south, west, north, east], |row| {
+            Ok(Store {
+                id: row.get(0)?,
+                osm_ref: row.get(1)?,
+                name: row.get(2)?,
+                shop_tag: row.get(3)?,
+                lat: row.get(4)?,
+                lng: row.get(5)?,
+                address: row.get(6)?,
+                opening_hours: row.get(7)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(found.into_iter().filter(|store| shop_tags.contains(&store.shop_tag)).collect())
+}
+
 /// Inserts or refreshes stores, and returns them with their database ids.
 pub fn upsert(connection: &mut Connection, found: &[OsmStore]) -> DbResult<Vec<Store>> {
     let now = unix_now();
@@ -116,6 +147,10 @@ mod tests {
         };
         assert_eq!(first.id, second.id);
         assert_eq!(second.name, "Ashford Mercantile & Deli");
+        let tags = vec!["convenience".to_string()];
+        assert_eq!(within(&connection, 46.0, -123.0, 47.0, -122.0, &tags)?.len(), 1);
+        assert!(within(&connection, 47.0, -123.0, 48.0, -122.0, &tags)?.is_empty());
+        assert!(within(&connection, 46.0, -123.0, 47.0, -122.0, &["outdoor".to_string()])?.is_empty());
         Ok(())
     }
 }

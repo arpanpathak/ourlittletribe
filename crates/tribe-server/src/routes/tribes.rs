@@ -58,12 +58,44 @@ pub async fn create(
     Ok(Json(tribe))
 }
 
-/// A tribe with its members and upcoming events.
+/// Body of a tribe change.
+#[derive(Deserialize)]
+pub struct TribeChange {
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    home_area: String,
+}
+
+/// `PATCH /api/tribes/{tribe_id}`: for the tribe's organizers and admins.
+pub async fn update(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(tribe_id): Path<String>,
+    Json(change): Json<TribeChange>,
+) -> ApiResult<Json<Tribe>> {
+    super::media::require_organizer(&state, &tribe_id, &user).await?;
+    let name = bounded(&change.name, 80, "name is too long")?;
+    if name.is_empty() {
+        return Err(ApiError::Invalid("give the tribe a name"));
+    }
+    let description = bounded(&change.description, 2000, "description is too long")?;
+    let home_area = bounded(&change.home_area, 80, "home area is too long")?;
+    let tribe = state
+        .db
+        .call(move |connection| tribes::update(connection, &tribe_id, &user.id, &name, &description, &home_area))
+        .await?;
+    Ok(Json(tribe))
+}
+
+/// A tribe with its members, upcoming events and recent ones.
 #[derive(Serialize)]
 pub struct TribeDetail {
     tribe: Tribe,
     members: Vec<Member>,
     events: Vec<Event>,
+    past_events: Vec<Event>,
 }
 
 /// `GET /api/tribes/{tribe_id}`.
@@ -79,6 +111,7 @@ pub async fn detail(
                 tribe: tribes::get(connection, &tribe_id, &user.id)?,
                 members: tribes::members(connection, &tribe_id)?,
                 events: events::upcoming(connection, &user.id, Some(&tribe_id), unix_now() - 6 * 3600, 50)?,
+                past_events: events::past(connection, &user.id, &tribe_id, unix_now() - 6 * 3600, 12)?,
             })
         })
         .await?;

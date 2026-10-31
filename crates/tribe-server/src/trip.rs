@@ -5,7 +5,7 @@ use serde::Serialize;
 use tribe_brain::{DriveFacts, TripFacts, WeatherFacts};
 use tribe_core::basket::{EvidenceThreshold, bought_with};
 use tribe_core::clock::{format_local, format_local_clock};
-use tribe_core::geo::{LatLng, estimated_detour_minutes};
+use tribe_core::geo::{LatLng, distance_to_route_km, estimated_detour_minutes};
 use tribe_core::recommend::{NeededItem, RankingRules, StoreCandidate, rank_stores};
 use tribe_db::events::Event;
 use tribe_db::prep::{self, PrepItem};
@@ -13,7 +13,7 @@ use tribe_db::stores::{self, OsmStore, Store};
 use tribe_places::osrm::Route;
 use tribe_places::weather::DayForecast;
 
-use crate::error::ApiResult;
+use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
 /// The forecast and elevation at an event's meeting point.
@@ -45,9 +45,13 @@ pub struct TripView {
     pub route: Option<Route>,
     /// Ranked stores.
     pub stores: Vec<StoreStop>,
+    /// Set when OpenStreetMap could not be searched and only stores seen before are shown.
+    pub notice: Option<String>,
 }
 
 const ROUTE_CORRIDOR_M: u32 = 1500;
+
+const STORE_SEARCH_RESTING: &str = "overpass";
 const MEETING_POINT_RADIUS_M: u32 = 6000;
 const MAX_ROUTED_CANDIDATES: usize = 40;
 const MAX_STOPS_SHOWN: usize = 12;
@@ -173,7 +177,16 @@ async fn stores_near(state: &AppState, line: &[LatLng], radius_m: u32, tags: &[S
     if let Some(cached) = state.store_lookups.get(&key) {
         return Ok(cached);
     }
-    let found = state.places.stores_along(line, radius_m, tags).await?;
+    if state.store_search_resting.get(STORE_SEARCH_RESTING).is_some() {
+        return Err(ApiError::Upstream("store search failed a moment ago".to_string()));
+    }
+    let found = match state.places.stores_along(line, radius_m, tags).await {
+        Ok(found) => found,
+        Err(error) => {
+            state.store_search_resting.put(STORE_SEARCH_RESTING.to_string(), ());
+            return Err(error.into());
+        }
+    };
     let mut rows = Vec::with_capacity(found.len());
     for store in found {
         rows.push(OsmStore {
@@ -189,6 +202,33 @@ async fn stores_near(state: &AppState, line: &[LatLng], radius_m: u32, tags: &[S
     let saved = state.db.call(move |connection| stores::upsert(connection, &rows)).await?;
     state.store_lookups.put(key, saved.clone());
     Ok(saved)
+}
+
+/// Stores already in the cache within `radius_m` of `line`.
+async fn cached_stores_near(state: &AppState, line: &[LatLng], radius_m: u32, tags: Vec<String>) -> ApiResult<Vec<Store>> {
+    let margin = f64::from(radius_m) / 111_000.0;
+    let mut south = f64::MAX;
+    let mut west = f64::MAX;
+    let mut north = f64::MIN;
+    let mut east = f64::MIN;
+    for point in line {
+        south = south.min(point.lat);
+        north = north.max(point.lat);
+        west = west.min(point.lng);
+        east = east.max(point.lng);
+    }
+    let longitude_margin = margin / south.max(north).abs().to_radians().cos().max(0.2);
+    let boxed = state
+        .db
+        .call(move |connection| {
+            stores::within(connection, south - margin, west - longitude_margin, north + margin, east + longitude_margin, &tags)
+        })
+        .await?;
+    let limit_km = f64::from(radius_m) / 1000.0;
+    Ok(boxed
+        .into_iter()
+        .filter(|store| distance_to_route_km(LatLng { lat: store.lat, lng: store.lng }, line) <= limit_km)
+        .collect())
 }
 
 /// The route from `origin` (when given) to the event, and the best stores for `needed` on the way.
@@ -231,10 +271,18 @@ pub async fn plan_stops(
         }
     }
     if tags.is_empty() {
-        return Ok(TripView { route, stores: Vec::new() });
+        return Ok(TripView { route, stores: Vec::new(), notice: None });
     }
 
-    let found = stores_near(state, &line, radius_m, &tags).await?;
+    let (found, notice) = match stores_near(state, &line, radius_m, &tags).await {
+        Ok(found) => (found, None),
+        Err(error) => {
+            tracing::warn!(%error, "store search failed; using stores seen before");
+            let cached = cached_stores_near(state, &line, radius_m, tags.clone()).await?;
+            let notice = "OpenStreetMap's store search is busy right now, so only stores found on earlier searches are shown. Try again in a few minutes.";
+            (cached, Some(notice.to_string()))
+        }
+    };
 
     let mut candidates = Vec::with_capacity(found.len());
     for store in &found {
@@ -288,7 +336,7 @@ pub async fn plan_stops(
             });
         }
     }
-    Ok(TripView { route, stores: stops })
+    Ok(TripView { route, stores: stops, notice })
 }
 
 #[cfg(test)]

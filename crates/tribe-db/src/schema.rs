@@ -126,6 +126,21 @@ CREATE TABLE IF NOT EXISTS activity_log (
     created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS activity_by_time ON activity_log(created_at);
+
+CREATE TABLE IF NOT EXISTS images (
+    id          TEXT PRIMARY KEY,
+    uploader_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    purpose     TEXT NOT NULL CHECK (purpose IN ('event_cover', 'event_photo', 'tribe_cover')),
+    event_id    TEXT REFERENCES events(id) ON DELETE CASCADE,
+    tribe_id    TEXT REFERENCES tribes(id) ON DELETE CASCADE,
+    caption     TEXT NOT NULL DEFAULT '',
+    width       INTEGER NOT NULL,
+    height      INTEGER NOT NULL,
+    created_at  INTEGER NOT NULL,
+    CHECK ((event_id IS NULL) <> (tribe_id IS NULL))
+);
+CREATE INDEX IF NOT EXISTS images_by_event ON images(event_id, purpose, created_at);
+CREATE INDEX IF NOT EXISTS images_by_tribe ON images(tribe_id, purpose, created_at);
 "#;
 
 /// Turns on foreign keys and write-ahead logging, and creates any missing table.

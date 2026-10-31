@@ -6,10 +6,11 @@ use serde::{Deserialize, Serialize};
 use tribe_core::basket::{EvidenceThreshold, Pairing, bought_with};
 use tribe_core::geo::LatLng;
 use tribe_db::events::{self, Attendee, Event, NewEvent};
+use tribe_db::images::{self, Photo};
 use tribe_db::prep::{self, PrepItem};
 use tribe_db::{activity_log, tribes, unix_now};
 
-use super::{bounded, require_member};
+use super::{bounded, managed_event, require_member};
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -34,10 +35,9 @@ pub async fn list(
     Ok(Json(found))
 }
 
-/// Body of a new event.
+/// What an event says: filled in when planning it and when editing it.
 #[derive(Deserialize)]
-pub struct EventForm {
-    tribe_id: String,
+pub struct EventFields {
     title: String,
     #[serde(default)]
     description: String,
@@ -49,6 +49,44 @@ pub struct EventForm {
     tz_offset_minutes: i64,
 }
 
+impl EventFields {
+    /// Checks every field and returns them trimmed.
+    fn validated(self) -> ApiResult<NewEvent> {
+        let title = bounded(&self.title, 120, "title is too long")?;
+        if title.is_empty() {
+            return Err(ApiError::Invalid("give the event a title"));
+        }
+        let place_name = bounded(&self.place_name, 200, "place name is too long")?;
+        if place_name.is_empty() {
+            return Err(ApiError::Invalid("say where to meet"));
+        }
+        let point = LatLng::new(self.lat, self.lng).ok_or(ApiError::Invalid("pick the meeting point on the map"))?;
+        if self.starts_at < unix_now() - 3600 {
+            return Err(ApiError::Invalid("the start time is in the past"));
+        }
+        if !(-14 * 60..=14 * 60).contains(&self.tz_offset_minutes) {
+            return Err(ApiError::Invalid("time zone offset is out of range"));
+        }
+        Ok(NewEvent {
+            title,
+            description: bounded(&self.description, 4000, "description is too long")?,
+            place_name,
+            lat: point.lat,
+            lng: point.lng,
+            starts_at: self.starts_at,
+            tz_offset_minutes: self.tz_offset_minutes,
+        })
+    }
+}
+
+/// Body of a new event.
+#[derive(Deserialize)]
+pub struct EventForm {
+    tribe_id: String,
+    #[serde(flatten)]
+    fields: EventFields,
+}
+
 /// `POST /api/events`.
 pub async fn create(
     State(state): State<AppState>,
@@ -56,30 +94,7 @@ pub async fn create(
     Json(form): Json<EventForm>,
 ) -> ApiResult<Json<Event>> {
     require_member(&state, &form.tribe_id, &user.id).await?;
-    let title = bounded(&form.title, 120, "title is too long")?;
-    if title.is_empty() {
-        return Err(ApiError::Invalid("give the event a title"));
-    }
-    let place_name = bounded(&form.place_name, 200, "place name is too long")?;
-    if place_name.is_empty() {
-        return Err(ApiError::Invalid("say where to meet"));
-    }
-    let point = LatLng::new(form.lat, form.lng).ok_or(ApiError::Invalid("pick the meeting point on the map"))?;
-    if form.starts_at < unix_now() - 3600 {
-        return Err(ApiError::Invalid("the start time is in the past"));
-    }
-    if !(-14 * 60..=14 * 60).contains(&form.tz_offset_minutes) {
-        return Err(ApiError::Invalid("time zone offset is out of range"));
-    }
-    let new_event = NewEvent {
-        title,
-        description: bounded(&form.description, 4000, "description is too long")?,
-        place_name,
-        lat: point.lat,
-        lng: point.lng,
-        starts_at: form.starts_at,
-        tz_offset_minutes: form.tz_offset_minutes,
-    };
+    let new_event = form.fields.validated()?;
     let tribe_id = form.tribe_id;
     let event = state
         .db
@@ -90,6 +105,24 @@ pub async fn create(
             Ok(event)
         })
         .await?;
+    Ok(Json(event))
+}
+
+/// `PATCH /api/events/{event_id}`: for the planner, the tribe's organizers and admins.
+pub async fn update(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(event_id): Path<String>,
+    Json(fields): Json<EventFields>,
+) -> ApiResult<Json<Event>> {
+    managed_event(&state, &event_id, &user).await?;
+    let change = fields.validated()?;
+    let moved_or_retimed_id = event_id.clone();
+    let event = state
+        .db
+        .call(move |connection| events::update(connection, &event_id, &user.id, &change))
+        .await?;
+    state.conditions.forget(&moved_or_retimed_id);
     Ok(Json(event))
 }
 
@@ -108,6 +141,7 @@ pub struct EventDetail {
     attendees: Vec<Attendee>,
     items: Vec<ItemView>,
     conditions: Conditions,
+    photos: Vec<Photo>,
     my_origin: Option<LatLng>,
     is_member: bool,
     can_manage: bool,
@@ -121,7 +155,7 @@ pub async fn detail(
     Path(event_id): Path<String>,
 ) -> ApiResult<Json<EventDetail>> {
     let viewer = user.clone();
-    let (event, attendees, items, baskets, origin, is_member, is_organizer) = state
+    let (event, attendees, items, baskets, photos, origin, is_member, is_organizer) = state
         .db
         .call(move |connection| {
             let event = events::get(connection, &event_id, &viewer.id)?;
@@ -135,6 +169,7 @@ pub async fn detail(
                 events::attendees(connection, &event_id)?,
                 prep::list(connection, &event_id)?,
                 prep::baskets(connection)?,
+                images::photos(connection, &event_id)?,
                 events::origin(connection, &event_id, &viewer.id)?,
                 is_member,
                 is_organizer,
@@ -153,6 +188,7 @@ pub async fn detail(
         attendees,
         items: item_views,
         conditions,
+        photos,
         my_origin: origin.map(|(lat, lng)| LatLng { lat, lng }),
         is_member,
         can_manage,
@@ -167,23 +203,9 @@ pub async fn remove(
     CurrentUser(user): CurrentUser,
     Path(event_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    state
-        .db
-        .call(move |connection| {
-            let event = events::get(connection, &event_id, &user.id)?;
-            let members = tribes::members(connection, &event.tribe_id)?;
-            let organizer = members
-                .iter()
-                .any(|member| member.user_id == user.id && member.role == "organizer");
-            let planner = event.creator_id.as_deref() == Some(user.id.as_str());
-            match organizer || planner || user.is_admin {
-                true => events::delete(connection, &event_id).map(|_| true),
-                false => Ok(false),
-            }
-        })
-        .await?
-        .then_some(Json(serde_json::json!({ "status": "deleted" })))
-        .ok_or(ApiError::Forbidden("only the planner or an organizer can delete this"))
+    managed_event(&state, &event_id, &user).await?;
+    state.db.call(move |connection| events::delete(connection, &event_id)).await?;
+    Ok(Json(serde_json::json!({ "status": "deleted" })))
 }
 
 /// Body of an RSVP.

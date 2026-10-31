@@ -28,6 +28,8 @@ pub struct Tribe {
     pub is_member: bool,
     /// Whether the viewer is an organizer.
     pub is_organizer: bool,
+    /// The cover picture's id, if one was uploaded.
+    pub cover_image: Option<String>,
 }
 
 /// One member of a tribe.
@@ -49,7 +51,8 @@ pub const EMBLEMS: [&str; 6] = ["peak", "forest", "wave", "coffee", "book", "bik
 const TRIBE_SELECT: &str = "SELECT t.id, t.creator_id, t.name, t.description, t.home_area, t.emblem, t.created_at,
         (SELECT COUNT(*) FROM tribe_members m WHERE m.tribe_id = t.id),
         EXISTS (SELECT 1 FROM tribe_members m WHERE m.tribe_id = t.id AND m.user_id = ?1),
-        EXISTS (SELECT 1 FROM tribe_members m WHERE m.tribe_id = t.id AND m.user_id = ?1 AND m.role = 'organizer')
+        EXISTS (SELECT 1 FROM tribe_members m WHERE m.tribe_id = t.id AND m.user_id = ?1 AND m.role = 'organizer'),
+        (SELECT i.id FROM images i WHERE i.tribe_id = t.id AND i.purpose = 'tribe_cover' ORDER BY i.created_at DESC LIMIT 1)
      FROM tribes t";
 
 fn read_tribe(row: &Row<'_>) -> rusqlite::Result<Tribe> {
@@ -64,6 +67,7 @@ fn read_tribe(row: &Row<'_>) -> rusqlite::Result<Tribe> {
         member_count: row.get(7)?,
         is_member: row.get(8)?,
         is_organizer: row.get(9)?,
+        cover_image: row.get(10)?,
     })
 }
 
@@ -90,6 +94,35 @@ pub fn create(
     )?;
     transaction.commit()?;
     get(connection, &id, creator_id)
+}
+
+/// Changes a tribe's name, description and home area.
+pub fn update(
+    connection: &Connection,
+    tribe_id: &str,
+    viewer_id: &str,
+    name: &str,
+    description: &str,
+    home_area: &str,
+) -> DbResult<Tribe> {
+    let changed = connection.execute(
+        "UPDATE tribes SET name = ?2, description = ?3, home_area = ?4 WHERE id = ?1",
+        params![tribe_id, name, description, home_area],
+    )?;
+    match changed {
+        0 => Err(DbError::NotFound),
+        _ => get(connection, tribe_id, viewer_id),
+    }
+}
+
+/// Whether `user_id` is one of the tribe's organizers.
+pub fn is_organizer(connection: &Connection, tribe_id: &str, user_id: &str) -> DbResult<bool> {
+    let organizer = connection.query_row(
+        "SELECT EXISTS (SELECT 1 FROM tribe_members WHERE tribe_id = ?1 AND user_id = ?2 AND role = 'organizer')",
+        params![tribe_id, user_id],
+        |row| row.get(0),
+    )?;
+    Ok(organizer)
 }
 
 /// Every tribe, the viewer's own first, then the biggest.
@@ -204,6 +237,11 @@ mod tests {
 
         let roles: Vec<String> = members(&connection, &tribe.id)?.into_iter().map(|member| member.role).collect();
         assert_eq!(roles, vec!["organizer".to_string(), "member".to_string()]);
+
+        assert!(is_organizer(&connection, &tribe.id, &ada.id)?);
+        assert!(!is_organizer(&connection, &tribe.id, &bo.id)?);
+        let renamed = update(&connection, &tribe.id, &ada.id, "Cascade Striders", "Faster now", "Issaquah")?;
+        assert_eq!(renamed.name, "Cascade Striders");
 
         leave(&connection, &tribe.id, &bo.id)?;
         assert!(!is_member(&connection, &tribe.id, &bo.id)?);

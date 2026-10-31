@@ -5,14 +5,14 @@
 //! | Open-Meteo | the forecast and elevation at the meeting point |
 //! | OSRM | the driving route and each store's detour time |
 //! | Overpass (OpenStreetMap) | stores near the route |
-//! | Nominatim (OpenStreetMap) | place search |
+//! | Photon (OpenStreetMap) | place search and naming a point on the map |
 //!
 //! All four are free and need no key. Each base URL can be changed, so an
 //! instance can use its own copies.
 
-pub mod nominatim;
 pub mod osrm;
 pub mod overpass;
+pub mod photon;
 pub mod weather;
 
 use std::time::Duration;
@@ -47,10 +47,10 @@ pub struct Endpoints {
     pub open_meteo_elevation: String,
     /// OSRM, without a trailing slash.
     pub osrm: String,
-    /// Overpass interpreter.
-    pub overpass: String,
-    /// Nominatim, without a trailing slash.
-    pub nominatim: String,
+    /// Overpass interpreters, tried in order until one answers. The public ones are often busy.
+    pub overpass: Vec<String>,
+    /// Photon geocoder, without a trailing slash.
+    pub photon: String,
 }
 
 impl Default for Endpoints {
@@ -59,8 +59,11 @@ impl Default for Endpoints {
             open_meteo: "https://api.open-meteo.com/v1/forecast".to_string(),
             open_meteo_elevation: "https://api.open-meteo.com/v1/elevation".to_string(),
             osrm: "https://router.project-osrm.org".to_string(),
-            overpass: "https://overpass-api.de/api/interpreter".to_string(),
-            nominatim: "https://nominatim.openstreetmap.org".to_string(),
+            overpass: vec![
+                "https://overpass-api.de/api/interpreter".to_string(),
+                "https://overpass.private.coffee/api/interpreter".to_string(),
+            ],
+            photon: "https://photon.komoot.io".to_string(),
         }
     }
 }
@@ -73,7 +76,7 @@ pub struct Places {
 }
 
 impl Places {
-    /// Builds a client that identifies itself as `user_agent`, as Nominatim's and Overpass's usage policies ask.
+    /// Builds a client that identifies itself as `user_agent`, as the services' usage policies ask.
     pub fn new(user_agent: &str, endpoints: Endpoints) -> Result<Places, PlacesError> {
         let http = reqwest::Client::builder()
             .user_agent(user_agent)

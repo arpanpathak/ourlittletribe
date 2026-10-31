@@ -16,20 +16,37 @@ use std::time::Duration;
 
 use anyhow::Context;
 use tribe_brain::{Brain, BrainConfig};
-use tribe_db::{Db, maintenance, unix_now};
+use tokio::sync::Semaphore;
+use tribe_db::{Db, images, maintenance, unix_now};
+use tribe_media::MediaStore;
 use tribe_places::{Endpoints, Places};
 
 use crate::state::{AppState, Config, RateLimit, TimedCache};
 
 const USER_AGENT: &str = concat!("OurLittleTribe/", env!("CARGO_PKG_VERSION"), " (https://github.com/arpanpathak/ourlittletribe)");
 
-async fn purge_every_hour(db: Db) {
+/// Deletes old rows every hour, then the picture files nothing refers to any more.
+async fn purge_every_hour(db: Db, media: Arc<MediaStore>) {
     let mut ticker = tokio::time::interval(Duration::from_secs(3600));
     loop {
         ticker.tick().await;
         match db.call(|connection| maintenance::purge(connection, unix_now())).await {
             Ok(report) => tracing::info!(?report, "hourly clean-up"),
             Err(error) => tracing::error!(%error, "hourly clean-up failed"),
+        }
+        let in_use = match db.call(|connection| images::all_ids(connection)).await {
+            Ok(ids) => ids,
+            Err(error) => {
+                tracing::error!(%error, "listing pictures failed");
+                continue;
+            }
+        };
+        let store = media.clone();
+        match tokio::task::spawn_blocking(move || store.sweep(&in_use)).await {
+            Ok(Ok(0)) => {}
+            Ok(Ok(removed)) => tracing::info!(removed, "deleted unused picture files"),
+            Ok(Err(error)) => tracing::error!(%error, "picture clean-up failed"),
+            Err(error) => tracing::error!(%error, "picture clean-up task failed"),
         }
     }
 }
@@ -61,6 +78,9 @@ async fn main() -> anyhow::Result<()> {
 
     let config = Config::from_env()?;
     let db = Db::open(&config.database).with_context(|| format!("opening {}", config.database.display()))?;
+    let media = Arc::new(
+        MediaStore::open(&config.media).with_context(|| format!("opening {}", config.media.display()))?,
+    );
     let places = Places::new(USER_AGENT, Endpoints::default())?;
     let brain = match &config.llm_url {
         Some(base_url) => Some(Arc::new(Brain::new(BrainConfig {
@@ -88,9 +108,13 @@ async fn main() -> anyhow::Result<()> {
         failed_sign_ins: Arc::new(RateLimit::new(60, Duration::from_secs(600))),
         conditions: Arc::new(TimedCache::new(Duration::from_secs(1800))),
         store_lookups: Arc::new(TimedCache::new(Duration::from_secs(1800))),
+        store_search_resting: Arc::new(TimedCache::new(Duration::from_secs(180))),
+        media: media.clone(),
+        uploads: Arc::new(RateLimit::new(300, Duration::from_secs(3600))),
+        picture_jobs: Arc::new(Semaphore::new(2)),
     };
 
-    tokio::spawn(purge_every_hour(db));
+    tokio::spawn(purge_every_hour(db, media));
 
     let listener = tokio::net::TcpListener::bind(config.listen)
         .await

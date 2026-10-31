@@ -6,8 +6,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use tokio::sync::Semaphore;
 use tribe_brain::Brain;
 use tribe_db::Db;
+use tribe_media::MediaStore;
 use tribe_places::Places;
 
 /// Settings, from environment variables.
@@ -17,6 +19,8 @@ pub struct Config {
     pub listen: SocketAddr,
     /// `OLT_DB`: the SQLite file. Default `ourlittletribe.db`.
     pub database: PathBuf,
+    /// `OLT_MEDIA`: the folder for uploaded pictures. Default: `media` next to the database.
+    pub media: PathBuf,
     /// `OLT_LLM_URL`: OpenAI-style base URL ending in `/v1`. Unset turns planning off.
     pub llm_url: Option<String>,
     /// `OLT_LLM_MODEL`: model id; unset uses the first one the server lists.
@@ -37,9 +41,18 @@ impl Config {
         let listen = non_empty_var("OLT_ADDR")
             .unwrap_or_else(|| "127.0.0.1:8090".to_string())
             .parse()?;
+        let database: PathBuf = non_empty_var("OLT_DB").unwrap_or_else(|| "ourlittletribe.db".to_string()).into();
+        let media = match non_empty_var("OLT_MEDIA") {
+            Some(folder) => PathBuf::from(folder),
+            None => match database.parent() {
+                Some(parent) => parent.join("media"),
+                None => PathBuf::from("media"),
+            },
+        };
         Ok(Config {
             listen,
-            database: non_empty_var("OLT_DB").unwrap_or_else(|| "ourlittletribe.db".to_string()).into(),
+            database,
+            media,
             llm_url: non_empty_var("OLT_LLM_URL").map(|url| url.trim_end_matches('/').to_string()),
             llm_model: non_empty_var("OLT_LLM_MODEL"),
             llm_key: non_empty_var("OLT_LLM_KEY"),
@@ -114,6 +127,13 @@ impl<T: Clone> TimedCache<T> {
         }
     }
 
+    /// Drops the entry for `key`, if any.
+    pub fn forget(&self, key: &str) {
+        if let Ok(mut entries) = self.entries.lock() {
+            entries.remove(key);
+        }
+    }
+
     /// Stores `value` under `key`, dropping stale entries.
     pub fn put(&self, key: String, value: T) {
         if let Ok(mut entries) = self.entries.lock() {
@@ -143,6 +163,15 @@ pub struct AppState {
     pub conditions: Arc<TimedCache<crate::trip::Conditions>>,
     /// Recent store lookups per route and tag set.
     pub store_lookups: Arc<TimedCache<Vec<tribe_db::stores::Store>>>,
+    /// Holds an entry for a few minutes after OpenStreetMap's store search fails, so pages
+    /// don't wait on a busy server again and again.
+    pub store_search_resting: Arc<TimedCache<()>>,
+    /// Uploaded pictures on disk.
+    pub media: Arc<MediaStore>,
+    /// Limit on picture uploads.
+    pub uploads: Arc<RateLimit>,
+    /// How many pictures may be decoded and resized at once; each can take a few hundred MB.
+    pub picture_jobs: Arc<Semaphore>,
 }
 
 #[cfg(test)]

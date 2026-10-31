@@ -1,20 +1,21 @@
-// The app shell: who is signed in, the navigation, and the hash router.
+// The app shell: who is signed in, the header and tab bar, and the hash router.
 
 import { api } from "./api.js";
-import { logoMark } from "./art.js";
-import { h, mount, avatar } from "./ui.js";
+import { h, mount, icon, iconMarkup, avatar, dropdown, menuItem, loadingPage, emptyState, toast } from "./ui.js";
 import { renderAuth } from "./views/auth.js";
-import { renderHome } from "./views/home.js";
+import { renderFeed } from "./views/feed.js";
+import { renderExplore } from "./views/explore.js";
+import { renderEvent } from "./views/event.js";
+import { renderEventForm } from "./views/event_form.js";
 import { renderTribes } from "./views/tribes.js";
 import { renderTribe } from "./views/tribe.js";
-import { renderNewEvent } from "./views/new_event.js";
-import { renderEvent } from "./views/event.js";
+import { renderTribeForm } from "./views/tribe_form.js";
 import { renderProfile } from "./views/profile.js";
 import { renderSearch } from "./views/search.js";
 
 const view = document.getElementById("view");
 
-/** What every view can read: the signed-in user and a way to navigate. */
+/** The signed-in user, for every view to read. */
 export const session = { user: null };
 
 /** Moves to a route such as `/events/abc`. */
@@ -22,108 +23,163 @@ export function go(path) {
   window.location.hash = `#${path}`;
 }
 
+/** Replaces the current route without adding a history entry, such as when switching tabs. */
+export function replaceRoute(path) {
+  history.replaceState(null, "", `#${path}`);
+}
+
 const ROUTES = [
-  [/^\/$/, () => renderHome(view)],
+  [/^\/$/, () => renderFeed(view)],
+  [/^\/events$/, (_unused, query) => renderExplore(view, query)],
+  [/^\/events\/new$/, (_unused, query) => renderEventForm(view, null, query)],
+  [/^\/events\/([^/]+)\/edit$/, (eventId) => renderEventForm(view, eventId)],
+  [/^\/events\/([^/]+)$/, (eventId, query) => renderEvent(view, eventId, query.get("tab"))],
   [/^\/tribes$/, () => renderTribes(view)],
-  [/^\/tribes\/([^/]+)$/, (tribeId) => renderTribe(view, tribeId)],
-  [/^\/events\/new$/, (_unused, query) => renderNewEvent(view, query.get("tribe"))],
-  [/^\/events\/([^/]+)$/, (eventId) => renderEvent(view, eventId)],
+  [/^\/tribes\/new$/, () => renderTribeForm(view, null)],
+  [/^\/tribes\/([^/]+)\/edit$/, (tribeId) => renderTribeForm(view, tribeId)],
+  [/^\/tribes\/([^/]+)$/, (tribeId, query) => renderTribe(view, tribeId, query.get("tab"))],
   [/^\/people\/([^/]+)$/, (userId) => renderProfile(view, userId)],
   [/^\/search$/, (_unused, query) => renderSearch(view, query.get("q") || "")],
 ];
 
-const NAV_LINKS = [
-  ["/", "Home", "M3 11 L12 3 L21 11 M5 10 V21 H19 V10"],
-  ["/tribes", "Tribes", "M3 20 L9 9 L13 15 L16 11 L21 20 Z"],
-  ["/search", "Search", "M11 4 A7 7 0 1 1 10.9 4 M16 16 L21 21"],
+const NAV = [
+  ["/", "Feed", "home"],
+  ["/events", "Events", "calendar"],
+  ["/tribes", "Tribes", "users"],
 ];
-
-function icon(path) {
-  return h("span", {
-    class: "nav-icon",
-    html: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`,
-  });
-}
 
 function currentPath() {
   const raw = window.location.hash.replace(/^#/, "") || "/";
   const [path, queryText] = raw.split("?");
-  return { path, query: new URLSearchParams(queryText || "") };
+  return { path: path || "/", query: new URLSearchParams(queryText || "") };
 }
 
-function applyTheme(theme) {
-  if (theme) document.documentElement.dataset.theme = theme;
-  else delete document.documentElement.dataset.theme;
+function isActive(target, path) {
+  if (target === "/") return path === "/";
+  return path === target || path.startsWith(`${target}/`);
 }
 
-function storedTheme() {
-  try {
-    return localStorage.getItem("olt-theme");
-  } catch {
-    return null;
-  }
-}
-
-function toggleTheme() {
-  const dark = document.documentElement.dataset.theme
-    ? document.documentElement.dataset.theme === "dark"
-    : window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const next = dark ? "light" : "dark";
-  applyTheme(next);
-  try {
-    localStorage.setItem("olt-theme", next);
-  } catch {
-    /* storage may be blocked; the toggle still works for this visit */
-  }
-}
-
-function renderChrome() {
-  const { path } = currentPath();
-  mount(document.getElementById("brand"), h("span", { html: logoMark(30) }), h("span", { class: "brand-name" }, "OurLittleTribe"));
-  const links = (cls) =>
-    NAV_LINKS.map(([target, label, iconPath]) => {
-      const active = target === "/" ? path === "/" : path.startsWith(target);
-      return h("a", { href: `#${target}`, class: `${cls}${active ? " active" : ""}` }, icon(iconPath), h("span", {}, label));
-    });
-  const signedIn = Boolean(session.user);
-  mount(document.getElementById("nav"), signedIn ? links("nav-link") : null);
-  mount(document.getElementById("tabbar"), signedIn ? links("tab-link") : null);
-  document.getElementById("tabbar").hidden = !signedIn;
-  const themeButton = h("button", {
-    class: "icon-button",
-    title: "Switch light and dark",
-    "aria-label": "Switch light and dark",
-    onclick: toggleTheme,
-    html: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 13 A9 9 0 1 1 11 3 A7 7 0 0 0 21 13 Z"/></svg>`,
+function themeButton() {
+  const dark = document.documentElement.dataset.theme === "dark";
+  return h("button", {
+    type: "button",
+    class: "btn btn-ghost btn-icon",
+    title: dark ? "Switch to light mode" : "Switch to dark mode",
+    "aria-label": dark ? "Switch to light mode" : "Switch to dark mode",
+    onclick: () => {
+      window.oltSetTheme(dark ? "light" : "dark");
+      renderHeader();
+    },
+    html: iconMarkup(dark ? "sun" : "moon"),
   });
-  const me = signedIn
-    ? h("a", { href: `#/people/${session.user.id}`, class: "me-link", title: "Your profile" }, avatar(session.user.name, 34))
-    : null;
-  mount(document.getElementById("topbar-end"), themeButton, me);
 }
+
+async function signOut() {
+  try {
+    await api.logout();
+  } finally {
+    session.user = null;
+    go("/");
+    route();
+  }
+}
+
+function renderHeader() {
+  const { path, query } = currentPath();
+  const header = document.getElementById("header");
+  const tabbar = document.getElementById("tabbar");
+  const logo = h("a", { class: "logo", href: "#/" }, h("span", { class: "logo-mark", html: iconMarkup("logoPeak") }), h("span", {}, "OurLittleTribe"));
+
+  if (!session.user) {
+    mount(header, logo, h("div", { class: "header-actions", style: "margin-left:auto" }, themeButton()));
+    tabbar.hidden = true;
+    return;
+  }
+
+  const searchInput = h("input", { type: "search", placeholder: "Search events, tribes, people, places", "aria-label": "Search", value: path === "/search" ? query.get("q") || "" : "" });
+  const searchForm = h("form", { class: "header-search", role: "search" }, icon("search"), searchInput);
+  searchForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = searchInput.value.trim();
+    if (text) go(`/search?q=${encodeURIComponent(text)}`);
+  });
+
+  const create = dropdown(
+    h("button", { type: "button", class: "btn btn-primary create-menu" }, icon("plus"), "Create"),
+    () => [
+      menuItem("calendar", "New event", null, { href: "#/events/new" }),
+      menuItem("users", "New tribe", null, { href: "#/tribes/new" }),
+    ]);
+
+  const me = session.user;
+  const account = dropdown(
+    h("button", { type: "button", class: "btn btn-ghost btn-icon", "aria-label": "Your account", style: "width:auto;padding:0 4px" }, avatar(me.name, 32)),
+    () => [
+      h("div", { class: "menu-label" }, h("div", { class: "strong", style: "color:var(--text)" }, me.name), me.email),
+      "-",
+      menuItem("user", "Your profile", null, { href: `#/people/${me.id}` }),
+      menuItem("calendar", "Your events", null, { href: "#/events?show=going" }),
+      "-",
+      menuItem("logout", "Sign out", signOut, { class: "menu-danger" }),
+    ]);
+
+  mount(header,
+    logo,
+    h("nav", { class: "main-nav", "aria-label": "Main" },
+      NAV.map(([target, label, iconName]) =>
+        h("a", { href: `#${target}`, class: isActive(target, path) ? "active" : null, "aria-current": isActive(target, path) ? "page" : null }, icon(iconName), label))),
+    searchForm,
+    h("div", { class: "header-actions" },
+      h("a", { href: "#/search", class: "btn btn-ghost btn-icon mobile-only", "aria-label": "Search" }, icon("search")),
+      create,
+      themeButton(),
+      account));
+
+  tabbar.hidden = false;
+  const tab = (target, label, iconName) =>
+    h("a", { href: `#${target}`, class: isActive(target, path) ? "active" : null }, icon(iconName), label);
+  mount(tabbar,
+    tab("/", "Feed", "home"),
+    tab("/events", "Events", "calendar"),
+    dropdown(h("button", { type: "button", class: "tab-create", "aria-label": "Create" }, icon("plus")), () => [
+      menuItem("calendar", "New event", null, { href: "#/events/new" }),
+      menuItem("users", "New tribe", null, { href: "#/tribes/new" }),
+    ]),
+    tab("/tribes", "Tribes", "users"),
+    tab(`/people/${me.id}`, "Profile", "user"));
+}
+
+let routeToken = 0;
 
 async function route() {
-  renderChrome();
+  const token = ++routeToken;
+  renderHeader();
+  view.classList.remove("narrow");
+  view.classList.add("page");
   if (!session.user) {
-    renderAuth(view, async (user) => {
+    renderAuth(view, (user) => {
       session.user = user;
-      await route();
+      route();
     });
     return;
   }
   const { path, query } = currentPath();
   for (const [pattern, render] of ROUTES) {
     const match = path.match(pattern);
-    if (match) {
-      view.scrollTo?.(0, 0);
-      window.scrollTo(0, 0);
-      try {
-        await render(match[1] ? decodeURIComponent(match[1]) : undefined, query);
-      } catch (error) {
-        mount(view, h("div", { class: "empty" }, h("h2", {}, "That didn't load"), h("p", {}, error.message)));
-      }
-      return;
+    if (!match) continue;
+    window.scrollTo(0, 0);
+    mount(view, loadingPage());
+    try {
+      await render(match[1] ? decodeURIComponent(match[1]) : undefined, query);
+    } catch (error) {
+      if (token !== routeToken) return;
+      const missing = error.status === 404;
+      mount(view, emptyState(missing ? "compass" : "alert",
+        missing ? "Not found" : "That didn't load",
+        missing ? "It may have been deleted, or the link is wrong." : error.message,
+        h("a", { class: "btn", href: "#/" }, "Back to your feed")));
     }
+    return;
   }
   go("/");
 }
@@ -132,11 +188,16 @@ window.addEventListener("hashchange", route);
 window.addEventListener("signed-out", () => {
   if (session.user) {
     session.user = null;
+    toast("Your session ended. Please sign in again.");
     route();
   }
 });
 
-applyTheme(storedTheme());
+/** Redraws the header, e.g. after the user's name changes. */
+export function refreshHeader() {
+  renderHeader();
+}
+
 try {
   session.user = await api.me();
 } catch {

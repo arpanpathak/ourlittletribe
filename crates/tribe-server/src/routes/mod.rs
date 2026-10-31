@@ -3,11 +3,15 @@
 mod account;
 mod discover;
 mod events;
+mod media;
 mod prep;
 mod tribes;
 
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::routing::{delete, get, post, put};
+use tribe_db::events::Event;
+use tribe_db::users::User;
 
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -36,6 +40,29 @@ pub(crate) async fn require_member(state: &AppState, tribe_id: &str, user_id: &s
     }
 }
 
+/// The event, if the user may change it: its planner, the tribe's organizers, and admins.
+pub(crate) async fn managed_event(state: &AppState, event_id: &str, user: &User) -> ApiResult<Event> {
+    let event_id = event_id.to_string();
+    let viewer = user.clone();
+    let (event, organizer) = state
+        .db
+        .call(move |connection| {
+            let event = tribe_db::events::get(connection, &event_id, &viewer.id)?;
+            let organizer = tribe_db::tribes::is_organizer(connection, &event.tribe_id, &viewer.id)?;
+            Ok((event, organizer))
+        })
+        .await?;
+    let planner = event.creator_id.as_deref() == Some(user.id.as_str());
+    match planner || organizer || user.is_admin {
+        true => Ok(event),
+        false => Err(ApiError::Forbidden("only the planner or an organizer can change this")),
+    }
+}
+
+fn upload_limit() -> DefaultBodyLimit {
+    DefaultBodyLimit::max(tribe_media::MAX_UPLOAD_BYTES + 64 * 1024)
+}
+
 /// Every route: the API under `/api`, the health check, and the web app.
 pub fn router(state: AppState) -> Router {
     let api = Router::new()
@@ -45,11 +72,21 @@ pub fn router(state: AppState) -> Router {
         .route("/me", get(account::me).patch(account::update_me))
         .route("/people/{user_id}", get(account::profile))
         .route("/tribes", get(tribes::list).post(tribes::create))
-        .route("/tribes/{tribe_id}", get(tribes::detail))
+        .route("/tribes/{tribe_id}", get(tribes::detail).patch(tribes::update))
+        .route(
+            "/tribes/{tribe_id}/cover",
+            post(media::set_tribe_cover).delete(media::remove_tribe_cover).layer(upload_limit()),
+        )
         .route("/tribes/{tribe_id}/join", post(tribes::join))
         .route("/tribes/{tribe_id}/leave", post(tribes::leave))
         .route("/events", get(events::list).post(events::create))
-        .route("/events/{event_id}", get(events::detail).delete(events::remove))
+        .route("/events/{event_id}", get(events::detail).patch(events::update).delete(events::remove))
+        .route(
+            "/events/{event_id}/cover",
+            post(media::set_event_cover).delete(media::remove_event_cover).layer(upload_limit()),
+        )
+        .route("/events/{event_id}/photos", post(media::add_photo).layer(upload_limit()))
+        .route("/photos/{image_id}", delete(media::remove_photo))
         .route("/events/{event_id}/rsvp", post(events::rsvp))
         .route("/events/{event_id}/vote", post(events::vote))
         .route("/events/{event_id}/origin", put(events::set_origin).delete(events::clear_origin))
@@ -61,10 +98,12 @@ pub fn router(state: AppState) -> Router {
         .route("/items/{item_id}", delete(prep::remove))
         .route("/feed", get(discover::feed))
         .route("/search", get(discover::search))
-        .route("/places", get(discover::places));
+        .route("/places", get(discover::places))
+        .route("/places/at", get(discover::place_at));
 
     Router::new()
         .nest("/api", api)
+        .route("/media/{file_name}", get(media::serve))
         .route("/health", get(|| async { axum::Json(serde_json::json!({ "status": "ok" })) }))
         .fallback(web::serve)
         .with_state(state)

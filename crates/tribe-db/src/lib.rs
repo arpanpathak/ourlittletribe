@@ -7,6 +7,7 @@
 
 pub mod activity_log;
 pub mod events;
+pub mod images;
 pub mod maintenance;
 pub mod prep;
 pub mod schema;

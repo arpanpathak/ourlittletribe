@@ -14,6 +14,7 @@ tribe-core.workspace = true
 tribe-db.workspace = true
 tribe-places.workspace = true
 tribe-brain.workspace = true
+tribe-media.workspace = true
 anyhow.workspace = true
 argon2.workspace = true
 axum.workspace = true
