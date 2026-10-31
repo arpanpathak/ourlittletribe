@@ -41,7 +41,9 @@ pub async fn update_me(
     let home_area = bounded(&change.home_area, 80, "home area is too long")?;
     let updated = state
         .db
-        .call(move |connection| users::update_profile(connection, &user.id, &name, &bio, &home_area))
+        .call(move |connection| {
+            users::update_profile(connection, &user.id, &name, &bio, &home_area)
+        })
         .await?;
     Ok(Json(updated))
 }

@@ -6,6 +6,7 @@
 
 mod auth;
 mod error;
+mod place_search;
 mod routes;
 mod state;
 mod trip;
@@ -15,22 +16,29 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
-use tribe_brain::{Brain, BrainConfig};
 use tokio::sync::Semaphore;
+use tribe_brain::{Brain, BrainConfig};
 use tribe_db::{Db, images, maintenance, unix_now};
 use tribe_media::MediaStore;
 use tribe_places::{Endpoints, Places};
 
 use crate::state::{AppState, Config, RateLimit, TimedCache};
 
-const USER_AGENT: &str = concat!("OurLittleTribe/", env!("CARGO_PKG_VERSION"), " (https://github.com/arpanpathak/ourlittletribe)");
+const USER_AGENT: &str = concat!(
+    "OurLittleTribe/",
+    env!("CARGO_PKG_VERSION"),
+    " (https://github.com/arpanpathak/ourlittletribe)"
+);
 
 /// Deletes old rows every hour, then the picture files nothing refers to any more.
 async fn purge_every_hour(db: Db, media: Arc<MediaStore>) {
     let mut ticker = tokio::time::interval(Duration::from_secs(3600));
     loop {
         ticker.tick().await;
-        match db.call(|connection| maintenance::purge(connection, unix_now())).await {
+        match db
+            .call(|connection| maintenance::purge(connection, unix_now()))
+            .await
+        {
             Ok(report) => tracing::info!(?report, "hourly clean-up"),
             Err(error) => tracing::error!(%error, "hourly clean-up failed"),
         }
@@ -53,14 +61,15 @@ async fn purge_every_hour(db: Db, media: Arc<MediaStore>) {
 
 async fn shutdown_signal() {
     let interrupt = tokio::signal::ctrl_c();
-    let mut terminate = match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
-        Ok(stream) => stream,
-        Err(error) => {
-            tracing::warn!(%error, "cannot listen for SIGTERM");
-            let _ = interrupt.await;
-            return;
-        }
-    };
+    let mut terminate =
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(stream) => stream,
+            Err(error) => {
+                tracing::warn!(%error, "cannot listen for SIGTERM");
+                let _ = interrupt.await;
+                return;
+            }
+        };
     tokio::select! {
         _ = interrupt => {}
         _ = terminate.recv() => {}
@@ -77,9 +86,11 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = Config::from_env()?;
-    let db = Db::open(&config.database).with_context(|| format!("opening {}", config.database.display()))?;
+    let db = Db::open(&config.database)
+        .with_context(|| format!("opening {}", config.database.display()))?;
     let media = Arc::new(
-        MediaStore::open(&config.media).with_context(|| format!("opening {}", config.media.display()))?,
+        MediaStore::open(&config.media)
+            .with_context(|| format!("opening {}", config.media.display()))?,
     );
     let places = Places::new(USER_AGENT, Endpoints::default())?;
     let brain = match &config.llm_url {
@@ -94,7 +105,9 @@ async fn main() -> anyhow::Result<()> {
     match &brain {
         Some(model) => match model.model_name().await {
             Ok(name) => tracing::info!(model = %name, "planning model ready"),
-            Err(error) => tracing::warn!(%error, "planning model not reachable yet; will retry on first use"),
+            Err(error) => {
+                tracing::warn!(%error, "planning model not reachable yet; will retry on first use")
+            }
         },
         None => tracing::warn!("OLT_LLM_URL is not set; prep planning and search are off"),
     }
@@ -109,6 +122,9 @@ async fn main() -> anyhow::Result<()> {
         conditions: Arc::new(TimedCache::new(Duration::from_secs(1800))),
         store_lookups: Arc::new(TimedCache::new(Duration::from_secs(1800))),
         store_search_resting: Arc::new(TimedCache::new(Duration::from_secs(180))),
+        place_guesses: Arc::new(TimedCache::new(Duration::from_secs(1800))),
+        regions: Arc::new(TimedCache::new(Duration::from_secs(86400))),
+        areas: Arc::new(TimedCache::new(Duration::from_secs(86400))),
         media: media.clone(),
         uploads: Arc::new(RateLimit::new(300, Duration::from_secs(3600))),
         picture_jobs: Arc::new(Semaphore::new(2)),

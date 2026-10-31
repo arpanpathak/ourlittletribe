@@ -23,12 +23,25 @@ outing; the app then helps the group get ready for it:
 - **Learned, not hand-written, pairings.** "Groups often also got…" comes from
   what earlier groups marked as bought (support, confidence, lift), and stays
   hidden until there are at least 10 trips of evidence.
-- **Maps throughout.** Pick a meeting point by searching (Photon, built for
-  search-as-you-type), using your location, or clicking and dragging a pin;
-  a clicked point is named from the nearest address. The Events page shows
-  every upcoming outing on a map beside the list.
-- **Pictures.** Events and tribes have cover pictures, and people share photos
-  from an outing. Every upload is turned upright, resized, and re-encoded as a
+- **Search that understands places.** Typing shows OpenStreetMap matches at
+  once (Photon, falling back to Nominatim when Photon is down). The model then
+  reads the search the way a person means it: "mt rainier henry jackson" is the
+  Jackson Visitor Center at Paradise. It guesses names and areas, each guess
+  is looked up inside that area's bounds, and the model picks from the real
+  places found. Nothing it suggests appears unless the map has it.
+- **More than one place.** An event has a meeting point and, optionally, stops
+  on the way, optional stops and a venue, each placed by search or on one
+  shared map. The event page shows the itinerary, and directions go through
+  every stop.
+- **Maps throughout.** Use your location, or click and drag a pin; a clicked
+  point is named from the nearest address. The Events page shows every
+  upcoming outing on a map beside the list.
+- **Descriptions with formatting.** Event and tribe descriptions are written
+  in a Markdown editor with a toolbar, a preview, starting outlines, and
+  pictures by button, paste or drop. Rendering builds DOM nodes directly, so
+  written text can never become markup.
+- **Pictures.** Events, tribes and profiles have cover pictures, people have
+  profile pictures, and anyone going can share photos from an outing. Every upload is turned upright, resized, and re-encoded as a
   plain JPEG, which removes EXIF data including GPS position.
 
 There are no ads, no merchant accounts and no tracking. A starting point is
@@ -74,7 +87,7 @@ Jetson AGX Thor it is TensorRT Edge-LLM serving Qwen3.6-35B-A3B (NVFP4).
 ## Tests
 
 ```bash
-cargo test --workspace                                      # 60 tests, no network
+cargo test --workspace                                      # 64 tests, no network
 cargo test -p tribe-places --test live -- --ignored         # real map and weather services
 OLT_LLM_URL=http://127.0.0.1:8081/v1 \
   cargo test -p tribe-brain --test live -- --ignored --nocapture   # the real model
@@ -106,8 +119,10 @@ into the `arpanpathak/voltforge.tech` repository to make
 
 ## Limits
 
-- The public OSRM, Overpass and Photon servers are shared, rate-limited
-  services. Overpass in particular is often busy: the app tries a mirror, then
+- The public OSRM, Overpass, Photon and Nominatim servers are shared,
+  rate-limited services. Photon blocks addresses that send bursts; while it
+  does, place search uses Nominatim at one request a second, so the model's
+  best matches take about ten seconds instead of two or three. Overpass in particular is often busy: the app tries a mirror, then
   falls back to stores it has already seen and says so on the page. A busy
   instance should run its own (the URLs live in `tribe_places::Endpoints`).
 - Store results only know a shop's *type* from OpenStreetMap, not its stock.

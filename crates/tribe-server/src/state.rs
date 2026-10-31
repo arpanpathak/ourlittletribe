@@ -32,7 +32,9 @@ pub struct Config {
 }
 
 fn non_empty_var(name: &str) -> Option<String> {
-    std::env::var(name).ok().filter(|value| !value.trim().is_empty())
+    std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
 }
 
 impl Config {
@@ -41,7 +43,9 @@ impl Config {
         let listen = non_empty_var("OLT_ADDR")
             .unwrap_or_else(|| "127.0.0.1:8090".to_string())
             .parse()?;
-        let database: PathBuf = non_empty_var("OLT_DB").unwrap_or_else(|| "ourlittletribe.db".to_string()).into();
+        let database: PathBuf = non_empty_var("OLT_DB")
+            .unwrap_or_else(|| "ourlittletribe.db".to_string())
+            .into();
         let media = match non_empty_var("OLT_MEDIA") {
             Some(folder) => PathBuf::from(folder),
             None => match database.parent() {
@@ -166,6 +170,19 @@ pub struct AppState {
     /// Holds an entry for a few minutes after OpenStreetMap's store search fails, so pages
     /// don't wait on a busy server again and again.
     pub store_search_resting: Arc<TimedCache<()>>,
+    /// Recent model-assisted place searches, by query and rough position.
+    pub place_guesses: Arc<TimedCache<Vec<tribe_places::photon::PlaceMatch>>>,
+    /// Areas named in model guesses, with their bounds, by name.
+    pub areas: Arc<
+        TimedCache<
+            Option<(
+                tribe_places::photon::PlaceMatch,
+                tribe_places::photon::Bounds,
+            )>,
+        >,
+    >,
+    /// Names of regions around rough positions, such as "Seattle, Washington".
+    pub regions: Arc<TimedCache<String>>,
     /// Uploaded pictures on disk.
     pub media: Arc<MediaStore>,
     /// Limit on picture uploads.

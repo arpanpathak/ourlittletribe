@@ -3,7 +3,8 @@
 import { api } from "../api.js";
 import { h, mount, icon, field, toast, emptyState, confirmAction, dateAndTimeInputs, unixFromInputs, pictureUrl } from "../ui.js";
 import { go } from "../app.js";
-import { placePicker } from "../components/place_picker.js";
+import { locationsEditor } from "../components/locations_editor.js";
+import { markdownEditor } from "../components/markdown_editor.js";
 import { picturePicker } from "../components/picture_picker.js";
 
 function nextSaturdayMorning() {
@@ -18,6 +19,13 @@ function section(title, text, ...body) {
     h("div", { class: "form-section-intro" }, h("h3", {}, title), h("p", {}, text)),
     h("div", { class: "form-section-body" }, body));
 }
+
+/** Starting outlines for a description, offered from the editor's Outline menu. */
+const EVENT_OUTLINES = [
+  ["Hike or walk", "## The plan\n- **Distance:** \n- **Elevation gain:** \n- **Pace:** \n- **Back by:** \n\n## What to expect\n\n\n## Good to know\n- [ ] Parking pass\n- [ ] Dogs welcome?\n"],
+  ["Picnic or meal", "## The plan\n\n\n## Food\n- Who brings what: \n\n## Good to know\n- \n"],
+  ["Schedule", "## Schedule\n1. **9:00** Meet up\n2. **9:30** Leave\n3. **12:00** Lunch\n4. **3:00** Head back\n"],
+];
 
 /** Saves the cover change, if any; reports a failure without losing the saved event. */
 async function saveCover(eventId, change) {
@@ -36,7 +44,7 @@ export async function renderEventForm(view, eventId, query = new URLSearchParams
   const [tribes, detail] = await Promise.all([api.tribes(), editing ? api.event(eventId) : Promise.resolve(null)]);
   const event = detail?.event || null;
   const myTribes = tribes.filter((tribe) => tribe.is_member);
-  view.classList.add("narrow");
+  view.classList.add("medium");
 
   if (editing && !detail.can_manage) {
     mount(view, emptyState("alert", "You can't edit this event", "Only its planner and the tribe's organizers can.", h("a", { class: "btn", href: `#/events/${eventId}` }, "Back to the event")));
@@ -56,7 +64,12 @@ export async function renderEventForm(view, eventId, query = new URLSearchParams
   const tribeSelect = h("select", { name: "tribe" }, myTribes.map((tribe) =>
     h("option", { value: tribe.id, selected: tribe.id === requestedTribe ? true : null }, tribe.name)));
   const title = h("input", { name: "title", maxlength: 120, placeholder: "e.g. Skyline Trail loop at Paradise", value: event?.title || "" });
-  const description = h("textarea", { name: "description", rows: 6, maxlength: 4000, placeholder: "Distance, elevation gain, pace, what to expect, food plans, dogs or kids, when you'll head back…" }, event?.description || "");
+  const description = markdownEditor({
+    value: event?.description || "",
+    maxLength: 8000,
+    placeholder: "What's the plan? Distance and elevation, pace, what to expect, food, dogs or kids, when you'll head back…\n\nUse the toolbar for headings, lists and pictures, or pick an Outline to start from.",
+    templates: EVENT_OUTLINES,
+  });
   const date = h("input", { type: "date", value: when.date, required: true });
   const time = h("input", { type: "time", value: when.time, required: true, step: 300 });
 
@@ -69,7 +82,7 @@ export async function renderEventForm(view, eventId, query = new URLSearchParams
     : query.get("lat") && query.get("lng")
       ? { name: query.get("name") || "", detail: "", lat: Number(query.get("lat")), lng: Number(query.get("lng")) }
       : null;
-  const place = placePicker({ initial: initialPlace, label: "Meeting point" });
+  const places = locationsEditor({ meet: initialPlace, stops: detail?.stops || [] });
   const cover = picturePicker({ existingUrl: event?.cover_image ? pictureUrl(event.cover_image) : null });
 
   const submit = h("button", { type: "submit", class: "btn btn-primary" }, editing ? "Save changes" : "Create event");
@@ -79,10 +92,14 @@ export async function renderEventForm(view, eventId, query = new URLSearchParams
         ? h("div", { class: "field" }, h("span", { class: "field-label" }, "Tribe"), h("div", { class: "text-2" }, event.tribe_name))
         : field("Tribe", tribeSelect, { hint: "Everyone in this tribe will see the event." }),
       titleField,
-      field("Description", description, { hint: "Optional, but details help people decide and help the model plan." })),
+      h("div", { class: "field" }, h("span", { class: "field-label" }, "Description"), description.element,
+        h("div", { class: "hint" }, "Optional, but details help people decide, and help the model plan the packing list."))),
     section("Date and time", "When should people be at the meeting point?",
       h("div", { class: "field-row" }, dateField, timeField)),
-    section("Location", "Search for a place, use your location, or click the map. Drag the pin to fine-tune.", place.element),
+    h("div", { class: "form-section form-section-full" },
+      h("div", { class: "form-section-intro" }, h("h3", {}, "Where"),
+        h("p", {}, "Start with where everyone meets. Add stops on the way, optional stops, or the venue if the event happens somewhere else. Search by name, or select a row and click the map.")),
+      places.element),
     section("Cover picture", "Shown at the top of the event and on its card. Without one, the card shows a map.", cover.element),
     editing
       ? section("Delete event", "This removes the event, its packing list and its photos for everyone.",
@@ -117,16 +134,19 @@ export async function renderEventForm(view, eventId, query = new URLSearchParams
     flag(dateField, date.value ? null : "Pick a date", date);
     flag(timeField, time.value ? null : "Pick a start time", time);
     if (date.value && time.value && start < Date.now() / 1000 - 3600) flag(dateField, "That's in the past", date);
-    const location = place.value();
-    if (!location) place.showError("Choose where to meet: search, or click the map");
-    if (firstProblem) firstProblem.focus();
-    if (firstProblem || !location) return;
+    if (firstProblem) {
+      firstProblem.focus();
+      return;
+    }
+    const where = places.value();
+    if (!where) return;
     const fields = {
       title: title.value.trim(),
-      description: description.value.trim(),
-      place_name: location.name,
-      lat: location.lat,
-      lng: location.lng,
+      description: description.value(),
+      place_name: where.meet.name,
+      lat: where.meet.lat,
+      lng: where.meet.lng,
+      stops: where.stops,
       starts_at: start,
       tz_offset_minutes: -new Date(start * 1000).getTimezoneOffset(),
     };
@@ -152,6 +172,6 @@ export async function renderEventForm(view, eventId, query = new URLSearchParams
         h("h1", {}, editing ? "Edit event" : "New event"),
         h("p", {}, editing ? event.title : "Plan an outing for your tribe."))),
     form);
-  place.start();
+  places.start();
   if (!editing) title.focus();
 }

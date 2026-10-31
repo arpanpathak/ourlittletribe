@@ -4,17 +4,31 @@ use tribe_core::geo::LatLng;
 use tribe_places::{Endpoints, Places, PlacesError};
 
 fn places() -> Result<Places, PlacesError> {
-    Places::new("OurLittleTribe-tests/0.1 (https://voltforge.tech)", Endpoints::default())
+    Places::new(
+        "OurLittleTribe-tests/0.1 (https://voltforge.tech)",
+        Endpoints::default(),
+    )
 }
 
-const SEATTLE: LatLng = LatLng { lat: 47.6062, lng: -122.3321 };
-const PARADISE: LatLng = LatLng { lat: 46.7865, lng: -121.7353 };
+const SEATTLE: LatLng = LatLng {
+    lat: 47.6062,
+    lng: -122.3321,
+};
+const PARADISE: LatLng = LatLng {
+    lat: 46.7865,
+    lng: -121.7353,
+};
 
 #[tokio::test]
 #[ignore]
 async fn route_seattle_to_paradise() -> Result<(), PlacesError> {
     let route = places()?.route(SEATTLE, PARADISE).await?;
-    println!("{:.0} min, {:.0} km, {} points", route.duration_minutes, route.distance_km, route.points.len());
+    println!(
+        "{:.0} min, {:.0} km, {} points",
+        route.duration_minutes,
+        route.distance_km,
+        route.points.len()
+    );
     assert!(route.duration_minutes > 90.0);
     Ok(())
 }
@@ -29,7 +43,9 @@ async fn stores_and_detours_along_the_route() -> Result<(), PlacesError> {
     println!("{} stores", stores.len());
     assert!(!stores.is_empty());
     let first_few: Vec<LatLng> = stores.iter().take(5).map(|store| store.location).collect();
-    let detours = places.detour_minutes(SEATTLE, PARADISE, route.duration_minutes, &first_few).await?;
+    let detours = places
+        .detour_minutes(SEATTLE, PARADISE, route.duration_minutes, &first_few)
+        .await?;
     for (store, detour) in stores.iter().zip(&detours) {
         println!("{} ({}): {:?} min", store.name, store.shop_tag, detour);
     }
@@ -49,7 +65,9 @@ async fn forecast_elevation_and_search() -> Result<(), PlacesError> {
     let forecast = places.day_forecast(PARADISE, tomorrow).await?;
     println!("{forecast:?}");
     assert!(forecast.is_some());
-    let found = places.search_places("Paradise Mount Rainier", None, 3).await?;
+    let found = places
+        .search_places("Paradise Mount Rainier", None, 3)
+        .await?;
     println!("{found:?}");
     assert!(!found.is_empty());
     let named = places.place_at(PARADISE).await?;

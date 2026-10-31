@@ -81,7 +81,11 @@ impl DailyColumns {
 impl Places {
     /// The forecast for the local day containing `moment` (Unix seconds), or `None`
     /// when that day is beyond Open-Meteo's 16-day range or already past.
-    pub async fn day_forecast(&self, point: LatLng, moment: i64) -> Result<Option<DayForecast>, PlacesError> {
+    pub async fn day_forecast(
+        &self,
+        point: LatLng,
+        moment: i64,
+    ) -> Result<Option<DayForecast>, PlacesError> {
         let request = self.http.get(&self.endpoints.open_meteo).query(&[
             ("latitude", point.lat.to_string()),
             ("longitude", point.lng.to_string()),

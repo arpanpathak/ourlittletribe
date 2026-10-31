@@ -1,6 +1,7 @@
 // One tribe: its cover, what it's planning, what it did, and who's in it.
 
 import { api } from "../api.js";
+import { renderMarkdown } from "../markdown.js";
 import { h, mount, icon, toast, avatar, actionButton, tabBar, emptyState, dropdown, menuItem, confirmAction, copyText, tribeCover, relativeTime } from "../ui.js";
 import { replaceRoute, session } from "../app.js";
 import { eventCard } from "../components/cards.js";
@@ -93,7 +94,7 @@ export async function renderTribe(view, tribeId, initialTab) {
         h("div", { class: "card-body" },
           h("div", { class: "people-grid", style: "grid-template-columns:repeat(auto-fill,minmax(240px,1fr))" }, members.map((member) =>
             h("a", { class: "person", href: `#/people/${member.user_id}` },
-              avatar(member.name, 40),
+              avatar(member.name, 40, member.avatar),
               h("div", { style: "min-width:0" },
                 h("div", { class: "strong ellipsis" }, member.name),
                 h("div", { class: "tiny muted" }, member.role === "organizer" ? "Organizer" : `Joined ${relativeTime(member.joined_at)}`))))))));
@@ -102,7 +103,7 @@ export async function renderTribe(view, tribeId, initialTab) {
         h("div", { class: "card-head" }, h("h3", {}, "About"),
           canManage() ? h("a", { class: "btn btn-ghost btn-sm", href: `#/tribes/${tribeId}/edit` }, icon("edit", "sm"), "Edit") : null),
         h("div", { class: "card-body" }, tribe.description
-          ? h("p", { class: "description" }, tribe.description)
+          ? renderMarkdown(tribe.description)
           : h("p", { class: "muted" }, "No description yet."))));
     }
   }

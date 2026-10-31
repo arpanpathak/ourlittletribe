@@ -167,7 +167,9 @@ impl MediaStore {
     /// Uses `folder`, creating it if needed.
     pub fn open(folder: &Path) -> Result<MediaStore, MediaError> {
         std::fs::create_dir_all(folder)?;
-        Ok(MediaStore { folder: folder.to_path_buf() })
+        Ok(MediaStore {
+            folder: folder.to_path_buf(),
+        })
     }
 
     fn path(&self, id: &str, size: Size) -> PathBuf {
@@ -293,14 +295,23 @@ mod tests {
 
     #[test]
     fn text_is_refused() {
-        assert!(matches!(process(b"hello, not a picture"), Err(MediaError::NotAPicture)));
+        assert!(matches!(
+            process(b"hello, not a picture"),
+            Err(MediaError::NotAPicture)
+        ));
     }
 
     #[test]
     fn file_names_must_hold_a_uuid() {
         let id = "0b9c1f5e-2a4d-4c3b-9e8f-1a2b3c4d5e6f";
-        assert_eq!(parse_file_name(&format!("{id}.jpg")), Some((id, Size::Large)));
-        assert_eq!(parse_file_name(&format!("{id}_s.jpg")), Some((id, Size::Small)));
+        assert_eq!(
+            parse_file_name(&format!("{id}.jpg")),
+            Some((id, Size::Large))
+        );
+        assert_eq!(
+            parse_file_name(&format!("{id}_s.jpg")),
+            Some((id, Size::Small))
+        );
         assert_eq!(parse_file_name("../../etc/passwd.jpg"), None);
         assert_eq!(parse_file_name(&format!("{id}.png")), None);
         assert!(!is_valid_id("0B9C1F5E-2A4D-4C3B-9E8F-1A2B3C4D5E6F"));

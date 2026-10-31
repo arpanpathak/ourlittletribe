@@ -34,6 +34,8 @@ pub struct ItemMark {
     pub user_id: String,
     /// Display name.
     pub name: String,
+    /// Their profile picture's id.
+    pub avatar: Option<String>,
     /// `bringing` or `got`.
     pub state: String,
 }
@@ -111,7 +113,7 @@ pub fn add_items(
 pub fn list(connection: &Connection, event_id: &str) -> DbResult<Vec<PrepItem>> {
     let mut marks_by_item: BTreeMap<String, Vec<ItemMark>> = BTreeMap::new();
     let mut mark_statement = connection.prepare(
-        "SELECT m.item_id, m.user_id, u.name, m.state
+        "SELECT m.item_id, m.user_id, u.name, m.state, u.avatar_image
          FROM item_marks m
          JOIN prep_items p ON p.id = m.item_id
          JOIN users u ON u.id = m.user_id
@@ -124,6 +126,7 @@ pub fn list(connection: &Connection, event_id: &str) -> DbResult<Vec<PrepItem>> 
         let mark = ItemMark {
             user_id: row.get(1)?,
             name: row.get(2)?,
+            avatar: row.get(4)?,
             state: row.get(3)?,
         };
         marks_by_item.entry(item_id).or_default().push(mark);
@@ -158,13 +161,22 @@ pub fn list(connection: &Connection, event_id: &str) -> DbResult<Vec<PrepItem>> 
 /// The event an item belongs to.
 pub fn event_of(connection: &Connection, item_id: &str) -> DbResult<String> {
     connection
-        .query_row("SELECT event_id FROM prep_items WHERE id = ?1", [item_id], |row| row.get(0))
+        .query_row(
+            "SELECT event_id FROM prep_items WHERE id = ?1",
+            [item_id],
+            |row| row.get(0),
+        )
         .optional()?
         .ok_or(DbError::NotFound)
 }
 
 /// Sets the user's mark on an item to `bringing` or `got`, or removes it with `None`.
-pub fn set_mark(connection: &Connection, item_id: &str, user_id: &str, state: Option<&str>) -> DbResult<()> {
+pub fn set_mark(
+    connection: &Connection,
+    item_id: &str,
+    user_id: &str,
+    state: Option<&str>,
+) -> DbResult<()> {
     match state {
         Some(state) => {
             connection.execute(
@@ -195,7 +207,11 @@ pub fn set_shop_tags(connection: &Connection, item_id: &str, shop_tags: &[String
 /// Who added an item, if a person did.
 pub fn added_by(connection: &Connection, item_id: &str) -> DbResult<Option<String>> {
     connection
-        .query_row("SELECT added_by FROM prep_items WHERE id = ?1", [item_id], |row| row.get(0))
+        .query_row(
+            "SELECT added_by FROM prep_items WHERE id = ?1",
+            [item_id],
+            |row| row.get(0),
+        )
         .optional()?
         .ok_or(DbError::NotFound)
 }
@@ -263,9 +279,21 @@ mod tests {
             },
         )?;
 
-        let added = add_items(&mut connection, &event.id, "model", None, &[item("Water", "personal"), item("First-aid kit", "shared")])?;
+        let added = add_items(
+            &mut connection,
+            &event.id,
+            "model",
+            None,
+            &[item("Water", "personal"), item("First-aid kit", "shared")],
+        )?;
         assert_eq!(added, 2);
-        let added_again = add_items(&mut connection, &event.id, "person", Some(&bo.id), &[item("water", "personal")])?;
+        let added_again = add_items(
+            &mut connection,
+            &event.id,
+            "person",
+            Some(&bo.id),
+            &[item("water", "personal")],
+        )?;
         assert_eq!(added_again, 0);
 
         let items = list(&connection, &event.id)?;
@@ -275,7 +303,10 @@ mod tests {
         let Some(water) = items.iter().find(|item| item.name == "Water") else {
             panic!("water missing");
         };
-        assert_eq!(water.shop_tags, vec!["supermarket".to_string(), "convenience".to_string()]);
+        assert_eq!(
+            water.shop_tags,
+            vec!["supermarket".to_string(), "convenience".to_string()]
+        );
         set_mark(&connection, &water.id, &ada.id, Some("got"))?;
         set_mark(&connection, &water.id, &bo.id, Some("got"))?;
         set_mark(&connection, &water.id, &bo.id, None)?;

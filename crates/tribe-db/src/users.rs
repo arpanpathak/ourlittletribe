@@ -23,6 +23,28 @@ pub struct User {
     pub is_admin: bool,
     /// When the account was made.
     pub created_at: i64,
+    /// The profile picture's id, if one was uploaded.
+    pub avatar: Option<String>,
+    /// The profile banner's id, if one was uploaded.
+    pub cover_image: Option<String>,
+}
+
+/// Which of a person's own pictures to change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfilePicture {
+    /// The round picture shown next to their name.
+    Avatar,
+    /// The banner at the top of their profile.
+    Cover,
+}
+
+impl ProfilePicture {
+    fn column(self) -> &'static str {
+        match self {
+            ProfilePicture::Avatar => "avatar_image",
+            ProfilePicture::Cover => "cover_image",
+        }
+    }
 }
 
 impl User {
@@ -33,7 +55,8 @@ impl User {
     }
 }
 
-const USER_COLUMNS: &str = "id, email, name, bio, home_area, is_admin, created_at";
+const USER_COLUMNS: &str =
+    "id, email, name, bio, home_area, is_admin, created_at, avatar_image, cover_image";
 
 fn read_user(row: &Row<'_>) -> rusqlite::Result<User> {
     Ok(User {
@@ -44,11 +67,18 @@ fn read_user(row: &Row<'_>) -> rusqlite::Result<User> {
         home_area: row.get(4)?,
         is_admin: row.get(5)?,
         created_at: row.get(6)?,
+        avatar: row.get(7)?,
+        cover_image: row.get(8)?,
     })
 }
 
 /// Creates an account. The first account on an instance becomes its admin.
-pub fn create(connection: &Connection, email: &str, name: &str, password_hash: &str) -> DbResult<User> {
+pub fn create(
+    connection: &Connection,
+    email: &str,
+    name: &str,
+    password_hash: &str,
+) -> DbResult<User> {
     let existing: i64 = connection.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
     let is_admin = existing == 0;
     let id = new_id();
@@ -74,13 +104,21 @@ pub fn get(connection: &Connection, user_id: &str) -> DbResult<User> {
 pub fn find_for_sign_in(connection: &Connection, email: &str) -> DbResult<Option<(User, String)>> {
     let sql = format!("SELECT {USER_COLUMNS}, password_hash FROM users WHERE email = ?1");
     let found = connection
-        .query_row(&sql, [email], |row| Ok((read_user(row)?, row.get::<_, String>(7)?)))
+        .query_row(&sql, [email], |row| {
+            Ok((read_user(row)?, row.get::<_, String>(9)?))
+        })
         .optional()?;
     Ok(found)
 }
 
 /// Changes the name, bio and home area of an account.
-pub fn update_profile(connection: &Connection, user_id: &str, name: &str, bio: &str, home_area: &str) -> DbResult<User> {
+pub fn update_profile(
+    connection: &Connection,
+    user_id: &str,
+    name: &str,
+    bio: &str,
+    home_area: &str,
+) -> DbResult<User> {
     let changed = connection.execute(
         "UPDATE users SET name = ?2, bio = ?3, home_area = ?4 WHERE id = ?1",
         params![user_id, name, bio, home_area],
@@ -89,6 +127,30 @@ pub fn update_profile(connection: &Connection, user_id: &str, name: &str, bio: &
         0 => Err(DbError::NotFound),
         _ => get(connection, user_id),
     }
+}
+
+/// Sets or clears one of a person's pictures and returns the id it replaced,
+/// so the caller can delete that file.
+pub fn set_picture(
+    connection: &Connection,
+    user_id: &str,
+    which: ProfilePicture,
+    image_id: Option<&str>,
+) -> DbResult<Option<String>> {
+    let column = which.column();
+    let previous: Option<String> = connection
+        .query_row(
+            &format!("SELECT {column} FROM users WHERE id = ?1"),
+            [user_id],
+            |row| row.get(0),
+        )
+        .optional()?
+        .ok_or(DbError::NotFound)?;
+    connection.execute(
+        &format!("UPDATE users SET {column} = ?2 WHERE id = ?1"),
+        params![user_id, image_id],
+    )?;
+    Ok(previous)
 }
 
 #[cfg(test)]
@@ -130,6 +192,22 @@ mod tests {
         };
         assert_eq!(user.name, "Ada");
         assert_eq!(hash, "the-hash");
+        Ok(())
+    }
+
+    #[test]
+    fn setting_a_picture_returns_the_one_it_replaced() -> DbResult<()> {
+        let connection = connection()?;
+        let ada = create(&connection, "a@example.com", "Ada", "hash")?;
+        assert_eq!(
+            set_picture(&connection, &ada.id, ProfilePicture::Avatar, Some("first"))?,
+            None
+        );
+        let replaced = set_picture(&connection, &ada.id, ProfilePicture::Avatar, Some("second"))?;
+        assert_eq!(replaced.as_deref(), Some("first"));
+        let ada = get(&connection, &ada.id)?;
+        assert_eq!(ada.avatar.as_deref(), Some("second"));
+        assert_eq!(ada.cover_image, None);
         Ok(())
     }
 }

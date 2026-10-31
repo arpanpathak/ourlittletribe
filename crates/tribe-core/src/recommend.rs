@@ -122,7 +122,16 @@ mod tests {
     use super::*;
 
     fn route() -> Vec<LatLng> {
-        vec![LatLng { lat: 47.6, lng: -122.3 }, LatLng { lat: 46.8, lng: -121.7 }]
+        vec![
+            LatLng {
+                lat: 47.6,
+                lng: -122.3,
+            },
+            LatLng {
+                lat: 46.8,
+                lng: -121.7,
+            },
+        ]
     }
 
     fn store(store_id: &str, shop_tag: &str, lat: f64, lng: f64) -> StoreCandidate {
@@ -136,9 +145,18 @@ mod tests {
 
     fn needed() -> Vec<NeededItem> {
         vec![
-            NeededItem { name: "Water".to_string(), shop_tags: vec!["supermarket".to_string(), "convenience".to_string()] },
-            NeededItem { name: "Bananas".to_string(), shop_tags: vec!["supermarket".to_string(), "greengrocer".to_string()] },
-            NeededItem { name: "Microspikes".to_string(), shop_tags: vec!["outdoor".to_string()] },
+            NeededItem {
+                name: "Water".to_string(),
+                shop_tags: vec!["supermarket".to_string(), "convenience".to_string()],
+            },
+            NeededItem {
+                name: "Bananas".to_string(),
+                shop_tags: vec!["supermarket".to_string(), "greengrocer".to_string()],
+            },
+            NeededItem {
+                name: "Microspikes".to_string(),
+                shop_tags: vec!["outdoor".to_string()],
+            },
         ]
     }
 
@@ -150,7 +168,10 @@ mod tests {
             store("bakery", "bakery", 47.2, -122.0),
         ];
         let ranked = rank_stores(&stores, &needed(), &route(), RankingRules::default());
-        let ids: Vec<&str> = ranked.iter().map(|suggestion| suggestion.store_id.as_str()).collect();
+        let ids: Vec<&str> = ranked
+            .iter()
+            .map(|suggestion| suggestion.store_id.as_str())
+            .collect();
         assert_eq!(ids, vec!["market", "corner"]);
     }
 

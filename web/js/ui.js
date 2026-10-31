@@ -2,6 +2,7 @@
 // nodes, never innerHTML; `html` is only used for the app's own icon markup.
 
 import { icon, iconMarkup } from "./icons.js";
+import { spotFor } from "./art.js";
 
 /**
  * Builds an element. `attributes` may hold `class`, `on*` handlers, `html`
@@ -146,17 +147,21 @@ function hashOf(text) {
 
 const AVATAR_COLORS = ["#2f6f55", "#b4532a", "#2d6a9f", "#7a5338", "#6b4fa0", "#a8741a", "#3d7d6a", "#a2445e"];
 
-/** A round avatar with initials, coloured from the name. */
-export function avatar(name, size = 32) {
+/** A round avatar: the person's picture when they have one, else initials coloured from the name. */
+export function avatar(name, size = 32, picture = null) {
   const color = AVATAR_COLORS[hashOf(name) % AVATAR_COLORS.length];
+  if (picture) {
+    return h("span", { class: "avatar has-picture", title: name, style: `--size:${size}px` },
+      h("img", { src: pictureUrl(picture, true), alt: "", loading: "lazy", decoding: "async" }));
+  }
   return h("span", { class: "avatar", title: name, style: `--size:${size}px;background:${color}` }, initials(name));
 }
 
-/** Up to `max` overlapping avatars, then "+n". */
-export function avatarStack(names, size = 28, max = 5) {
-  const shown = names.slice(0, max).map((name) => avatar(name, size));
-  if (names.length > max) {
-    shown.push(h("span", { class: "avatar avatar-more", style: `--size:${size}px` }, `+${names.length - max}`));
+/** Up to `max` overlapping avatars, then "+n". `people` are `{ name, avatar }`. */
+export function avatarStack(people, size = 28, max = 5) {
+  const shown = people.slice(0, max).map((person) => avatar(person.name, size, person.avatar));
+  if (people.length > max) {
+    shown.push(h("span", { class: "avatar avatar-more", style: `--size:${size}px` }, `+${people.length - max}`));
   }
   return h("div", { class: "avatar-stack" }, shown);
 }
@@ -289,10 +294,11 @@ export function tabBar(tabs, current, onChange) {
   return bar;
 }
 
-/** An empty state: an icon, a title, a sentence, and optional actions. */
+/** An empty state: a small illustration (or an icon), a title, a sentence, and optional actions. */
 export function emptyState(iconName, title, text, ...actions) {
+  const scene = spotFor(iconName);
   return h("div", { class: "empty" },
-    h("div", { class: "empty-icon" }, icon(iconName)),
+    scene ? h("div", { html: scene }) : h("div", { class: "empty-icon" }, icon(iconName)),
     h("h3", {}, title),
     text ? h("p", {}, text) : null,
     actions.length ? h("div", { class: "row" }, actions) : null);

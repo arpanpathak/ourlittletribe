@@ -20,11 +20,18 @@ pub struct SearchResults {
 }
 
 fn like_pattern(query: &str) -> String {
-    let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    let escaped = query
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
     format!("%{escaped}%")
 }
 
-fn matching_ids(connection: &Connection, sql: &str, parameters: &[&dyn ToSql]) -> DbResult<Vec<String>> {
+fn matching_ids(
+    connection: &Connection,
+    sql: &str,
+    parameters: &[&dyn ToSql],
+) -> DbResult<Vec<String>> {
     let mut statement = connection.prepare(sql)?;
     let ids = statement
         .query_map(parameters, |row| row.get(0))?
@@ -33,7 +40,12 @@ fn matching_ids(connection: &Connection, sql: &str, parameters: &[&dyn ToSql]) -
 }
 
 /// Finds tribes, upcoming events and people whose names or descriptions contain `query`.
-pub fn search(connection: &Connection, viewer_id: &str, query: &str, now: i64) -> DbResult<SearchResults> {
+pub fn search(
+    connection: &Connection,
+    viewer_id: &str,
+    query: &str,
+    now: i64,
+) -> DbResult<SearchResults> {
     let pattern = like_pattern(query.trim());
 
     let tribe_ids = matching_ids(
@@ -84,7 +96,14 @@ mod tests {
         let mut connection = rusqlite::Connection::open_in_memory()?;
         schema::prepare(&connection)?;
         let ada = user_queries::create(&connection, "a@example.com", "Ada Hiker", "hash")?;
-        tribe_queries::create(&mut connection, &ada.id, "Cascade Walkers", "Weekend hikes near Snoqualmie", "", "peak")?;
+        tribe_queries::create(
+            &mut connection,
+            &ada.id,
+            "Cascade Walkers",
+            "Weekend hikes near Snoqualmie",
+            "",
+            "peak",
+        )?;
         let results = search(&connection, &ada.id, "snoqualmie", 0)?;
         assert_eq!(results.tribes.len(), 1);
         let results = search(&connection, &ada.id, "hiker", 0)?;

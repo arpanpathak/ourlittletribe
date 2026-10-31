@@ -14,6 +14,10 @@
   }
   apply();
   query.addEventListener("change", apply);
+  /** The saved choice: "light", "dark", or null to follow the system. */
+  window.oltThemeChoice = function () {
+    return saved === "light" || saved === "dark" ? saved : null;
+  };
   window.oltSetTheme = function (theme) {
     saved = theme;
     try {
@@ -23,5 +27,6 @@
       /* storage can be blocked; the choice still holds for this visit */
     }
     apply();
+    window.dispatchEvent(new CustomEvent("themechange"));
   };
 })();

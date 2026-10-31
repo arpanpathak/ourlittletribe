@@ -6,7 +6,12 @@ use crate::DbResult;
 use crate::users::{self, User};
 
 /// Records a new session.
-pub fn create(connection: &Connection, token_hash: &str, user_id: &str, expires_at: i64) -> DbResult<()> {
+pub fn create(
+    connection: &Connection,
+    token_hash: &str,
+    user_id: &str,
+    expires_at: i64,
+) -> DbResult<()> {
     connection.execute(
         "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?1, ?2, ?3)",
         params![token_hash, user_id, expires_at],

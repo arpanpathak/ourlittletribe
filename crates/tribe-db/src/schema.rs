@@ -141,11 +141,49 @@ CREATE TABLE IF NOT EXISTS images (
 );
 CREATE INDEX IF NOT EXISTS images_by_event ON images(event_id, purpose, created_at);
 CREATE INDEX IF NOT EXISTS images_by_tribe ON images(tribe_id, purpose, created_at);
+
+CREATE TABLE IF NOT EXISTS event_stops (
+    id        TEXT PRIMARY KEY,
+    event_id  TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    kind      TEXT NOT NULL CHECK (kind IN ('stop', 'optional', 'venue')),
+    name      TEXT NOT NULL,
+    lat       REAL NOT NULL,
+    lng       REAL NOT NULL,
+    note      TEXT NOT NULL DEFAULT '',
+    position  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS stops_by_event ON event_stops(event_id, position);
+
+CREATE TABLE IF NOT EXISTS inline_images (
+    id          TEXT PRIMARY KEY,
+    uploader_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at  INTEGER NOT NULL
+);
 "#;
+
+/// Columns added after the first release, with their definitions; added to older files on start.
+const ADDED_COLUMNS: [(&str, &str, &str); 2] = [
+    ("users", "avatar_image", "TEXT"),
+    ("users", "cover_image", "TEXT"),
+];
 
 /// Turns on foreign keys and write-ahead logging, and creates any missing table.
 pub fn prepare(connection: &Connection) -> DbResult<()> {
-    connection.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")?;
+    connection.execute_batch(
+        "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;",
+    )?;
     connection.execute_batch(SCHEMA)?;
+    for (table, column, definition) in ADDED_COLUMNS {
+        let present: bool = connection.query_row(
+            &format!("SELECT COUNT(*) > 0 FROM pragma_table_info('{table}') WHERE name = ?1"),
+            [column],
+            |row| row.get(0),
+        )?;
+        if !present {
+            connection.execute_batch(&format!(
+                "ALTER TABLE {table} ADD COLUMN {column} {definition}"
+            ))?;
+        }
+    }
     Ok(())
 }

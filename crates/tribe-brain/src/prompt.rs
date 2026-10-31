@@ -14,6 +14,24 @@ Skip ordinary clothing unless the conditions make it a real need. \
 Do not repeat items already on the list. At most 12 items.";
 
 /// Instructions for answering one search.
+/// Instructions for reading what someone typed into a map search.
+pub const PLACE_SYSTEM: &str = "You help a map search box. People type loose, partial or abbreviated descriptions of a place: \
+nicknames, abbreviations, the person a building is named after, or an area followed by a feature inside it. \
+Work out which specific real places they most likely mean. \
+name: the place's own name as OpenStreetMap would have it, with abbreviations written out and without the region. \
+area: the town, park, mountain or region it is in, also written out in full. \
+Prefer the specific feature the words point to (a visitor center, trailhead, lake, campground, building or business) \
+over the larger area around it; give the larger area only as a later guess. \
+Give 1 to 3 guesses, most likely first, and only places you are confident are real.";
+
+/// Instructions for picking, from real places, the ones a map search meant.
+pub const CHOOSE_PLACE_SYSTEM: &str = "You help a map search box. You get what someone typed and a numbered list of real places \
+found on the map. Map names are often shorter than what people say: a building named after a person may appear without \
+the first name, and an area the person mentioned may only appear in the place's address. \
+best: the numbers of the places that are what the person most likely meant, best first, at most 5. \
+Prefer places near the person unless the search names somewhere else. \
+Leave out places that only share a word with the search. If none fit, return an empty list.";
+
 pub const SEARCH_SYSTEM: &str = "You help one person on a group trip find what they are searching for. \
 Turn the search into concrete things to buy, using the trip's facts. \
 In `why`, say in under 15 words how the item answers the search on this trip. \
@@ -90,7 +108,10 @@ impl TripFacts {
                 let _ = writeln!(text, "Description: none given");
             }
             description => {
-                let _ = writeln!(text, "Description from the organiser:\n\"\"\"\n{description}\n\"\"\"");
+                let _ = writeln!(
+                    text,
+                    "Description from the organiser:\n\"\"\"\n{description}\n\"\"\""
+                );
             }
         }
         if let Some(elevation) = self.elevation_m {
@@ -115,14 +136,25 @@ impl TripFacts {
                 );
             }
             None => {
-                let _ = writeln!(text, "Forecast: not available yet; use what is typical for the place and month.");
+                let _ = writeln!(
+                    text,
+                    "Forecast: not available yet; use what is typical for the place and month."
+                );
             }
         }
         if let Some(drive) = &self.drive {
-            let _ = writeln!(text, "Drive to the meeting point: {:.0} minutes, {:.0} km", drive.minutes, drive.km);
+            let _ = writeln!(
+                text,
+                "Drive to the meeting point: {:.0} minutes, {:.0} km",
+                drive.minutes, drive.km
+            );
         }
         if !self.already_listed.is_empty() {
-            let _ = writeln!(text, "Already on the list: {}", self.already_listed.join("; "));
+            let _ = writeln!(
+                text,
+                "Already on the list: {}",
+                self.already_listed.join("; ")
+            );
         }
         if !self.learned_pairings.is_empty() {
             let _ = writeln!(text, "What earlier groups bought together:");
@@ -148,7 +180,10 @@ mod tests {
             group_size: 8,
             elevation_m: Some(1646.0),
             weather: None,
-            drive: Some(DriveFacts { minutes: 125.0, km: 160.0 }),
+            drive: Some(DriveFacts {
+                minutes: 125.0,
+                km: 160.0,
+            }),
             already_listed: vec!["Water".to_string()],
             learned_pairings: Vec::new(),
         };

@@ -62,7 +62,10 @@ pub async fn conditions(state: &AppState, event: &Event) -> Conditions {
     if let Some(cached) = state.conditions.get(&event.id) {
         return cached;
     }
-    let point = LatLng { lat: event.lat, lng: event.lng };
+    let point = LatLng {
+        lat: event.lat,
+        lng: event.lng,
+    };
     let (elevation, forecast) = tokio::join!(
         state.places.elevation_m(point),
         state.places.day_forecast(point, event.starts_at)
@@ -83,10 +86,16 @@ pub async fn conditions(state: &AppState, event: &Event) -> Conditions {
 
 /// Lines describing what earlier groups bought alongside items on this list.
 async fn learned_pairings(state: &AppState, listed: &[String]) -> ApiResult<Vec<String>> {
-    let baskets = state.db.call(|connection| prep::baskets(connection)).await?;
+    let baskets = state
+        .db
+        .call(|connection| prep::baskets(connection))
+        .await?;
     let mut lines = Vec::new();
     for name in listed {
-        for pairing in bought_with(&baskets, name, EvidenceThreshold::default()).into_iter().take(3) {
+        for pairing in bought_with(&baskets, name, EvidenceThreshold::default())
+            .into_iter()
+            .take(3)
+        {
             lines.push(format!(
                 "groups that got {} also got {} in {} trips ({:.0}% of the time, lift {:.1})",
                 name.to_lowercase(),
@@ -101,10 +110,17 @@ async fn learned_pairings(state: &AppState, listed: &[String]) -> ApiResult<Vec<
 }
 
 /// Everything the model is told about this event, from `drive`'s point of view when given.
-pub async fn trip_facts(state: &AppState, event: &Event, drive: Option<&Route>) -> ApiResult<TripFacts> {
+pub async fn trip_facts(
+    state: &AppState,
+    event: &Event,
+    drive: Option<&Route>,
+) -> ApiResult<TripFacts> {
     let found = conditions(state, event).await;
     let event_id = event.id.clone();
-    let items = state.db.call(move |connection| prep::list(connection, &event_id)).await?;
+    let items = state
+        .db
+        .call(move |connection| prep::list(connection, &event_id))
+        .await?;
     let mut already_listed = Vec::with_capacity(items.len());
     for item in &items {
         already_listed.push(item.name.clone());
@@ -172,18 +188,31 @@ fn cache_key(line: &[LatLng], tags: &[String]) -> String {
     key
 }
 
-async fn stores_near(state: &AppState, line: &[LatLng], radius_m: u32, tags: &[String]) -> ApiResult<Vec<Store>> {
+async fn stores_near(
+    state: &AppState,
+    line: &[LatLng],
+    radius_m: u32,
+    tags: &[String],
+) -> ApiResult<Vec<Store>> {
     let key = format!("{}@{radius_m}", cache_key(line, tags));
     if let Some(cached) = state.store_lookups.get(&key) {
         return Ok(cached);
     }
-    if state.store_search_resting.get(STORE_SEARCH_RESTING).is_some() {
-        return Err(ApiError::Upstream("store search failed a moment ago".to_string()));
+    if state
+        .store_search_resting
+        .get(STORE_SEARCH_RESTING)
+        .is_some()
+    {
+        return Err(ApiError::Upstream(
+            "store search failed a moment ago".to_string(),
+        ));
     }
     let found = match state.places.stores_along(line, radius_m, tags).await {
         Ok(found) => found,
         Err(error) => {
-            state.store_search_resting.put(STORE_SEARCH_RESTING.to_string(), ());
+            state
+                .store_search_resting
+                .put(STORE_SEARCH_RESTING.to_string(), ());
             return Err(error.into());
         }
     };
@@ -199,13 +228,21 @@ async fn stores_near(state: &AppState, line: &[LatLng], radius_m: u32, tags: &[S
             opening_hours: store.opening_hours,
         });
     }
-    let saved = state.db.call(move |connection| stores::upsert(connection, &rows)).await?;
+    let saved = state
+        .db
+        .call(move |connection| stores::upsert(connection, &rows))
+        .await?;
     state.store_lookups.put(key, saved.clone());
     Ok(saved)
 }
 
 /// Stores already in the cache within `radius_m` of `line`.
-async fn cached_stores_near(state: &AppState, line: &[LatLng], radius_m: u32, tags: Vec<String>) -> ApiResult<Vec<Store>> {
+async fn cached_stores_near(
+    state: &AppState,
+    line: &[LatLng],
+    radius_m: u32,
+    tags: Vec<String>,
+) -> ApiResult<Vec<Store>> {
     let margin = f64::from(radius_m) / 111_000.0;
     let mut south = f64::MAX;
     let mut west = f64::MAX;
@@ -221,13 +258,28 @@ async fn cached_stores_near(state: &AppState, line: &[LatLng], radius_m: u32, ta
     let boxed = state
         .db
         .call(move |connection| {
-            stores::within(connection, south - margin, west - longitude_margin, north + margin, east + longitude_margin, &tags)
+            stores::within(
+                connection,
+                south - margin,
+                west - longitude_margin,
+                north + margin,
+                east + longitude_margin,
+                &tags,
+            )
         })
         .await?;
     let limit_km = f64::from(radius_m) / 1000.0;
     Ok(boxed
         .into_iter()
-        .filter(|store| distance_to_route_km(LatLng { lat: store.lat, lng: store.lng }, line) <= limit_km)
+        .filter(|store| {
+            distance_to_route_km(
+                LatLng {
+                    lat: store.lat,
+                    lng: store.lng,
+                },
+                line,
+            ) <= limit_km
+        })
         .collect())
 }
 
@@ -241,7 +293,10 @@ pub async fn plan_stops(
     origin: Option<LatLng>,
     needed: &[NeededItem],
 ) -> ApiResult<TripView> {
-    let destination = LatLng { lat: event.lat, lng: event.lng };
+    let destination = LatLng {
+        lat: event.lat,
+        lng: event.lng,
+    };
     let route = match origin {
         Some(start) => match state.places.route(start, destination).await {
             Ok(route) => Some(route),
@@ -271,7 +326,11 @@ pub async fn plan_stops(
         }
     }
     if tags.is_empty() {
-        return Ok(TripView { route, stores: Vec::new(), notice: None });
+        return Ok(TripView {
+            route,
+            stores: Vec::new(),
+            notice: None,
+        });
     }
 
     let (found, notice) = match stores_near(state, &line, radius_m, &tags).await {
@@ -289,12 +348,16 @@ pub async fn plan_stops(
         candidates.push(StoreCandidate {
             store_id: store.id.clone(),
             shop_tag: store.shop_tag.clone(),
-            location: LatLng { lat: store.lat, lng: store.lng },
+            location: LatLng {
+                lat: store.lat,
+                lng: store.lng,
+            },
             routed_detour_minutes: None,
         });
     }
     candidates.sort_by(|left, right| {
-        estimated_detour_minutes(left.location, &line).total_cmp(&estimated_detour_minutes(right.location, &line))
+        estimated_detour_minutes(left.location, &line)
+            .total_cmp(&estimated_detour_minutes(right.location, &line))
     });
     candidates.truncate(MAX_ROUTED_CANDIDATES);
 
@@ -324,7 +387,10 @@ pub async fn plan_stops(
             break;
         }
         if let Some(store) = found.iter().find(|store| store.id == suggestion.store_id) {
-            let same_kind = stops.iter().filter(|stop| stop.store.shop_tag == store.shop_tag).count();
+            let same_kind = stops
+                .iter()
+                .filter(|stop| stop.store.shop_tag == store.shop_tag)
+                .count();
             if same_kind >= MAX_STOPS_PER_SHOP_TAG {
                 continue;
             }
@@ -336,7 +402,11 @@ pub async fn plan_stops(
             });
         }
     }
-    Ok(TripView { route, stores: stops, notice })
+    Ok(TripView {
+        route,
+        stores: stops,
+        notice,
+    })
 }
 
 #[cfg(test)]
@@ -362,6 +432,7 @@ mod tests {
         ItemMark {
             user_id: user_id.to_string(),
             name: user_id.to_string(),
+            avatar: None,
             state: state.to_string(),
         }
     }
@@ -374,7 +445,10 @@ mod tests {
             item("First-aid kit", "shared", vec![mark("bo", "bringing")]),
             item("Park pass", "shared", Vec::new()),
         ];
-        let needed: Vec<String> = still_needed(&items, "ada").into_iter().map(|item| item.name).collect();
+        let needed: Vec<String> = still_needed(&items, "ada")
+            .into_iter()
+            .map(|item| item.name)
+            .collect();
         assert_eq!(needed, vec!["Water".to_string(), "Park pass".to_string()]);
     }
 }

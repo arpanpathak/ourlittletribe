@@ -61,7 +61,10 @@ fn build_query(route: &[LatLng], radius_m: u32, shop_tags: &[String], limit: u32
 }
 
 fn street_address(tags: &std::collections::BTreeMap<String, String>) -> String {
-    let number = tags.get("addr:housenumber").map(String::as_str).unwrap_or("");
+    let number = tags
+        .get("addr:housenumber")
+        .map(String::as_str)
+        .unwrap_or("");
     let street = tags.get("addr:street").map(String::as_str).unwrap_or("");
     let city = tags.get("addr:city").map(String::as_str).unwrap_or("");
     let first_line = format!("{number} {street}").trim().to_string();
@@ -76,7 +79,10 @@ fn street_address(tags: &std::collections::BTreeMap<String, String>) -> String {
 fn read_element(element: Element) -> Option<FoundStore> {
     let location = match (element.lat, element.lon, element.center) {
         (Some(lat), Some(lng), _) => LatLng { lat, lng },
-        (_, _, Some(center)) => LatLng { lat: center.lat, lng: center.lon },
+        (_, _, Some(center)) => LatLng {
+            lat: center.lat,
+            lng: center.lon,
+        },
         _ => return None,
     };
     let name = element.tags.get("name")?.clone();
@@ -84,7 +90,11 @@ fn read_element(element: Element) -> Option<FoundStore> {
     Some(FoundStore {
         osm_ref: format!("{}/{}", element.kind, element.id),
         address: street_address(&element.tags),
-        opening_hours: element.tags.get("opening_hours").cloned().unwrap_or_default(),
+        opening_hours: element
+            .tags
+            .get("opening_hours")
+            .cloned()
+            .unwrap_or_default(),
         name,
         shop_tag,
         location,
@@ -151,7 +161,16 @@ mod tests {
 
     #[test]
     fn query_uses_route_and_tags() {
-        let route = [LatLng { lat: 47.6, lng: -122.3 }, LatLng { lat: 46.8, lng: -121.7 }];
+        let route = [
+            LatLng {
+                lat: 47.6,
+                lng: -122.3,
+            },
+            LatLng {
+                lat: 46.8,
+                lng: -121.7,
+            },
+        ];
         let tags = vec!["supermarket".to_string(), "outdoor".to_string()];
         let query = build_query(&route, 2000, &tags, 50);
         assert!(query.contains("around:2000,47.60000,-122.30000,46.80000,-121.70000"));
@@ -164,7 +183,11 @@ mod tests {
             "tags":{"name":"Whittaker's","shop":"outdoor","addr:housenumber":"30205","addr:street":"SR 706 E","addr:city":"Ashford"}},
             {"type":"node","id":8,"lat":1.0,"lon":2.0,"tags":{"shop":"bakery"}}]}"#;
         let response: OverpassResponse = serde_json::from_str(body)?;
-        let stores: Vec<FoundStore> = response.elements.into_iter().filter_map(read_element).collect();
+        let stores: Vec<FoundStore> = response
+            .elements
+            .into_iter()
+            .filter_map(read_element)
+            .collect();
         assert_eq!(stores.len(), 1);
         let Some(store) = stores.first() else {
             panic!("no store");

@@ -164,7 +164,9 @@ mod tests {
 
     #[test]
     fn thinning_keeps_both_ends() {
-        let route: Vec<LatLng> = (0..100).map(|step| point(47.0, -122.0 + step as f64 * 0.01)).collect();
+        let route: Vec<LatLng> = (0..100)
+            .map(|step| point(47.0, -122.0 + step as f64 * 0.01))
+            .collect();
         let thinned = thin_route(&route, 10);
         assert_eq!(thinned.len(), 10);
         assert_eq!(thinned.first(), route.first());

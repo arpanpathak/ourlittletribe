@@ -36,7 +36,8 @@ pub fn purge(connection: &Connection, now: i64) -> DbResult<PurgeReport> {
         "DELETE FROM trip_origins WHERE event_id IN (SELECT id FROM events WHERE starts_at < ?1)",
         params![now - ORIGIN_RETENTION_SECONDS],
     )?;
-    let sessions = connection.execute("DELETE FROM sessions WHERE expires_at <= ?1", params![now])?;
+    let sessions =
+        connection.execute("DELETE FROM sessions WHERE expires_at <= ?1", params![now])?;
     let stores = connection.execute(
         "DELETE FROM stores WHERE updated_at < ?1",
         params![now - STORE_RETENTION_SECONDS],

@@ -55,7 +55,11 @@ pub fn normalize_item(name: &str) -> String {
 }
 
 /// Items bought with `item`, strongest first, or empty when the evidence is too thin.
-pub fn bought_with(baskets: &[Vec<String>], item: &str, threshold: EvidenceThreshold) -> Vec<Pairing> {
+pub fn bought_with(
+    baskets: &[Vec<String>],
+    item: &str,
+    threshold: EvidenceThreshold,
+) -> Vec<Pairing> {
     if baskets.len() < threshold.min_baskets {
         return Vec::new();
     }
@@ -103,7 +107,12 @@ pub fn bought_with(baskets: &[Vec<String>], item: &str, threshold: EvidenceThres
             });
         }
     }
-    pairings.sort_by(|left, right| right.lift.total_cmp(&left.lift).then(right.together.cmp(&left.together)));
+    pairings.sort_by(|left, right| {
+        right
+            .lift
+            .total_cmp(&left.lift)
+            .then(right.together.cmp(&left.together))
+    });
     pairings
 }
 

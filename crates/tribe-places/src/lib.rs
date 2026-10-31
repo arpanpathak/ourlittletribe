@@ -6,16 +6,22 @@
 //! | OSRM | the driving route and each store's detour time |
 //! | Overpass (OpenStreetMap) | stores near the route |
 //! | Photon (OpenStreetMap) | place search and naming a point on the map |
+//! | Nominatim (OpenStreetMap) | the same, when Photon is down or refuses |
 //!
-//! All four are free and need no key. Each base URL can be changed, so an
+//! All are free and need no key. Each base URL can be changed, so an
 //! instance can use its own copies.
 
+pub mod nominatim;
 pub mod osrm;
 pub mod overpass;
 pub mod photon;
 pub mod weather;
 
-use std::time::Duration;
+use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+use std::time::{Duration, Instant};
+
+use tokio::sync::{Mutex, Semaphore};
 
 /// Everything that can go wrong talking to a service.
 #[derive(Debug, thiserror::Error)]
@@ -51,6 +57,8 @@ pub struct Endpoints {
     pub overpass: Vec<String>,
     /// Photon geocoder, without a trailing slash.
     pub photon: String,
+    /// Nominatim geocoder, without a trailing slash; used when Photon fails.
+    pub nominatim: String,
 }
 
 impl Default for Endpoints {
@@ -64,15 +72,26 @@ impl Default for Endpoints {
                 "https://overpass.private.coffee/api/interpreter".to_string(),
             ],
             photon: "https://photon.komoot.io".to_string(),
+            nominatim: "https://nominatim.openstreetmap.org".to_string(),
         }
     }
 }
 
-/// A shared client for all four services.
+/// Photon requests allowed at once, to stay a polite user of the public server.
+const PHOTON_AT_ONCE: usize = 3;
+/// Nominatim's usage policy allows one request a second.
+const NOMINATIM_SPACING: Duration = Duration::from_millis(1100);
+
+/// A shared client for all the services.
 #[derive(Debug, Clone)]
 pub struct Places {
     http: reqwest::Client,
     endpoints: Endpoints,
+    photon_slots: Arc<Semaphore>,
+    /// Until when (Unix seconds) Photon is skipped after it failed.
+    photon_resting_until: Arc<AtomicU64>,
+    /// When the last Nominatim request was sent; held while one is in flight.
+    nominatim_turn: Arc<Mutex<Option<Instant>>>,
 }
 
 impl Places {
@@ -82,8 +101,17 @@ impl Places {
             .user_agent(user_agent)
             .timeout(Duration::from_secs(40))
             .build()
-            .map_err(|source| PlacesError::Http { service: "http client", source })?;
-        Ok(Places { http, endpoints })
+            .map_err(|source| PlacesError::Http {
+                service: "http client",
+                source,
+            })?;
+        Ok(Places {
+            http,
+            endpoints,
+            photon_slots: Arc::new(Semaphore::new(PHOTON_AT_ONCE)),
+            photon_resting_until: Arc::new(AtomicU64::new(0)),
+            nominatim_turn: Arc::new(Mutex::new(None)),
+        })
     }
 
     async fn get_json<T: serde::de::DeserializeOwned>(

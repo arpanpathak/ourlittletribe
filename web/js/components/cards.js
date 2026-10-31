@@ -1,6 +1,7 @@
 // Cards and rows for events and tribes, shared by every list in the app.
 
 import { api } from "../api.js";
+import { markdownToText } from "../markdown.js";
 import { h, icon, toast, actionButton, eventCover, tribeCover, dateParts, formatWhen, formatTime, dayHeading } from "../ui.js";
 
 function going(event) {
@@ -54,7 +55,7 @@ export function tribeCard(tribe, onChange = null) {
       h("div", { class: "tribe-card-body" },
         h("h3", {}, tribe.name),
         tribe.home_area ? h("div", { class: "meta-line" }, icon("pin"), h("span", {}, tribe.home_area)) : null,
-        tribe.description ? h("p", { class: "small text-2 clamp-2" }, tribe.description) : null)),
+        tribe.description ? h("p", { class: "small text-2 clamp-2" }, markdownToText(tribe.description)) : null)),
     h("div", { class: "tribe-card-foot" },
       h("span", { class: "small muted" }, `${tribe.member_count} ${tribe.member_count === 1 ? "member" : "members"}`),
       membership));

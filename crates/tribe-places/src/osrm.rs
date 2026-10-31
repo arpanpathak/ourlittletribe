@@ -62,13 +62,23 @@ fn index_list(range: std::ops::Range<usize>) -> String {
 ///
 /// Row 0 is the origin and rows 1.. are the stops; column 0 is the
 /// destination and columns 1.. are the stops again.
-fn detours_from_table(durations: &[Vec<Option<f64>>], stop_count: usize, direct_seconds: f64) -> Vec<Option<f64>> {
+fn detours_from_table(
+    durations: &[Vec<Option<f64>>],
+    stop_count: usize,
+    direct_seconds: f64,
+) -> Vec<Option<f64>> {
     let mut detours = Vec::with_capacity(stop_count);
     for stop in 1..=stop_count {
-        let origin_to_stop = durations.first().and_then(|row| row.get(stop).copied().flatten());
-        let stop_to_destination = durations.get(stop).and_then(|row| row.first().copied().flatten());
+        let origin_to_stop = durations
+            .first()
+            .and_then(|row| row.get(stop).copied().flatten());
+        let stop_to_destination = durations
+            .get(stop)
+            .and_then(|row| row.first().copied().flatten());
         let detour = match (origin_to_stop, stop_to_destination) {
-            (Some(there), Some(onward)) => Some(((there + onward - direct_seconds) / 60.0).max(0.0)),
+            (Some(there), Some(onward)) => {
+                Some(((there + onward - direct_seconds) / 60.0).max(0.0))
+            }
             _ => None,
         };
         detours.push(detour);
@@ -90,7 +100,10 @@ impl Places {
             .query(&[("overview", "simplified"), ("geometries", "geojson")]);
         let response: RouteResponse = self.get_json("OSRM", request).await?;
         let Some(best) = response.routes.into_iter().next() else {
-            return Err(PlacesError::Refused { service: "OSRM", reason: response.code });
+            return Err(PlacesError::Refused {
+                service: "OSRM",
+                reason: response.code,
+            });
         };
         let mut points = Vec::with_capacity(best.geometry.coordinates.len());
         for [lng, lat] in best.geometry.coordinates {
@@ -130,9 +143,16 @@ impl Places {
             .query(&[("sources", sources), ("destinations", destinations)]);
         let response: TableResponse = self.get_json("OSRM table", request).await?;
         if response.code != "Ok" {
-            return Err(PlacesError::Refused { service: "OSRM table", reason: response.code });
+            return Err(PlacesError::Refused {
+                service: "OSRM table",
+                reason: response.code,
+            });
         }
-        Ok(detours_from_table(&response.durations, stops.len(), direct_minutes * 60.0))
+        Ok(detours_from_table(
+            &response.durations,
+            stops.len(),
+            direct_minutes * 60.0,
+        ))
     }
 }
 
@@ -157,7 +177,10 @@ mod tests {
 
     #[test]
     fn coordinates_are_longitude_first() {
-        let text = coordinate_list(&[LatLng { lat: 47.5, lng: -122.25 }]);
+        let text = coordinate_list(&[LatLng {
+            lat: 47.5,
+            lng: -122.25,
+        }]);
         assert_eq!(text, "-122.250000,47.500000");
     }
 }

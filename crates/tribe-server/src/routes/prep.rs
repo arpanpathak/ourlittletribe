@@ -36,7 +36,11 @@ fn as_new_items(planned: Vec<PlannedItem>) -> Vec<NewItem> {
     items
 }
 
-async fn event_and_origin(state: &AppState, event_id: String, user_id: String) -> ApiResult<(Event, Option<LatLng>)> {
+async fn event_and_origin(
+    state: &AppState,
+    event_id: String,
+    user_id: String,
+) -> ApiResult<(Event, Option<LatLng>)> {
     let found = state
         .db
         .call(move |connection| {
@@ -48,9 +52,16 @@ async fn event_and_origin(state: &AppState, event_id: String, user_id: String) -
     Ok(found)
 }
 
-async fn drive_for(state: &AppState, event: &Event, origin: Option<LatLng>) -> Option<tribe_places::osrm::Route> {
+async fn drive_for(
+    state: &AppState,
+    event: &Event,
+    origin: Option<LatLng>,
+) -> Option<tribe_places::osrm::Route> {
     let start = origin?;
-    let destination = LatLng { lat: event.lat, lng: event.lng };
+    let destination = LatLng {
+        lat: event.lat,
+        lng: event.lng,
+    };
     match state.places.route(start, destination).await {
         Ok(route) => Some(route),
         Err(error) => {
@@ -85,8 +96,18 @@ pub async fn plan(
         .call(move |connection| {
             let added = prep::add_items(connection, &event_id, "model", None, &new_items)?;
             if added > 0 {
-                let summary = format!("{} asked for a prep list for {} ({added} items)", user.name, event.title);
-                activity_log::record(connection, &user.id, "planned_items", "event", &event_id, &summary)?;
+                let summary = format!(
+                    "{} asked for a prep list for {} ({added} items)",
+                    user.name, event.title
+                );
+                activity_log::record(
+                    connection,
+                    &user.id,
+                    "planned_items",
+                    "event",
+                    &event_id,
+                    &summary,
+                )?;
             }
             Ok(PlanResult {
                 added,
@@ -139,13 +160,22 @@ pub async fn add(
     );
     let new_items = as_new_items(checked);
     let needs_tags = new_items.iter().any(|item| item.shop_tags.is_empty());
-    let item_name = new_items.first().map(|item| item.name.clone()).unwrap_or_default();
+    let item_name = new_items
+        .first()
+        .map(|item| item.name.clone())
+        .unwrap_or_default();
     let added_by = user.id.clone();
     let list_event_id = event_id.clone();
     let items = state
         .db
         .call(move |connection| {
-            let added = prep::add_items(connection, &list_event_id, "person", Some(&added_by), &new_items)?;
+            let added = prep::add_items(
+                connection,
+                &list_event_id,
+                "person",
+                Some(&added_by),
+                &new_items,
+            )?;
             if added == 0 {
                 return Err(tribe_db::DbError::AlreadyExists);
             }
@@ -153,7 +183,9 @@ pub async fn add(
         })
         .await
         .map_err(|error| match error {
-            tribe_db::DbError::AlreadyExists => ApiError::Conflict("that item is already on the list"),
+            tribe_db::DbError::AlreadyExists => {
+                ApiError::Conflict("that item is already on the list")
+            }
             other => ApiError::from(other),
         })?;
 
@@ -176,7 +208,11 @@ pub async fn add(
                 }
             };
             let tags = match brain.items_for_search(&item_name, &facts).await {
-                Ok(found) => found.into_iter().next().map(|item| item.shop_tags).unwrap_or_default(),
+                Ok(found) => found
+                    .into_iter()
+                    .next()
+                    .map(|item| item.shop_tags)
+                    .unwrap_or_default(),
                 Err(error) => {
                     tracing::warn!(%error, "tagging an item failed");
                     return;
@@ -260,9 +296,9 @@ pub async fn remove(
             }
         })
         .await?;
-    removed
-        .map(Json)
-        .ok_or(ApiError::Forbidden("only whoever added it or the planner can remove this"))
+    removed.map(Json).ok_or(ApiError::Forbidden(
+        "only whoever added it or the planner can remove this",
+    ))
 }
 
 /// `GET /api/events/{event_id}/trip`: the viewer's route and the best stops for what they still need.
@@ -272,7 +308,10 @@ pub async fn trip(
     Path(event_id): Path<String>,
 ) -> ApiResult<Json<TripView>> {
     let (event, origin) = event_and_origin(&state, event_id.clone(), user.id.clone()).await?;
-    let items = state.db.call(move |connection| prep::list(connection, &event_id)).await?;
+    let items = state
+        .db
+        .call(move |connection| prep::list(connection, &event_id))
+        .await?;
     let needed = trip::still_needed(&items, &user.id);
     let view = trip::plan_stops(&state, &event, origin, &needed).await?;
     Ok(Json(view))
@@ -316,6 +355,11 @@ pub async fn find(
         });
     }
     let trip = trip::plan_stops(&state, &event, origin, &needed).await?;
-    tracing::info!(at = unix_now(), found = items.len(), stores = trip.stores.len(), "search answered");
+    tracing::info!(
+        at = unix_now(),
+        found = items.len(),
+        stores = trip.stores.len(),
+        "search answered"
+    );
     Ok(Json(FindResult { items, trip }))
 }

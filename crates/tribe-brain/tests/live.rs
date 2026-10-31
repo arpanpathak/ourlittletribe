@@ -6,7 +6,8 @@ use std::time::{Duration, Instant};
 use tribe_brain::{Brain, BrainConfig, BrainError, DriveFacts, TripFacts, WeatherFacts};
 
 fn brain() -> Result<Brain, BrainError> {
-    let base_url = std::env::var("OLT_LLM_URL").unwrap_or_else(|_| "http://127.0.0.1:8081/v1".to_string());
+    let base_url =
+        std::env::var("OLT_LLM_URL").unwrap_or_else(|_| "http://127.0.0.1:8081/v1".to_string());
     Brain::new(BrainConfig {
         base_url,
         model: None,
@@ -46,9 +47,16 @@ async fn plans_a_snowy_hike() -> Result<(), BrainError> {
     let brain = brain()?;
     let started = Instant::now();
     let items = brain.plan_items(&snowy_hike()).await?;
-    println!("{} items in {:.1} s", items.len(), started.elapsed().as_secs_f64());
+    println!(
+        "{} items in {:.1} s",
+        items.len(),
+        started.elapsed().as_secs_f64()
+    );
     for item in &items {
-        println!("- {} [{} x{}] {:?}: {}", item.name, item.scope, item.quantity, item.shop_tags, item.why);
+        println!(
+            "- {} [{} x{}] {:?}: {}",
+            item.name, item.scope, item.quantity, item.shop_tags, item.why
+        );
     }
     assert!(items.len() >= 4);
     Ok(())
@@ -58,9 +66,14 @@ async fn plans_a_snowy_hike() -> Result<(), BrainError> {
 #[ignore]
 async fn answers_a_search() -> Result<(), BrainError> {
     let brain = brain()?;
-    let items = brain.items_for_search("my feet get cold", &snowy_hike()).await?;
+    let items = brain
+        .items_for_search("my feet get cold", &snowy_hike())
+        .await?;
     for item in &items {
-        println!("- {} [{} x{}] {:?}: {}", item.name, item.scope, item.quantity, item.shop_tags, item.why);
+        println!(
+            "- {} [{} x{}] {:?}: {}",
+            item.name, item.scope, item.quantity, item.shop_tags, item.why
+        );
     }
     assert!(!items.is_empty());
     Ok(())

@@ -3,6 +3,7 @@
 import { api } from "../api.js";
 import { h, mount, icon, avatar, emptyState, relativeTime, formatLongDay, formatTime, eventCover } from "../ui.js";
 import { session } from "../app.js";
+import { heroScene } from "../art.js";
 import { eventCard, tribeRow } from "../components/cards.js";
 
 function greeting() {
@@ -47,7 +48,7 @@ function activityList(entries) {
   if (!entries.length) return h("p", { class: "small muted" }, "When people in your tribes plan, join or share photos, it shows up here.");
   return h("ul", { class: "activity" }, entries.slice(0, 12).map((entry) =>
     h("li", {},
-      avatar(entry.user_name, 28),
+      avatar(entry.user_name, 28, entry.user_avatar),
       h("div", { class: "grow" },
         h("a", { href: entry.target_type === "event" ? `#/events/${entry.target_id}` : `#/tribes/${entry.target_id}` }, entry.summary),
         h("div", { class: "tiny muted" }, relativeTime(entry.created_at))))));
@@ -63,13 +64,16 @@ export async function renderFeed(view) {
   const elsewhere = feed.upcoming.filter((event) => !myTribeIds.has(event.tribe_id));
 
   mount(view,
-    h("div", { class: "page-head" },
-      h("div", {},
+    h("section", { class: "banner" },
+      h("div", { html: heroScene() }),
+      h("div", { class: "banner-text" },
         h("h1", {}, `${greeting()}, ${firstName}`),
         h("p", {}, feed.upcoming.some((event) => event.my_rsvp === "going")
           ? `You're going to ${feed.upcoming.filter((event) => event.my_rsvp === "going").length} upcoming ${feed.upcoming.filter((event) => event.my_rsvp === "going").length === 1 ? "outing" : "outings"}.`
-          : "Here's what's happening in your tribes.")),
-      h("a", { class: "btn btn-primary", href: "#/events/new" }, icon("plus"), "New event")),
+          : "Here's what's happening in your tribes."),
+        h("div", { class: "row" },
+          h("a", { class: "btn btn-primary", href: "#/events/new" }, icon("plus"), "Plan an outing"),
+          h("a", { class: "btn", href: "#/events" }, icon("calendar"), "Browse events")))),
     !feed.my_tribes.length || !feed.upcoming.length ? onboarding(feed.my_tribes.length > 0) : null,
     h("div", { class: "split" },
       h("div", { class: "stack-lg" },

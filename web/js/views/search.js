@@ -59,7 +59,7 @@ export async function renderSearch(view, initialQuery) {
     if (want("people") && found.people.length) {
       sections.push(h("section", { class: "section" }, h("h2", {}, "People"),
         h("div", { class: "card card-pad" }, h("div", { class: "people-grid", style: "grid-template-columns:repeat(auto-fill,minmax(220px,1fr))" }, found.people.map((person) =>
-          h("a", { class: "person", href: `#/people/${person.id}` }, avatar(person.name, 36),
+          h("a", { class: "person", href: `#/people/${person.id}` }, avatar(person.name, 36, person.avatar),
             h("div", { style: "min-width:0" }, h("div", { class: "strong ellipsis" }, person.name), person.home_area ? h("div", { class: "tiny muted" }, person.home_area) : null)))))));
     }
     if (want("places") && places.length) sections.push(placesSection());

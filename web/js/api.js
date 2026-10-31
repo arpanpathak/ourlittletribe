@@ -45,12 +45,19 @@ export const api = {
   logout: () => call("POST", "account/logout"),
   me: () => call("GET", "me"),
   updateMe: (profile) => call("PATCH", "me", profile),
+  setAvatar: (file) => upload("me/avatar", file),
+  removeAvatar: () => call("DELETE", "me/avatar"),
+  setProfileCover: (file) => upload("me/cover", file),
+  removeProfileCover: () => call("DELETE", "me/cover"),
+  addPicture: (file) => upload("pictures", file),
   person: (userId) => call("GET", `people/${encode(userId)}`),
 
   feed: () => call("GET", "feed"),
   search: (query) => call("GET", `search?q=${encode(query)}`),
   places: (query, near) =>
     call("GET", `places?q=${encode(query)}${near ? `&lat=${near.lat.toFixed(4)}&lng=${near.lng.toFixed(4)}` : ""}`),
+  smartPlaces: (query, near) =>
+    call("GET", `places/smart?q=${encode(query)}${near ? `&lat=${near.lat.toFixed(4)}&lng=${near.lng.toFixed(4)}` : ""}`),
   placeAt: (point) => call("GET", `places/at?lat=${point.lat.toFixed(6)}&lng=${point.lng.toFixed(6)}`),
 
   tribes: () => call("GET", "tribes"),

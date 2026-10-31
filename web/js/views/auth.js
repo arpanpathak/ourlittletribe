@@ -2,6 +2,7 @@
 
 import { api } from "../api.js";
 import { h, mount, icon, iconMarkup, field } from "../ui.js";
+import { heroScene } from "../art.js";
 
 const MIN_PASSWORD = 10;
 
@@ -158,6 +159,7 @@ export function renderAuth(view, onSignedIn) {
   mount(view,
     h("div", { class: "auth" },
       h("aside", { class: "auth-aside" },
+        h("div", { class: "auth-scene", html: heroScene() }),
         h("h1", {}, "Get your people outside."),
         h("p", { class: "lead" }, "OurLittleTribe is a free, self-hosted way to plan hikes, picnics, runs and meetups with the people you like."),
         h("ul", { class: "auth-points" }, points.map(([iconName, title, text]) =>

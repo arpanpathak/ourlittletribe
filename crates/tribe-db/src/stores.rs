@@ -73,7 +73,10 @@ pub fn within(
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(found.into_iter().filter(|store| shop_tags.contains(&store.shop_tag)).collect())
+    Ok(found
+        .into_iter()
+        .filter(|store| shop_tags.contains(&store.shop_tag))
+        .collect())
 }
 
 /// Inserts or refreshes stores, and returns them with their database ids.
@@ -148,9 +151,22 @@ mod tests {
         assert_eq!(first.id, second.id);
         assert_eq!(second.name, "Ashford Mercantile & Deli");
         let tags = vec!["convenience".to_string()];
-        assert_eq!(within(&connection, 46.0, -123.0, 47.0, -122.0, &tags)?.len(), 1);
+        assert_eq!(
+            within(&connection, 46.0, -123.0, 47.0, -122.0, &tags)?.len(),
+            1
+        );
         assert!(within(&connection, 47.0, -123.0, 48.0, -122.0, &tags)?.is_empty());
-        assert!(within(&connection, 46.0, -123.0, 47.0, -122.0, &["outdoor".to_string()])?.is_empty());
+        assert!(
+            within(
+                &connection,
+                46.0,
+                -123.0,
+                47.0,
+                -122.0,
+                &["outdoor".to_string()]
+            )?
+            .is_empty()
+        );
         Ok(())
     }
 }

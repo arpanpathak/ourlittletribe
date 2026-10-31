@@ -13,6 +13,7 @@ pub mod prep;
 pub mod schema;
 pub mod search;
 pub mod sessions;
+pub mod stops;
 pub mod stores;
 pub mod tribes;
 pub mod users;

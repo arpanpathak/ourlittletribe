@@ -78,6 +78,59 @@ struct PlanAnswer {
     items: Vec<PlannedItem>,
 }
 
+/// A real place the model thinks a map search means.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlaceGuess {
+    /// The place's own official name, such as "Henry M. Jackson Memorial Visitor Center".
+    pub name: String,
+    /// The town, park or region it is in, such as "Mount Rainier National Park, Washington".
+    pub area: String,
+}
+
+#[derive(Deserialize)]
+struct PlaceAnswer {
+    places: Vec<PlaceGuess>,
+}
+
+#[derive(Deserialize)]
+struct ChoiceAnswer {
+    best: Vec<i64>,
+}
+
+fn choice_schema() -> serde_json::Value {
+    json!({
+        "type": "object",
+        "properties": { "best": { "type": "array", "items": { "type": "integer" } } },
+        "required": ["best"],
+        "additionalProperties": false
+    })
+}
+
+/// How many guesses to look up for one search.
+const MAX_PLACE_GUESSES: usize = 3;
+
+fn place_schema() -> serde_json::Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "places": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "area": { "type": "string" }
+                    },
+                    "required": ["name", "area"],
+                    "additionalProperties": false
+                }
+            }
+        },
+        "required": ["places"],
+        "additionalProperties": false
+    })
+}
+
 #[derive(Deserialize)]
 struct ChatCompletion {
     choices: Vec<ChatChoice>,
@@ -120,7 +173,10 @@ fn clip(text: &str, max_chars: usize) -> String {
 /// Checks and tidies the model's items: trims text, bounds numbers, drops bad tags,
 /// drops items with no name or repeated names, and keeps at most [`MAX_ITEMS`].
 pub fn clean_items(raw_items: Vec<PlannedItem>, already_listed: &[String]) -> Vec<PlannedItem> {
-    let mut seen: Vec<String> = already_listed.iter().map(|name| name.to_lowercase()).collect();
+    let mut seen: Vec<String> = already_listed
+        .iter()
+        .map(|name| name.to_lowercase())
+        .collect();
     let mut cleaned = Vec::new();
     for raw in raw_items {
         let name = clip(&raw.name, 80);
@@ -223,17 +279,29 @@ impl Brain {
         Ok(name.clone())
     }
 
-    async fn ask_for_items(&self, system: &str, user: String) -> Result<Vec<PlannedItem>, BrainError> {
-        let _turn = self.one_at_a_time.acquire().await.map_err(|_| BrainError::Closed)?;
+    /// Asks one question whose answer must fit `schema`, and parses it.
+    async fn ask_json<T: serde::de::DeserializeOwned>(
+        &self,
+        system: &str,
+        user: String,
+        schema_name: &str,
+        schema: serde_json::Value,
+        max_tokens: u32,
+    ) -> Result<T, BrainError> {
+        let _turn = self
+            .one_at_a_time
+            .acquire()
+            .await
+            .map_err(|_| BrainError::Closed)?;
         let model = self.model_name().await?;
         let body = json!({
             "model": model,
             "temperature": 0.3,
-            "max_tokens": 1800,
+            "max_tokens": max_tokens,
             "chat_template_kwargs": { "enable_thinking": false },
             "response_format": {
                 "type": "json_schema",
-                "json_schema": { "name": "prep_list", "strict": true, "schema": answer_schema() }
+                "json_schema": { "name": schema_name, "strict": true, "schema": schema }
             },
             "messages": [
                 { "role": "system", "content": system },
@@ -241,7 +309,11 @@ impl Brain {
             ]
         });
         let url = format!("{}/chat/completions", self.config.base_url);
-        let response = self.authorize(self.http.post(url)).json(&body).send().await?;
+        let response = self
+            .authorize(self.http.post(url))
+            .json(&body)
+            .send()
+            .await?;
         if !response.status().is_success() {
             return Err(BrainError::Status(response.status()));
         }
@@ -252,18 +324,104 @@ impl Brain {
             .next()
             .and_then(|choice| choice.message.content)
             .ok_or(BrainError::EmptyAnswer)?;
-        let answer: PlanAnswer = serde_json::from_str(content.trim())?;
+        Ok(serde_json::from_str(content.trim())?)
+    }
+
+    async fn ask_for_items(
+        &self,
+        system: &str,
+        user: String,
+    ) -> Result<Vec<PlannedItem>, BrainError> {
+        let answer: PlanAnswer = self
+            .ask_json(system, user, "prep_list", answer_schema(), 1800)
+            .await?;
         Ok(answer.items)
+    }
+
+    /// What real places someone most likely means by what they typed into a
+    /// map search, such as "mt rainier henry jackson". `near` names where they
+    /// are, such as "Seattle, Washington", to settle ambiguous names.
+    pub async fn interpret_place_search(
+        &self,
+        typed: &str,
+        near: Option<&str>,
+    ) -> Result<Vec<PlaceGuess>, BrainError> {
+        let mut user = format!("Typed: {}", clip(typed, 150));
+        if let Some(region) = near {
+            user.push_str(&format!("\nThe person is near {}.", clip(region, 120)));
+        }
+        let answer: PlaceAnswer = self
+            .ask_json(
+                prompt::PLACE_SYSTEM,
+                user,
+                "place_guesses",
+                place_schema(),
+                300,
+            )
+            .await?;
+        Ok(answer
+            .places
+            .into_iter()
+            .map(|guess| PlaceGuess {
+                name: clip(guess.name.trim(), 120).to_string(),
+                area: clip(guess.area.trim(), 120).to_string(),
+            })
+            .filter(|guess| !guess.name.is_empty())
+            .take(MAX_PLACE_GUESSES)
+            .collect())
+    }
+
+    /// Which of `candidates` (real places, one line each) match what someone
+    /// typed into a map search, best first, as indexes into `candidates`.
+    pub async fn choose_places(
+        &self,
+        typed: &str,
+        near: Option<&str>,
+        candidates: &[String],
+    ) -> Result<Vec<usize>, BrainError> {
+        let mut user = format!("Typed: {}", clip(typed, 150));
+        if let Some(region) = near {
+            user.push_str(&format!("\nThe person is near {}.", clip(region, 120)));
+        }
+        user.push_str("\nPlaces found on the map:");
+        for (index, line) in candidates.iter().enumerate() {
+            user.push_str(&format!("\n{index}. {}", clip(line, 200)));
+        }
+        let answer: ChoiceAnswer = self
+            .ask_json(
+                prompt::CHOOSE_PLACE_SYSTEM,
+                user,
+                "place_choice",
+                choice_schema(),
+                120,
+            )
+            .await?;
+        let mut chosen: Vec<usize> = Vec::new();
+        for index in answer.best {
+            if let Ok(index) = usize::try_from(index)
+                && index < candidates.len()
+                && !chosen.contains(&index)
+            {
+                chosen.push(index);
+            }
+        }
+        Ok(chosen)
     }
 
     /// What this group should bring, given the facts of the trip.
     pub async fn plan_items(&self, facts: &TripFacts) -> Result<Vec<PlannedItem>, BrainError> {
-        let raw = self.ask_for_items(prompt::PLAN_SYSTEM, facts.describe()).await?;
+        let raw = self
+            .ask_for_items(prompt::PLAN_SYSTEM, facts.describe())
+            .await?;
         Ok(clean_items(raw, &facts.already_listed))
     }
 
     /// Items that answer a person's search, such as "something for mosquitoes", for this trip.
-    pub async fn items_for_search(&self, query: &str, facts: &TripFacts) -> Result<Vec<PlannedItem>, BrainError> {
+    pub async fn items_for_search(
+        &self,
+        query: &str,
+        facts: &TripFacts,
+    ) -> Result<Vec<PlannedItem>, BrainError> {
         let user = format!(
             "{}\nSearch from one attendee: {}\nReturn up to 5 items that answer the search for this trip.",
             facts.describe(),
@@ -293,7 +451,12 @@ mod tests {
     #[test]
     fn cleaning_drops_repeats_bad_tags_and_bounds_quantity() {
         let items = vec![
-            raw("Microspikes", "personal", 8, &["shop", "outdoor", "Sports ", "x\"]);"]),
+            raw(
+                "Microspikes",
+                "personal",
+                8,
+                &["shop", "outdoor", "Sports ", "x\"]);"],
+            ),
             raw("microspikes", "personal", 8, &["outdoor"]),
             raw("Water", "personal", 9_999, &["supermarket"]),
             raw("", "shared", 1, &[]),
@@ -305,7 +468,10 @@ mod tests {
         let Some(spikes) = cleaned.first() else {
             panic!("missing");
         };
-        assert_eq!(spikes.shop_tags, vec!["outdoor".to_string(), "sports".to_string()]);
+        assert_eq!(
+            spikes.shop_tags,
+            vec!["outdoor".to_string(), "sports".to_string()]
+        );
         let Some(kit) = cleaned.get(1) else {
             panic!("missing");
         };
@@ -315,7 +481,9 @@ mod tests {
 
     #[test]
     fn cleaning_keeps_at_most_the_limit() {
-        let items: Vec<PlannedItem> = (0..30).map(|number| raw(&format!("Item {number}"), "shared", 1, &[])).collect();
+        let items: Vec<PlannedItem> = (0..30)
+            .map(|number| raw(&format!("Item {number}"), "shared", 1, &[]))
+            .collect();
         assert_eq!(clean_items(items, &[]).len(), MAX_ITEMS);
     }
 }

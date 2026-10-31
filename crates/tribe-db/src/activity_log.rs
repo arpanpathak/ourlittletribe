@@ -14,6 +14,8 @@ pub struct ActivityEntry {
     pub user_id: String,
     /// Their display name.
     pub user_name: String,
+    /// Their profile picture's id.
+    pub user_avatar: Option<String>,
     /// A short verb such as `joined_tribe`.
     pub action: String,
     /// `tribe` or `event`.
@@ -44,9 +46,13 @@ pub fn record(
 }
 
 /// The latest entries from tribes `viewer_id` belongs to, newest first.
-pub fn recent_for(connection: &Connection, viewer_id: &str, limit: u32) -> DbResult<Vec<ActivityEntry>> {
+pub fn recent_for(
+    connection: &Connection,
+    viewer_id: &str,
+    limit: u32,
+) -> DbResult<Vec<ActivityEntry>> {
     let mut statement = connection.prepare(
-        "SELECT a.id, a.user_id, u.name, a.action, a.target_type, a.target_id, a.summary, a.created_at
+        "SELECT a.id, a.user_id, u.name, a.action, a.target_type, a.target_id, a.summary, a.created_at, u.avatar_image
          FROM activity_log a
          JOIN users u ON u.id = a.user_id
          WHERE (a.target_type = 'tribe' AND a.target_id IN
@@ -67,6 +73,7 @@ pub fn recent_for(connection: &Connection, viewer_id: &str, limit: u32) -> DbRes
                 target_id: row.get(5)?,
                 summary: row.get(6)?,
                 created_at: row.get(7)?,
+                user_avatar: row.get(8)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

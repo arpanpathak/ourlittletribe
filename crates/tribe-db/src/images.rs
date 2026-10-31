@@ -72,6 +72,8 @@ pub struct Photo {
     pub uploader_id: Option<String>,
     /// Their name.
     pub uploader_name: String,
+    /// Their profile picture's id.
+    pub uploader_avatar: Option<String>,
     /// A line about it.
     pub caption: String,
     /// Width of the large copy.
@@ -142,10 +144,13 @@ pub fn add(connection: &mut Connection, image: &NewImage<'_>) -> DbResult<Vec<St
 
 fn cover_ids(connection: &Connection, purpose: Purpose, owner: &Owner) -> DbResult<Vec<String>> {
     let (event_id, tribe_id) = owner_columns(owner);
-    let mut statement =
-        connection.prepare("SELECT id FROM images WHERE purpose = ?1 AND event_id IS ?2 AND tribe_id IS ?3")?;
+    let mut statement = connection.prepare(
+        "SELECT id FROM images WHERE purpose = ?1 AND event_id IS ?2 AND tribe_id IS ?3",
+    )?;
     let ids = statement
-        .query_map(params![purpose.as_str(), event_id, tribe_id], |row| row.get(0))?
+        .query_map(params![purpose.as_str(), event_id, tribe_id], |row| {
+            row.get(0)
+        })?
         .collect::<Result<Vec<String>, _>>()?;
     Ok(ids)
 }
@@ -190,13 +195,18 @@ pub fn get(connection: &Connection, image_id: &str) -> DbResult<ImageRecord> {
         (None, Some(tribe_id)) => Owner::Tribe(tribe_id),
         _ => return Err(DbError::NotFound),
     };
-    Ok(ImageRecord { id, uploader_id, purpose, owner })
+    Ok(ImageRecord {
+        id,
+        uploader_id,
+        purpose,
+        owner,
+    })
 }
 
 /// An event's shared photos, newest first.
 pub fn photos(connection: &Connection, event_id: &str) -> DbResult<Vec<Photo>> {
     let mut statement = connection.prepare(
-        "SELECT i.id, i.uploader_id, COALESCE(u.name, 'Someone'), i.caption, i.width, i.height, i.created_at
+        "SELECT i.id, i.uploader_id, COALESCE(u.name, 'Someone'), i.caption, i.width, i.height, i.created_at, u.avatar_image
          FROM images i LEFT JOIN users u ON u.id = i.uploader_id
          WHERE i.event_id = ?1 AND i.purpose = 'event_photo'
          ORDER BY i.created_at DESC, i.rowid DESC",
@@ -211,6 +221,7 @@ pub fn photos(connection: &Connection, event_id: &str) -> DbResult<Vec<Photo>> {
                 width: row.get(4)?,
                 height: row.get(5)?,
                 created_at: row.get(6)?,
+                uploader_avatar: row.get(7)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -223,9 +234,23 @@ pub fn delete(connection: &Connection, image_id: &str) -> DbResult<()> {
     Ok(())
 }
 
+/// Records a picture placed inside written text, such as an event description.
+pub fn add_inline(connection: &Connection, image_id: &str, uploader_id: &str) -> DbResult<()> {
+    connection.execute(
+        "INSERT INTO inline_images (id, uploader_id, created_at) VALUES (?1, ?2, ?3)",
+        params![image_id, uploader_id, unix_now()],
+    )?;
+    Ok(())
+}
+
 /// Every picture id still in use; files for any other id can be deleted.
 pub fn all_ids(connection: &Connection) -> DbResult<HashSet<String>> {
-    let mut statement = connection.prepare("SELECT id FROM images")?;
+    let mut statement = connection.prepare(
+        "SELECT id FROM images
+         UNION SELECT id FROM inline_images
+         UNION SELECT avatar_image FROM users WHERE avatar_image IS NOT NULL
+         UNION SELECT cover_image FROM users WHERE cover_image IS NOT NULL",
+    )?;
     let ids = statement
         .query_map([], |row| row.get(0))?
         .collect::<Result<HashSet<String>, _>>()?;
@@ -243,7 +268,15 @@ mod tests {
             Owner::Event(_) => Purpose::EventCover,
             Owner::Tribe(_) => Purpose::TribeCover,
         };
-        NewImage { id, uploader_id: uploader, purpose, owner, caption: "", width: 1600, height: 900 }
+        NewImage {
+            id,
+            uploader_id: uploader,
+            purpose,
+            owner,
+            caption: "",
+            width: 1600,
+            height: 900,
+        }
     }
 
     #[test]
@@ -258,8 +291,14 @@ mod tests {
         assert_eq!(replaced, vec!["first".to_string()]);
         let seen = tribes::get(&connection, &tribe.id, &ada.id)?;
         assert_eq!(seen.cover_image.as_deref(), Some("second"));
-        assert_eq!(remove_cover(&connection, &owner)?, vec!["second".to_string()]);
-        assert_eq!(tribes::get(&connection, &tribe.id, &ada.id)?.cover_image, None);
+        assert_eq!(
+            remove_cover(&connection, &owner)?,
+            vec!["second".to_string()]
+        );
+        assert_eq!(
+            tribes::get(&connection, &tribe.id, &ada.id)?.cover_image,
+            None
+        );
         Ok(())
     }
 
@@ -287,7 +326,15 @@ mod tests {
         for id in ["one", "two"] {
             add(
                 &mut connection,
-                &NewImage { id, uploader_id: &ada.id, purpose: Purpose::EventPhoto, owner: owner.clone(), caption: "Summit", width: 800, height: 600 },
+                &NewImage {
+                    id,
+                    uploader_id: &ada.id,
+                    purpose: Purpose::EventPhoto,
+                    owner: owner.clone(),
+                    caption: "Summit",
+                    width: 800,
+                    height: 600,
+                },
             )?;
         }
         add(&mut connection, &cover("banner", &ada.id, owner.clone()))?;
@@ -295,7 +342,12 @@ mod tests {
         assert_eq!(gallery.len(), 2, "the cover is not in the gallery");
         assert_eq!(gallery[0].uploader_name, "Ada");
         assert_eq!(get(&connection, "one")?.purpose, Purpose::EventPhoto);
-        assert_eq!(events::get(&connection, &event.id, &ada.id)?.cover_image.as_deref(), Some("banner"));
+        assert_eq!(
+            events::get(&connection, &event.id, &ada.id)?
+                .cover_image
+                .as_deref(),
+            Some("banner")
+        );
 
         events::delete(&connection, &event.id)?;
         assert!(all_ids(&connection)?.is_empty());

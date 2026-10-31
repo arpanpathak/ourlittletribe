@@ -1,4 +1,5 @@
-//! Pictures: event and tribe covers, event photos, and serving the files.
+//! Pictures: event and tribe covers, event photos, profile pictures, pictures
+//! placed in descriptions, and serving the files.
 //!
 //! Uploads arrive as the raw picture in the request body. They are decoded,
 //! resized and re-encoded off the async threads, a couple at a time.
@@ -6,13 +7,14 @@
 use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
-use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, X_CONTENT_TYPE_OPTIONS};
 use axum::http::HeaderValue;
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, X_CONTENT_TYPE_OPTIONS};
 use axum::response::{IntoResponse, Response};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tribe_db::events::Event;
 use tribe_db::images::{self, NewImage, Owner, Photo, Purpose};
 use tribe_db::tribes::{self, Tribe};
+use tribe_db::users::{self, ProfilePicture, User};
 use tribe_db::{activity_log, new_id, unix_now};
 use tribe_media::{MediaError, Processed};
 
@@ -25,7 +27,9 @@ impl From<MediaError> for ApiError {
     fn from(error: MediaError) -> ApiError {
         match error {
             MediaError::NotAPicture => ApiError::Invalid("upload a JPEG, PNG, WebP or GIF picture"),
-            MediaError::TooLarge => ApiError::Invalid("that picture is too large (15 MB or 12,000 px at most)"),
+            MediaError::TooLarge => {
+                ApiError::Invalid("that picture is too large (15 MB or 12,000 px at most)")
+            }
             MediaError::Image(error) => {
                 tracing::info!(%error, "picture could not be decoded");
                 ApiError::Invalid("that picture could not be read")
@@ -46,7 +50,11 @@ async fn store_picture(state: &AppState, upload: Bytes) -> ApiResult<(String, Pr
     if !state.uploads.allow() {
         return Err(ApiError::TooMany);
     }
-    let _permit = state.picture_jobs.acquire().await.map_err(|_| ApiError::Internal)?;
+    let _permit = state
+        .picture_jobs
+        .acquire()
+        .await
+        .map_err(|_| ApiError::Internal)?;
     let media = state.media.clone();
     let id = new_id();
     let saved_id = id.clone();
@@ -151,7 +159,10 @@ pub async fn remove_event_cover(
         .db
         .call(move |connection| {
             let removed = images::remove_cover(connection, &Owner::Event(event_id.clone()))?;
-            Ok((removed, tribe_db::events::get(connection, &event_id, &user.id)?))
+            Ok((
+                removed,
+                tribe_db::events::get(connection, &event_id, &user.id)?,
+            ))
         })
         .await?;
     forget_files(&state, &removed);
@@ -159,7 +170,11 @@ pub async fn remove_event_cover(
 }
 
 /// Fails unless the user organizes the tribe or is an admin.
-pub(crate) async fn require_organizer(state: &AppState, tribe_id: &str, user: &tribe_db::users::User) -> ApiResult<()> {
+pub(crate) async fn require_organizer(
+    state: &AppState,
+    tribe_id: &str,
+    user: &tribe_db::users::User,
+) -> ApiResult<()> {
     if user.is_admin {
         return Ok(());
     }
@@ -174,7 +189,9 @@ pub(crate) async fn require_organizer(state: &AppState, tribe_id: &str, user: &t
         .await?;
     match organizer {
         true => Ok(()),
-        false => Err(ApiError::Forbidden("only the tribe's organizers can change this")),
+        false => Err(ApiError::Forbidden(
+            "only the tribe's organizers can change this",
+        )),
     }
 }
 
@@ -201,7 +218,10 @@ pub async fn set_tribe_cover(
     )
     .await?;
     forget_files(&state, &replaced);
-    let tribe = state.db.call(move |connection| tribes::get(connection, &tribe_id, &user.id)).await?;
+    let tribe = state
+        .db
+        .call(move |connection| tribes::get(connection, &tribe_id, &user.id))
+        .await?;
     Ok(Json(tribe))
 }
 
@@ -263,15 +283,24 @@ pub async fn add_photo(
     let photos = state
         .db
         .call(move |connection| {
-            let recent_photo_note = activity_log::recent_for(connection, &user.id, 5)?.into_iter().any(|entry| {
-                entry.user_id == user.id
-                    && entry.action == "shared_photo"
-                    && entry.target_id == event_id
-                    && entry.created_at > unix_now() - 3600
-            });
+            let recent_photo_note = activity_log::recent_for(connection, &user.id, 5)?
+                .into_iter()
+                .any(|entry| {
+                    entry.user_id == user.id
+                        && entry.action == "shared_photo"
+                        && entry.target_id == event_id
+                        && entry.created_at > unix_now() - 3600
+                });
             if !recent_photo_note {
                 let summary = format!("{} shared photos from {}", user.name, event.title);
-                activity_log::record(connection, &user.id, "shared_photo", "event", &event_id, &summary)?;
+                activity_log::record(
+                    connection,
+                    &user.id,
+                    "shared_photo",
+                    "event",
+                    &event_id,
+                    &summary,
+                )?;
             }
             images::photos(connection, &event_id)
         })
@@ -286,7 +315,10 @@ pub async fn remove_photo(
     Path(image_id): Path<String>,
 ) -> ApiResult<Json<Vec<Photo>>> {
     let lookup_id = image_id.clone();
-    let record = state.db.call(move |connection| images::get(connection, &lookup_id)).await?;
+    let record = state
+        .db
+        .call(move |connection| images::get(connection, &lookup_id))
+        .await?;
     let event_id = match (&record.purpose, &record.owner) {
         (Purpose::EventPhoto, Owner::Event(event_id)) => event_id.clone(),
         _ => return Err(ApiError::NotFound),
@@ -306,6 +338,114 @@ pub async fn remove_photo(
     Ok(Json(photos))
 }
 
+async fn set_profile_picture(
+    state: &AppState,
+    user: User,
+    which: ProfilePicture,
+    upload: Bytes,
+) -> ApiResult<Json<User>> {
+    let (id, _processed) = store_picture(state, upload).await?;
+    let saved_id = id.clone();
+    let written = state
+        .db
+        .call(move |connection| {
+            let replaced = users::set_picture(connection, &user.id, which, Some(&saved_id))?;
+            Ok((replaced, users::get(connection, &user.id)?))
+        })
+        .await;
+    match written {
+        Ok((replaced, user)) => {
+            forget_files(state, &replaced.into_iter().collect::<Vec<_>>());
+            Ok(Json(user))
+        }
+        Err(error) => {
+            forget_files(state, &[id]);
+            Err(error.into())
+        }
+    }
+}
+
+async fn clear_profile_picture(
+    state: &AppState,
+    user: User,
+    which: ProfilePicture,
+) -> ApiResult<Json<User>> {
+    let (replaced, user) = state
+        .db
+        .call(move |connection| {
+            let replaced = users::set_picture(connection, &user.id, which, None)?;
+            Ok((replaced, users::get(connection, &user.id)?))
+        })
+        .await?;
+    forget_files(state, &replaced.into_iter().collect::<Vec<_>>());
+    Ok(Json(user))
+}
+
+/// `POST /api/me/avatar`: the signed-in person's profile picture.
+pub async fn set_avatar(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    upload: Bytes,
+) -> ApiResult<Json<User>> {
+    set_profile_picture(&state, user, ProfilePicture::Avatar, upload).await
+}
+
+/// `DELETE /api/me/avatar`.
+pub async fn remove_avatar(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+) -> ApiResult<Json<User>> {
+    clear_profile_picture(&state, user, ProfilePicture::Avatar).await
+}
+
+/// `POST /api/me/cover`: the banner on the signed-in person's profile.
+pub async fn set_profile_cover(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    upload: Bytes,
+) -> ApiResult<Json<User>> {
+    set_profile_picture(&state, user, ProfilePicture::Cover, upload).await
+}
+
+/// `DELETE /api/me/cover`.
+pub async fn remove_profile_cover(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+) -> ApiResult<Json<User>> {
+    clear_profile_picture(&state, user, ProfilePicture::Cover).await
+}
+
+/// A picture stored for placing in written text.
+#[derive(Serialize)]
+pub struct InlinePicture {
+    id: String,
+    width: u32,
+    height: u32,
+}
+
+/// `POST /api/pictures`: a picture to place in a description; the editor links it by id.
+pub async fn add_inline(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    upload: Bytes,
+) -> ApiResult<Json<InlinePicture>> {
+    let (id, processed) = store_picture(&state, upload).await?;
+    let saved_id = id.clone();
+    let written = state
+        .db
+        .call(move |connection| images::add_inline(connection, &saved_id, &user.id))
+        .await;
+    if let Err(error) = written {
+        forget_files(&state, &[id]);
+        return Err(error.into());
+    }
+    Ok(Json(InlinePicture {
+        id,
+        width: processed.width,
+        height: processed.height,
+    }))
+}
+
 /// `GET /media/{file}`: a stored picture, `{id}.jpg` or `{id}_s.jpg`, for signed-in people.
 pub async fn serve(
     State(state): State<AppState>,
@@ -322,7 +462,10 @@ pub async fn serve(
     let mut response = bytes.into_response();
     let headers = response.headers_mut();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/jpeg"));
-    headers.insert(CACHE_CONTROL, HeaderValue::from_static("private, max-age=31536000, immutable"));
+    headers.insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("private, max-age=31536000, immutable"),
+    );
     headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
     Ok(response)
 }

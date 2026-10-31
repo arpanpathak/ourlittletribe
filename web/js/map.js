@@ -47,6 +47,34 @@ export function pin(kind, label = "") {
   });
 }
 
+/**
+ * A pin for one of an event's places: `meet`, `stop`, `optional` or `venue`,
+ * showing `label` (its number in the itinerary).
+ */
+export function placePin(kind, label = "", active = false) {
+  return L.divIcon({
+    className: `pin pin-place pin-${kind}${active ? " active" : ""}`,
+    html: `<div class="pin-body"><span>${String(label).replace(/[^0-9A-Z]/g, "")}</span></div>`,
+    iconSize: [30, 38],
+    iconAnchor: [15, 36],
+    popupAnchor: [0, -32],
+  });
+}
+
+/** Draws a dashed line through an itinerary's places, in order. */
+export function itineraryLine(layer, points) {
+  if (points.length < 2) return;
+  L.polyline(points.map((point) => [point.lat, point.lng]), { color: "#6b7a74", weight: 3, opacity: 0.85, dashArray: "6 8" }).addTo(layer);
+}
+
+/** A Google Maps directions link through `points` in order: the last is the destination, the rest are waypoints. */
+export function itineraryUrl(points, from = null) {
+  const destination = points[points.length - 1];
+  const waypoints = points.slice(0, -1).map((point) => `${point.lat},${point.lng}`).join("|");
+  const origin = from ? `&origin=${from.lat},${from.lng}` : "";
+  return `https://www.google.com/maps/dir/?api=1&destination=${destination.lat},${destination.lng}${origin}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ""}`;
+}
+
 /** Draws a route line into `layer`. */
 export function routeLine(layer, points) {
   const coordinates = points.map((point) => [point.lat, point.lng]);

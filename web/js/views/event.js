@@ -5,7 +5,9 @@ import {
   h, mount, icon, toast, avatar, avatarStack, actionButton, tabBar, emptyState, dropdown, menuItem, confirmAction,
   openModal, debounce, copyText, eventCover, pictureUrl, formatLongDay, formatTime, formatWhen, relativeTime,
 } from "../ui.js";
-import { createMap, pin, routeLine, fitTo, directionsUrl, currentPosition } from "../map.js";
+import { createMap, pin, placePin, itineraryLine, itineraryUrl, routeLine, fitTo, directionsUrl, currentPosition } from "../map.js";
+import { renderMarkdown, markdownToText } from "../markdown.js";
+import { PLACE_KINDS, itinerary, pinLabels } from "../stops.js";
 import { session, go, replaceRoute } from "../app.js";
 import { choosePictures, pictureProblem } from "../components/picture_picker.js";
 
@@ -38,7 +40,7 @@ function downloadCalendarFile(event) {
     `UID:${event.id}@ourlittletribe`, `DTSTAMP:${stamp(Date.now() / 1000)}`,
     `DTSTART:${stamp(event.starts_at)}`, `DTEND:${stamp(event.starts_at + 3 * 3600)}`,
     `SUMMARY:${escape(event.title)}`, `LOCATION:${escape(event.place_name)}`, `GEO:${event.lat};${event.lng}`,
-    `DESCRIPTION:${escape(`${event.description}\n\n${window.location.href}`.trim())}`,
+    `DESCRIPTION:${escape(`${markdownToText(event.description)}\n\n${window.location.href}`.trim())}`,
     "END:VEVENT", "END:VCALENDAR",
   ];
   const blob = new Blob([lines.join("\r\n")], { type: "text/calendar" });
@@ -127,7 +129,7 @@ export async function renderEvent(view, eventId, initialTab) {
 
     const more = dropdown(h("button", { type: "button", class: "btn btn-icon", "aria-label": "More actions" }, icon("more")), () => [
       menuItem("download", "Add to calendar", () => downloadCalendarFile(event)),
-      menuItem("navigation", "Directions", null, { href: directionsUrl(event), target: "_blank", rel: "noopener" }),
+      menuItem("navigation", "Directions", null, { href: tripDirections(), target: "_blank", rel: "noopener" }),
       detail.can_manage ? "-" : null,
       detail.can_manage ? menuItem("edit", "Edit event", null, { href: `#/events/${eventId}/edit` }) : null,
       detail.can_manage
@@ -154,7 +156,7 @@ export async function renderEvent(view, eventId, initialTab) {
           h("h1", {}, event.title),
           h("div", { class: "facts" },
             h("span", {}, icon("calendar"), `${formatLongDay(event.starts_at)} · ${formatTime(event.starts_at)}`),
-            h("span", {}, icon("pin"), event.place_name),
+            h("span", {}, icon("pin"), event.place_name, detail.stops.length ? h("span", { class: "muted" }, ` + ${detail.stops.length} more ${detail.stops.length === 1 ? "place" : "places"}`) : null),
             h("span", {}, icon("users"), `${event.going_count} going`))),
         h("div", { class: "hero-actions" },
           past ? h("span", { class: "badge" }, "This event has ended") : rsvp,
@@ -205,9 +207,41 @@ export async function renderEvent(view, eventId, initialTab) {
         forecast ? null : h("p", { class: "small muted" }, "The forecast appears about 16 days before the event.")));
   }
 
+  /** Directions through the meeting point, the stops everyone makes, and the venue. */
+  function tripDirections() {
+    const places = itinerary(detail.event, detail.stops).filter((place) => place.kind !== "optional");
+    return itineraryUrl(places);
+  }
+
+  function itineraryList() {
+    const places = itinerary(detail.event, detail.stops);
+    const labels = pinLabels(places);
+    return h("ol", { class: "itinerary" }, places.map((place, index) =>
+      h("li", { class: `itin-${place.kind}` },
+        h("span", { class: `loc-badge loc-badge-${place.kind}` }, labels[index]),
+        h("div", { class: "grow" },
+          h("div", { class: "tiny muted strong itin-kind" }, PLACE_KINDS[place.kind].label),
+          h("div", { class: "strong" }, place.name),
+          place.note ? h("div", { class: "small text-2" }, place.note) : null),
+        h("a", { class: "btn btn-ghost btn-icon btn-sm", href: directionsUrl(place), target: "_blank", rel: "noopener", title: `Directions to ${place.name}`, "aria-label": `Directions to ${place.name}` }, icon("navigation", "sm")))));
+  }
+
+  /** Puts every place of the event on `map`, numbered, joined by a dashed line. */
+  function drawItineraryPins(map) {
+    const places = itinerary(detail.event, detail.stops);
+    const labels = pinLabels(places);
+    const layer = L.layerGroup().addTo(map);
+    itineraryLine(layer, places);
+    places.forEach((place, index) =>
+      L.marker([place.lat, place.lng], { icon: placePin(place.kind, labels[index]) })
+        .bindTooltip(`${PLACE_KINDS[place.kind].label}: ${place.name}`, { direction: "top", offset: [0, -30] })
+        .addTo(layer));
+    return places;
+  }
+
   function drawOverview() {
     const { event, attendees } = detail;
-    const mapElement = h("div", { class: "map map-sm" });
+    const mapElement = h("div", { class: `map ${detail.stops.length ? "map-md" : "map-sm"}` });
     mount(bodySlot,
       h("div", { class: "split", style: "margin-top:24px" },
         h("div", { class: "stack-lg" },
@@ -216,7 +250,7 @@ export async function renderEvent(view, eventId, initialTab) {
               detail.can_manage ? h("a", { class: "btn btn-ghost btn-sm", href: `#/events/${eventId}/edit` }, icon("edit", "sm"), "Edit") : null),
             h("div", { class: "card-body" },
               event.description
-                ? h("p", { class: "description" }, event.description)
+                ? renderMarkdown(event.description)
                 : h("p", { class: "muted" }, detail.can_manage ? "No description yet. Add details so people know what to expect." : "No description."))),
           weatherCard(),
           h("section", { class: "card" },
@@ -224,7 +258,7 @@ export async function renderEvent(view, eventId, initialTab) {
             h("div", { class: "card-body" },
               attendees.length
                 ? h("div", { class: "people-grid" }, attendees.map((person) =>
-                    h("a", { class: "person", href: `#/people/${person.user_id}` }, avatar(person.name, 32), h("span", {}, person.user_id === me.id ? `${person.name} (you)` : person.name))))
+                    h("a", { class: "person", href: `#/people/${person.user_id}` }, avatar(person.name, 32, person.avatar), h("span", {}, person.user_id === me.id ? `${person.name} (you)` : person.name))))
                 : h("p", { class: "muted" }, "Nobody yet. Be the first.")))),
         h("aside", { class: "sticky-col" },
           h("section", { class: "card" },
@@ -232,11 +266,11 @@ export async function renderEvent(view, eventId, initialTab) {
               h("div", { class: "info-list" },
                 h("div", { class: "info-item" }, h("span", { class: "info-icon" }, icon("calendar")),
                   h("div", {}, h("div", { class: "strong" }, formatLongDay(event.starts_at)), h("div", { class: "small muted" }, `${formatTime(event.starts_at)} · ${relativeTime(event.starts_at)}`))),
-                h("div", { class: "info-item" }, h("span", { class: "info-icon" }, icon("pin")),
-                  h("div", { class: "grow" }, h("div", { class: "strong" }, event.place_name), h("div", { class: "small muted" }, `${event.lat.toFixed(4)}, ${event.lng.toFixed(4)}`)))),
+              ),
+              itineraryList(),
               mapElement,
               h("div", { class: "row" },
-                h("a", { class: "btn btn-sm grow", href: directionsUrl(event), target: "_blank", rel: "noopener" }, icon("navigation", "sm"), "Directions"),
+                h("a", { class: "btn btn-sm grow", href: tripDirections(), target: "_blank", rel: "noopener" }, icon("navigation", "sm"), detail.stops.length ? "Trip directions" : "Directions"),
                 h("button", { type: "button", class: "btn btn-sm grow", onclick: () => downloadCalendarFile(event) }, icon("download", "sm"), "Add to calendar")))),
           h("section", { class: "card" },
             h("div", { class: "card-body stack" },
@@ -249,7 +283,8 @@ export async function renderEvent(view, eventId, initialTab) {
                 : "Nothing on the list yet."),
               h("button", { type: "button", class: "btn btn-sm", onclick: () => switchTo("list") }, "Open the list", icon("arrowRight", "sm")))))));
     const map = createMap(mapElement, event, 13);
-    L.marker([event.lat, event.lng], { icon: pin("event") }).addTo(map);
+    const places = drawItineraryPins(map);
+    if (places.length > 1) fitTo(map, places, 30);
   }
 
   function switchTo(value) {
@@ -346,7 +381,7 @@ export async function renderEvent(view, eventId, initialTab) {
         item.why ? h("p", { class: "item-why" }, item.why) : null,
         h("div", { class: "item-meta" },
           status,
-          item.marks.length ? avatarStack(item.marks.map((mark) => mark.name), 22, 6) : null,
+          item.marks.length ? avatarStack(item.marks, 22, 6) : null,
           item.shop_tags.length ? h("span", {}, `Sold at ${item.shop_tags.map((tag) => tag.replace(/_/g, " ")).join(", ")} shops`) : null),
         item.often_with?.length
           ? h("p", { class: "often" }, "Groups who bought this also got ", h("b", {}, item.often_with.map((pairing) => pairing.item).join(", ")))
@@ -493,7 +528,7 @@ export async function renderEvent(view, eventId, initialTab) {
             h("div", { class: "card-body" }, tripSlot)))));
 
     const map = createMap(mapElement, event, 11);
-    L.marker([event.lat, event.lng], { icon: pin("event") }).addTo(map).bindTooltip(event.place_name);
+    drawItineraryPins(map);
     let tripLayer = L.layerGroup().addTo(map);
     let originMarker = null;
     let picking = false;
@@ -666,7 +701,7 @@ export async function renderEvent(view, eventId, initialTab) {
               current > 0 ? h("button", { type: "button", class: "btn btn-overlay btn-icon lightbox-nav", style: "left:10px", "aria-label": "Previous", onclick: () => { current -= 1; draw(); } }, icon("chevronLeft")) : null,
               current < detail.photos.length - 1 ? h("button", { type: "button", class: "btn btn-overlay btn-icon lightbox-nav", style: "right:10px", "aria-label": "Next", onclick: () => { current += 1; draw(); } }, icon("chevronRight")) : null),
             h("div", { class: "row-between" },
-              h("div", { class: "row" }, avatar(photo.uploader_name, 30),
+              h("div", { class: "row" }, avatar(photo.uploader_name, 30, photo.uploader_avatar),
                 h("div", {}, h("div", { class: "strong small" }, photo.uploader_name), h("div", { class: "tiny muted" }, relativeTime(photo.created_at)))),
               h("div", { class: "row" },
                 h("a", { class: "btn btn-sm", href: pictureUrl(photo.id), download: `photo-${photo.id.slice(0, 8)}.jpg` }, icon("download", "sm"), "Download"),

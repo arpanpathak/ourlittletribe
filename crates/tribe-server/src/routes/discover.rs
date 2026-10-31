@@ -25,7 +25,10 @@ pub struct Feed {
 }
 
 /// `GET /api/feed`.
-pub async fn feed(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> ApiResult<Json<Feed>> {
+pub async fn feed(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+) -> ApiResult<Json<Feed>> {
     let feed = state
         .db
         .call(move |connection| {
@@ -88,6 +91,26 @@ pub async fn places(
     Ok(Json(found))
 }
 
+/// `GET /api/places/smart?q=…&lat=…&lng=…`: places the model thinks the search means,
+/// each checked against OpenStreetMap. Slower than `/api/places`; the page asks both.
+pub async fn smart_places(
+    State(state): State<AppState>,
+    CurrentUser(_user): CurrentUser,
+    Query(query): Query<PlaceQuery>,
+) -> ApiResult<Json<Vec<PlaceMatch>>> {
+    let text = bounded(&query.q, 150, "search is too long")?;
+    if text.chars().count() < 3 {
+        return Err(ApiError::Invalid("type at least three letters"));
+    }
+    let near = match (query.lat, query.lng) {
+        (Some(lat), Some(lng)) => LatLng::new(lat, lng),
+        _ => None,
+    };
+    Ok(Json(
+        crate::place_search::smart_places(&state, &text, near).await,
+    ))
+}
+
 /// A point on the map.
 #[derive(Deserialize)]
 pub struct PointQuery {
@@ -101,7 +124,8 @@ pub async fn place_at(
     CurrentUser(_user): CurrentUser,
     Query(query): Query<PointQuery>,
 ) -> ApiResult<Json<Option<PlaceMatch>>> {
-    let point = LatLng::new(query.lat, query.lng).ok_or(ApiError::Invalid("that point is not on the map"))?;
+    let point = LatLng::new(query.lat, query.lng)
+        .ok_or(ApiError::Invalid("that point is not on the map"))?;
     let found = state.places.place_at(point).await?;
     Ok(Json(found))
 }

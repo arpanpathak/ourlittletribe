@@ -72,6 +72,8 @@ pub struct Attendee {
     pub user_id: String,
     /// Display name.
     pub name: String,
+    /// Their profile picture's id.
+    pub avatar: Option<String>,
 }
 
 const EVENT_SELECT: &str = "SELECT e.id, e.tribe_id, t.name, t.emblem, e.creator_id, e.title, e.description,
@@ -107,7 +109,12 @@ fn read_event(row: &Row<'_>) -> rusqlite::Result<Event> {
 }
 
 /// Plans an event; its creator is marked as going and up-votes it.
-pub fn create(connection: &mut Connection, tribe_id: &str, creator_id: &str, new_event: &NewEvent) -> DbResult<Event> {
+pub fn create(
+    connection: &mut Connection,
+    tribe_id: &str,
+    creator_id: &str,
+    new_event: &NewEvent,
+) -> DbResult<Event> {
     let id = new_id();
     let now = unix_now();
     let transaction = connection.transaction()?;
@@ -141,7 +148,12 @@ pub fn create(connection: &mut Connection, tribe_id: &str, creator_id: &str, new
 }
 
 /// Changes what an event says: title, description, place and time.
-pub fn update(connection: &Connection, event_id: &str, viewer_id: &str, change: &NewEvent) -> DbResult<Event> {
+pub fn update(
+    connection: &Connection,
+    event_id: &str,
+    viewer_id: &str,
+    change: &NewEvent,
+) -> DbResult<Event> {
     let changed = connection.execute(
         "UPDATE events SET title = ?2, description = ?3, place_name = ?4, lat = ?5, lng = ?6,
                 starts_at = ?7, tz_offset_minutes = ?8
@@ -192,8 +204,16 @@ pub fn upcoming(
 }
 
 /// A tribe's events that started before `before`, latest first.
-pub fn past(connection: &Connection, viewer_id: &str, tribe_id: &str, before: i64, limit: u32) -> DbResult<Vec<Event>> {
-    let sql = format!("{EVENT_SELECT} WHERE e.tribe_id = ?2 AND e.starts_at < ?3 ORDER BY e.starts_at DESC LIMIT ?4");
+pub fn past(
+    connection: &Connection,
+    viewer_id: &str,
+    tribe_id: &str,
+    before: i64,
+    limit: u32,
+) -> DbResult<Vec<Event>> {
+    let sql = format!(
+        "{EVENT_SELECT} WHERE e.tribe_id = ?2 AND e.starts_at < ?3 ORDER BY e.starts_at DESC LIMIT ?4"
+    );
     let mut statement = connection.prepare(&sql)?;
     let events = statement
         .query_map(params![viewer_id, tribe_id, before, limit], read_event)?
@@ -257,17 +277,29 @@ pub fn vote(connection: &Connection, event_id: &str, user_id: &str, vote: i64) -
 /// Everyone going, in the order they said so.
 pub fn attendees(connection: &Connection, event_id: &str) -> DbResult<Vec<Attendee>> {
     let mut statement = connection.prepare(
-        "SELECT u.id, u.name FROM event_rsvps r JOIN users u ON u.id = r.user_id
+        "SELECT u.id, u.name, u.avatar_image FROM event_rsvps r JOIN users u ON u.id = r.user_id
          WHERE r.event_id = ?1 AND r.status = 'going' ORDER BY r.updated_at",
     )?;
     let attendees = statement
-        .query_map([event_id], |row| Ok(Attendee { user_id: row.get(0)?, name: row.get(1)? }))?
+        .query_map([event_id], |row| {
+            Ok(Attendee {
+                user_id: row.get(0)?,
+                name: row.get(1)?,
+                avatar: row.get(2)?,
+            })
+        })?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(attendees)
 }
 
 /// Saves where the user will set off from. Removed automatically after the event.
-pub fn set_origin(connection: &Connection, event_id: &str, user_id: &str, lat: f64, lng: f64) -> DbResult<()> {
+pub fn set_origin(
+    connection: &Connection,
+    event_id: &str,
+    user_id: &str,
+    lat: f64,
+    lng: f64,
+) -> DbResult<()> {
     connection.execute(
         "INSERT INTO trip_origins (event_id, user_id, lat, lng) VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT (event_id, user_id) DO UPDATE SET lat = excluded.lat, lng = excluded.lng",
@@ -277,7 +309,11 @@ pub fn set_origin(connection: &Connection, event_id: &str, user_id: &str, lat: f
 }
 
 /// Where the user said they will set off from, if they did.
-pub fn origin(connection: &Connection, event_id: &str, user_id: &str) -> DbResult<Option<(f64, f64)>> {
+pub fn origin(
+    connection: &Connection,
+    event_id: &str,
+    user_id: &str,
+) -> DbResult<Option<(f64, f64)>> {
     let origin = connection
         .query_row(
             "SELECT lat, lng FROM trip_origins WHERE event_id = ?1 AND user_id = ?2",
@@ -321,7 +357,12 @@ mod tests {
         let ada = users::create(&connection, "a@example.com", "Ada", "hash")?;
         let bo = users::create(&connection, "b@example.com", "Bo", "hash")?;
         let tribe = tribes::create(&mut connection, &ada.id, "Cascade Walkers", "", "", "peak")?;
-        let event = create(&mut connection, &tribe.id, &ada.id, &sample_event(unix_now() + 3600))?;
+        let event = create(
+            &mut connection,
+            &tribe.id,
+            &ada.id,
+            &sample_event(unix_now() + 3600),
+        )?;
         assert_eq!(event.going_count, 1);
         assert_eq!(event.my_rsvp.as_deref(), Some("going"));
         assert_eq!(event.net_votes, 1);
@@ -334,7 +375,10 @@ mod tests {
         assert_eq!(seen_by_bo.my_vote, -1);
 
         rsvp(&connection, &event.id, &bo.id, false)?;
-        let names: Vec<String> = attendees(&connection, &event.id)?.into_iter().map(|attendee| attendee.name).collect();
+        let names: Vec<String> = attendees(&connection, &event.id)?
+            .into_iter()
+            .map(|attendee| attendee.name)
+            .collect();
         assert_eq!(names, vec!["Ada".to_string()]);
         Ok(())
     }
@@ -347,11 +391,29 @@ mod tests {
         let walkers = tribes::create(&mut connection, &ada.id, "Walkers", "", "", "peak")?;
         let readers = tribes::create(&mut connection, &ada.id, "Readers", "", "", "book")?;
         let now = unix_now();
-        create(&mut connection, &walkers.id, &ada.id, &sample_event(now - 3600))?;
-        create(&mut connection, &walkers.id, &ada.id, &sample_event(now + 3600))?;
-        create(&mut connection, &readers.id, &ada.id, &sample_event(now + 7200))?;
+        create(
+            &mut connection,
+            &walkers.id,
+            &ada.id,
+            &sample_event(now - 3600),
+        )?;
+        create(
+            &mut connection,
+            &walkers.id,
+            &ada.id,
+            &sample_event(now + 3600),
+        )?;
+        create(
+            &mut connection,
+            &readers.id,
+            &ada.id,
+            &sample_event(now + 7200),
+        )?;
         assert_eq!(upcoming(&connection, &ada.id, None, now, 50)?.len(), 2);
-        assert_eq!(upcoming(&connection, &ada.id, Some(&walkers.id), now, 50)?.len(), 1);
+        assert_eq!(
+            upcoming(&connection, &ada.id, Some(&walkers.id), now, 50)?.len(),
+            1
+        );
         assert_eq!(past(&connection, &ada.id, &walkers.id, now, 50)?.len(), 1);
         Ok(())
     }
@@ -362,13 +424,21 @@ mod tests {
         schema::prepare(&connection)?;
         let ada = users::create(&connection, "a@example.com", "Ada", "hash")?;
         let tribe = tribes::create(&mut connection, &ada.id, "Walkers", "", "", "peak")?;
-        let event = create(&mut connection, &tribe.id, &ada.id, &sample_event(unix_now() + 60))?;
+        let event = create(
+            &mut connection,
+            &tribe.id,
+            &ada.id,
+            &sample_event(unix_now() + 60),
+        )?;
         let mut change = sample_event(unix_now() + 7200);
         change.title = "Skyline Trail, sunrise".to_string();
         let updated = update(&connection, &event.id, &ada.id, &change)?;
         assert_eq!(updated.title, "Skyline Trail, sunrise");
         assert_eq!(updated.going_count, 1);
-        assert!(matches!(update(&connection, "missing", &ada.id, &change), Err(DbError::NotFound)));
+        assert!(matches!(
+            update(&connection, "missing", &ada.id, &change),
+            Err(DbError::NotFound)
+        ));
         Ok(())
     }
 
@@ -378,9 +448,17 @@ mod tests {
         schema::prepare(&connection)?;
         let ada = users::create(&connection, "a@example.com", "Ada", "hash")?;
         let tribe = tribes::create(&mut connection, &ada.id, "Walkers", "", "", "peak")?;
-        let event = create(&mut connection, &tribe.id, &ada.id, &sample_event(unix_now() + 60))?;
+        let event = create(
+            &mut connection,
+            &tribe.id,
+            &ada.id,
+            &sample_event(unix_now() + 60),
+        )?;
         set_origin(&connection, &event.id, &ada.id, 47.6, -122.3)?;
-        assert_eq!(origin(&connection, &event.id, &ada.id)?, Some((47.6, -122.3)));
+        assert_eq!(
+            origin(&connection, &event.id, &ada.id)?,
+            Some((47.6, -122.3))
+        );
         clear_origin(&connection, &event.id, &ada.id)?;
         assert_eq!(origin(&connection, &event.id, &ada.id)?, None);
         Ok(())

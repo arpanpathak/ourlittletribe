@@ -13,8 +13,14 @@ use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
 /// `GET /api/tribes`.
-pub async fn list(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> ApiResult<Json<Vec<Tribe>>> {
-    let found = state.db.call(move |connection| tribes::list(connection, &user.id)).await?;
+pub async fn list(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+) -> ApiResult<Json<Vec<Tribe>>> {
+    let found = state
+        .db
+        .call(move |connection| tribes::list(connection, &user.id))
+        .await?;
     Ok(Json(found))
 }
 
@@ -40,7 +46,7 @@ pub async fn create(
     if name.is_empty() {
         return Err(ApiError::Invalid("give the tribe a name"));
     }
-    let description = bounded(&body.description, 2000, "description is too long")?;
+    let description = bounded(&body.description, 4000, "description is too long")?;
     let home_area = bounded(&body.home_area, 80, "home area is too long")?;
     let emblem = match EMBLEMS.contains(&body.emblem.as_str()) {
         true => body.emblem,
@@ -49,9 +55,23 @@ pub async fn create(
     let tribe = state
         .db
         .call(move |connection| {
-            let tribe = tribes::create(connection, &user.id, &name, &description, &home_area, &emblem)?;
+            let tribe = tribes::create(
+                connection,
+                &user.id,
+                &name,
+                &description,
+                &home_area,
+                &emblem,
+            )?;
             let summary = format!("{} started {}", user.name, tribe.name);
-            activity_log::record(connection, &user.id, "started_tribe", "tribe", &tribe.id, &summary)?;
+            activity_log::record(
+                connection,
+                &user.id,
+                "started_tribe",
+                "tribe",
+                &tribe.id,
+                &summary,
+            )?;
             Ok(tribe)
         })
         .await?;
@@ -80,11 +100,20 @@ pub async fn update(
     if name.is_empty() {
         return Err(ApiError::Invalid("give the tribe a name"));
     }
-    let description = bounded(&change.description, 2000, "description is too long")?;
+    let description = bounded(&change.description, 4000, "description is too long")?;
     let home_area = bounded(&change.home_area, 80, "home area is too long")?;
     let tribe = state
         .db
-        .call(move |connection| tribes::update(connection, &tribe_id, &user.id, &name, &description, &home_area))
+        .call(move |connection| {
+            tribes::update(
+                connection,
+                &tribe_id,
+                &user.id,
+                &name,
+                &description,
+                &home_area,
+            )
+        })
         .await?;
     Ok(Json(tribe))
 }
@@ -110,8 +139,20 @@ pub async fn detail(
             Ok(TribeDetail {
                 tribe: tribes::get(connection, &tribe_id, &user.id)?,
                 members: tribes::members(connection, &tribe_id)?,
-                events: events::upcoming(connection, &user.id, Some(&tribe_id), unix_now() - 6 * 3600, 50)?,
-                past_events: events::past(connection, &user.id, &tribe_id, unix_now() - 6 * 3600, 12)?,
+                events: events::upcoming(
+                    connection,
+                    &user.id,
+                    Some(&tribe_id),
+                    unix_now() - 6 * 3600,
+                    50,
+                )?,
+                past_events: events::past(
+                    connection,
+                    &user.id,
+                    &tribe_id,
+                    unix_now() - 6 * 3600,
+                    12,
+                )?,
             })
         })
         .await?;
@@ -132,7 +173,14 @@ pub async fn join(
             let tribe = tribes::get(connection, &tribe_id, &user.id)?;
             if !already {
                 let summary = format!("{} joined {}", user.name, tribe.name);
-                activity_log::record(connection, &user.id, "joined_tribe", "tribe", &tribe.id, &summary)?;
+                activity_log::record(
+                    connection,
+                    &user.id,
+                    "joined_tribe",
+                    "tribe",
+                    &tribe.id,
+                    &summary,
+                )?;
             }
             Ok(tribe)
         })

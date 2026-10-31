@@ -39,6 +39,8 @@ pub struct Member {
     pub user_id: String,
     /// Display name.
     pub name: String,
+    /// Their profile picture's id.
+    pub avatar: Option<String>,
     /// `organizer` or `member`.
     pub role: String,
     /// When they joined.
@@ -147,7 +149,7 @@ pub fn get(connection: &Connection, tribe_id: &str, viewer_id: &str) -> DbResult
 /// The tribe's members, organizers first.
 pub fn members(connection: &Connection, tribe_id: &str) -> DbResult<Vec<Member>> {
     let mut statement = connection.prepare(
-        "SELECT m.user_id, u.name, m.role, m.joined_at
+        "SELECT m.user_id, u.name, m.role, m.joined_at, u.avatar_image
          FROM tribe_members m JOIN users u ON u.id = m.user_id
          WHERE m.tribe_id = ?1
          ORDER BY m.role = 'organizer' DESC, m.joined_at",
@@ -157,6 +159,7 @@ pub fn members(connection: &Connection, tribe_id: &str) -> DbResult<Vec<Member>>
             Ok(Member {
                 user_id: row.get(0)?,
                 name: row.get(1)?,
+                avatar: row.get(4)?,
                 role: row.get(2)?,
                 joined_at: row.get(3)?,
             })
@@ -224,7 +227,14 @@ mod tests {
         schema::prepare(&connection)?;
         let ada = users::create(&connection, "a@example.com", "Ada", "hash")?;
         let bo = users::create(&connection, "b@example.com", "Bo", "hash")?;
-        let tribe = create(&mut connection, &ada.id, "Cascade Walkers", "", "Seattle", "peak")?;
+        let tribe = create(
+            &mut connection,
+            &ada.id,
+            "Cascade Walkers",
+            "",
+            "Seattle",
+            "peak",
+        )?;
         assert!(tribe.is_organizer);
         assert_eq!(tribe.member_count, 1);
 
@@ -235,12 +245,22 @@ mod tests {
         assert!(!seen_by_bo.is_organizer);
         assert_eq!(seen_by_bo.member_count, 2);
 
-        let roles: Vec<String> = members(&connection, &tribe.id)?.into_iter().map(|member| member.role).collect();
+        let roles: Vec<String> = members(&connection, &tribe.id)?
+            .into_iter()
+            .map(|member| member.role)
+            .collect();
         assert_eq!(roles, vec!["organizer".to_string(), "member".to_string()]);
 
         assert!(is_organizer(&connection, &tribe.id, &ada.id)?);
         assert!(!is_organizer(&connection, &tribe.id, &bo.id)?);
-        let renamed = update(&connection, &tribe.id, &ada.id, "Cascade Striders", "Faster now", "Issaquah")?;
+        let renamed = update(
+            &connection,
+            &tribe.id,
+            &ada.id,
+            "Cascade Striders",
+            "Faster now",
+            "Issaquah",
+        )?;
         assert_eq!(renamed.name, "Cascade Striders");
 
         leave(&connection, &tribe.id, &bo.id)?;
@@ -253,7 +273,10 @@ mod tests {
         let connection = Connection::open_in_memory()?;
         schema::prepare(&connection)?;
         let ada = users::create(&connection, "a@example.com", "Ada", "hash")?;
-        assert!(matches!(join(&connection, "nope", &ada.id), Err(DbError::NotFound)));
+        assert!(matches!(
+            join(&connection, "nope", &ada.id),
+            Err(DbError::NotFound)
+        ));
         Ok(())
     }
 }

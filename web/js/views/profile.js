@@ -1,7 +1,9 @@
 // A person's profile: who they are, where they're going, their tribes. Your own can be edited.
 
 import { api } from "../api.js";
-import { h, mount, icon, avatar, toast, tabBar, emptyState, field, openModal } from "../ui.js";
+import { h, mount, icon, avatar, toast, tabBar, emptyState, field, openModal, dropdown, menuItem, pictureUrl } from "../ui.js";
+import { heroScene } from "../art.js";
+import { choosePictures, pictureProblem } from "../components/picture_picker.js";
 import { session, refreshHeader } from "../app.js";
 import { eventCard, tribeCard } from "../components/cards.js";
 
@@ -36,6 +38,26 @@ function editProfile(person) {
   });
 }
 
+/** Asks for one picture and uploads it with `upload(file)`; returns the updated person, or null. */
+async function replacePicture(upload, what) {
+  const [file] = await choosePictures(false);
+  if (!file) return null;
+  const problem = pictureProblem(file);
+  if (problem) {
+    toast(problem, "error");
+    return null;
+  }
+  toast(`Uploading your ${what}…`);
+  try {
+    const updated = await upload(file);
+    toast(`${what.charAt(0).toUpperCase()}${what.slice(1)} updated`, "success");
+    return updated;
+  } catch (error) {
+    toast(error.message, "error");
+    return null;
+  }
+}
+
 /** Draws a profile page. */
 export async function renderProfile(view, userId) {
   const { person, tribes, events } = await api.person(userId);
@@ -64,10 +86,37 @@ export async function renderProfile(view, userId) {
       : h("div", { class: "card" }, emptyState(iconName, title, text)));
   }
 
+  async function changed(updated) {
+    if (!updated) return;
+    session.user = updated;
+    refreshHeader();
+    await renderProfile(view, userId);
+  }
+
+  const coverMenu = isMe
+    ? h("div", { class: "cover-actions" }, dropdown(
+        h("button", { type: "button", class: "btn btn-sm btn-overlay" }, icon("camera", "sm"), person.cover_image ? "Change cover" : "Add a cover"),
+        () => [
+          menuItem("upload", "Upload a picture", async () => changed(await replacePicture(api.setProfileCover, "cover"))),
+          person.cover_image ? menuItem("trash", "Remove cover", async () => changed(await api.removeProfileCover()), { class: "menu-danger" }) : null,
+        ].filter(Boolean)))
+    : null;
+  const avatarMenu = isMe
+    ? dropdown(
+        h("button", { type: "button", class: "btn btn-icon avatar-edit", "aria-label": "Change profile picture", title: "Change profile picture" }, icon("camera", "sm")),
+        () => [
+          menuItem("upload", person.avatar ? "Upload a new picture" : "Upload a picture", async () => changed(await replacePicture(api.setAvatar, "profile picture"))),
+          person.avatar ? menuItem("trash", "Remove picture", async () => changed(await api.removeAvatar()), { class: "menu-danger" }) : null,
+        ].filter(Boolean))
+    : null;
+
   mount(view,
-    h("section", { class: "card card-pad" },
-      h("div", { class: "profile-head" },
-        avatar(person.name, 80),
+    h("section", { class: "card profile-card" },
+      h("div", { class: "cover profile-cover", html: person.cover_image ? null : heroScene({ crew: ["cy", "ada", "bo"] }) },
+        person.cover_image ? h("img", { src: pictureUrl(person.cover_image), alt: "" }) : null,
+        coverMenu),
+      h("div", { class: "profile-main" },
+        h("div", { class: "profile-avatar" }, avatar(person.name, 112, person.avatar), avatarMenu),
         h("div", { class: "grow stack", style: "gap:6px" },
           h("h1", {}, person.name),
           h("div", { class: "facts" },

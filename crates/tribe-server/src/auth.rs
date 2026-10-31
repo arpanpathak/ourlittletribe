@@ -4,15 +4,15 @@
 //! in an `HttpOnly`, `SameSite=Lax` cookie; the database keeps only its
 //! SHA-256, so a copy of the database cannot be used to sign in.
 
+use argon2::Argon2;
 use argon2::password_hash::rand_core::OsRng;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
-use argon2::Argon2;
+use axum::Json;
 use axum::extract::{FromRequestParts, State};
 use axum::http::header::{COOKIE, SET_COOKIE};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use base64::Engine;
 use rand::RngCore;
 use serde::Deserialize;
@@ -40,7 +40,9 @@ pub fn hash_password(password: &str) -> ApiResult<String> {
 /// Whether `password` matches the stored Argon2 `hash`.
 pub fn password_matches(password: &str, hash: &str) -> bool {
     match PasswordHash::new(hash) {
-        Ok(parsed) => Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok(),
+        Ok(parsed) => Argon2::default()
+            .verify_password(password.as_bytes(), &parsed)
+            .is_ok(),
         Err(_) => false,
     }
 }
@@ -82,7 +84,9 @@ fn session_cookie(value: &str, max_age: i64, secure: bool) -> ApiResult<HeaderVa
         true => "; Secure",
         false => "",
     };
-    let cookie = format!("{SESSION_COOKIE}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure_flag}");
+    let cookie = format!(
+        "{SESSION_COOKIE}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure_flag}"
+    );
     HeaderValue::from_str(&cookie).map_err(|_| ApiError::Internal)
 }
 
@@ -92,7 +96,10 @@ pub struct CurrentUser(pub User);
 impl FromRequestParts<AppState> for CurrentUser {
     type Rejection = ApiError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<CurrentUser, ApiError> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<CurrentUser, ApiError> {
         let token = session_token(&parts.headers).ok_or(ApiError::SignedOut)?;
         let hash = token_hash(&token);
         let user = state
@@ -120,7 +127,9 @@ pub struct SignIn {
 
 fn looks_like_email(email: &str) -> bool {
     match email.split_once('@') {
-        Some((local, domain)) => !local.is_empty() && domain.contains('.') && !email.contains(char::is_whitespace),
+        Some((local, domain)) => {
+            !local.is_empty() && domain.contains('.') && !email.contains(char::is_whitespace)
+        }
         None => false,
     }
 }
@@ -131,7 +140,9 @@ async fn start_session(state: &AppState, user: User) -> ApiResult<Response> {
     let user_id = user.id.clone();
     state
         .db
-        .call(move |connection| sessions::create(connection, &hash, &user_id, unix_now() + SESSION_SECONDS))
+        .call(move |connection| {
+            sessions::create(connection, &hash, &user_id, unix_now() + SESSION_SECONDS)
+        })
         .await?;
     let cookie = session_cookie(&token, SESSION_SECONDS, state.config.secure_cookie)?;
     let mut response = Json(user).into_response();
@@ -140,7 +151,10 @@ async fn start_session(state: &AppState, user: User) -> ApiResult<Response> {
 }
 
 /// `POST /api/account/register`: makes an account and signs it in.
-pub async fn register(State(state): State<AppState>, Json(body): Json<SignUp>) -> ApiResult<Response> {
+pub async fn register(
+    State(state): State<AppState>,
+    Json(body): Json<SignUp>,
+) -> ApiResult<Response> {
     let email = body.email.trim().to_lowercase();
     let name = body.name.trim().to_string();
     if !looks_like_email(&email) || email.len() > 200 {
@@ -150,7 +164,9 @@ pub async fn register(State(state): State<AppState>, Json(body): Json<SignUp>) -
         return Err(ApiError::Invalid("enter a name of up to 60 characters"));
     }
     if body.password.chars().count() < 10 || body.password.len() > 200 {
-        return Err(ApiError::Invalid("use a password of at least 10 characters"));
+        return Err(ApiError::Invalid(
+            "use a password of at least 10 characters",
+        ));
     }
     if !state.sign_ups.allow() {
         return Err(ApiError::TooMany);
@@ -164,7 +180,9 @@ pub async fn register(State(state): State<AppState>, Json(body): Json<SignUp>) -
         .call(move |connection| users::create(connection, &email, &name, &hash))
         .await
         .map_err(|error| match error {
-            tribe_db::DbError::AlreadyExists => ApiError::Conflict("that email already has an account"),
+            tribe_db::DbError::AlreadyExists => {
+                ApiError::Conflict("that email already has an account")
+            }
             other => ApiError::from(other),
         })?;
     start_session(&state, user).await
@@ -197,7 +215,10 @@ pub async fn login(State(state): State<AppState>, Json(body): Json<SignIn>) -> A
 pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<Response> {
     if let Some(token) = session_token(&headers) {
         let hash = token_hash(&token);
-        state.db.call(move |connection| sessions::delete(connection, &hash)).await?;
+        state
+            .db
+            .call(move |connection| sessions::delete(connection, &hash))
+            .await?;
     }
     let cookie = session_cookie("", 0, state.config.secure_cookie)?;
     let mut response = Json(serde_json::json!({ "status": "signed_out" })).into_response();
@@ -221,14 +242,20 @@ mod tests {
     #[test]
     fn session_cookie_is_found_among_others() {
         let mut headers = HeaderMap::new();
-        headers.insert(COOKIE, HeaderValue::from_static("theme=dark; olt_session=abc123; other=1"));
+        headers.insert(
+            COOKIE,
+            HeaderValue::from_static("theme=dark; olt_session=abc123; other=1"),
+        );
         assert_eq!(session_token(&headers), Some("abc123".to_string()));
     }
 
     #[test]
     fn token_hash_is_hex_sha256() {
         let hash = token_hash("abc");
-        assert_eq!(hash, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(
+            hash,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 
     #[test]
