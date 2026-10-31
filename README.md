@@ -132,7 +132,7 @@ is in the [book](book/src/ch10-going-live.md); what comes next is in the
   instance should run its own (the URLs live in `tribe_places::Endpoints`).
 - Store results only know a shop's *type* from OpenStreetMap, not its stock.
 - Sign-in is email and password; there is no email verification or password reset yet.
-- The Go/React prototype is still on `main`.
+- The earlier Go/React prototype is in the git history before this rewrite (commit f5a405c).
 
 ## License
 
