@@ -1,0 +1,103 @@
+//! OurLittleTribe: plan real-world gatherings with your tribe, and let a local
+//! model work out what to bring from the description, the forecast and the route.
+//!
+//! One binary serves the API and the web app. Settings come from `OLT_*`
+//! environment variables; see [`state::Config`].
+
+mod auth;
+mod error;
+mod routes;
+mod state;
+mod trip;
+mod web;
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use anyhow::Context;
+use tribe_brain::{Brain, BrainConfig};
+use tribe_db::{Db, maintenance, unix_now};
+use tribe_places::{Endpoints, Places};
+
+use crate::state::{AppState, Config, RateLimit, TimedCache};
+
+const USER_AGENT: &str = concat!("OurLittleTribe/", env!("CARGO_PKG_VERSION"), " (https://github.com/arpanpathak/ourlittletribe)");
+
+async fn purge_every_hour(db: Db) {
+    let mut ticker = tokio::time::interval(Duration::from_secs(3600));
+    loop {
+        ticker.tick().await;
+        match db.call(|connection| maintenance::purge(connection, unix_now())).await {
+            Ok(report) => tracing::info!(?report, "hourly clean-up"),
+            Err(error) => tracing::error!(%error, "hourly clean-up failed"),
+        }
+    }
+}
+
+async fn shutdown_signal() {
+    let interrupt = tokio::signal::ctrl_c();
+    let mut terminate = match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+        Ok(stream) => stream,
+        Err(error) => {
+            tracing::warn!(%error, "cannot listen for SIGTERM");
+            let _ = interrupt.await;
+            return;
+        }
+    };
+    tokio::select! {
+        _ = interrupt => {}
+        _ = terminate.recv() => {}
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
+    let config = Config::from_env()?;
+    let db = Db::open(&config.database).with_context(|| format!("opening {}", config.database.display()))?;
+    let places = Places::new(USER_AGENT, Endpoints::default())?;
+    let brain = match &config.llm_url {
+        Some(base_url) => Some(Arc::new(Brain::new(BrainConfig {
+            base_url: base_url.clone(),
+            model: config.llm_model.clone(),
+            api_key: config.llm_key.clone(),
+            timeout: Duration::from_secs(120),
+        })?)),
+        None => None,
+    };
+    match &brain {
+        Some(model) => match model.model_name().await {
+            Ok(name) => tracing::info!(model = %name, "planning model ready"),
+            Err(error) => tracing::warn!(%error, "planning model not reachable yet; will retry on first use"),
+        },
+        None => tracing::warn!("OLT_LLM_URL is not set; prep planning and search are off"),
+    }
+
+    let state = AppState {
+        db: db.clone(),
+        places,
+        brain,
+        config: Arc::new(config.clone()),
+        sign_ups: Arc::new(RateLimit::new(30, Duration::from_secs(3600))),
+        failed_sign_ins: Arc::new(RateLimit::new(60, Duration::from_secs(600))),
+        conditions: Arc::new(TimedCache::new(Duration::from_secs(1800))),
+        store_lookups: Arc::new(TimedCache::new(Duration::from_secs(1800))),
+    };
+
+    tokio::spawn(purge_every_hour(db));
+
+    let listener = tokio::net::TcpListener::bind(config.listen)
+        .await
+        .with_context(|| format!("binding {}", config.listen))?;
+    tracing::info!(address = %config.listen, "OurLittleTribe is listening");
+    axum::serve(listener, routes::router(state))
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+    Ok(())
+}

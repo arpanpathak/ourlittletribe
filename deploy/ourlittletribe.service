@@ -1,0 +1,19 @@
+[Unit]
+Description=OurLittleTribe on 127.0.0.1:8090 (published by Tailscale Funnel on :8443)
+After=network-online.target thor-edge-llm.service
+Wants=network-online.target
+
+[Service]
+Environment=OLT_ADDR=127.0.0.1:8090
+Environment=OLT_DB=%h/.local/share/ourlittletribe/ourlittletribe.db
+Environment=OLT_LLM_URL=http://127.0.0.1:8081/v1
+Environment=RUST_LOG=info
+ExecStartPre=/usr/bin/mkdir -p %h/.local/share/ourlittletribe
+ExecStart=%h/.local/bin/ourlittletribe
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

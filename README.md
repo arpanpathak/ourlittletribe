@@ -1,117 +1,107 @@
-<div align="center">
-  <h1>🌍 OutLittleTribe</h1>
-  <p><strong>A fiercely independent, open-source, and cloud-agnostic community platform.</strong></p>
+<p align="center"><img src="web/favicon.svg" width="72" alt="OurLittleTribe mark: a peak in a ring"></p>
 
-  <!-- Navigation Tabs -->
-  <p>
-    <a href="#-mission"><b>🎯 Mission</b></a> &nbsp;&bull;&nbsp;
-    <a href="#-features"><b>✨ Features</b></a> &nbsp;&bull;&nbsp;
-    <a href="#-architecture"><b>🏗️ Architecture</b></a> &nbsp;&bull;&nbsp;
-    <a href="#-getting-started"><b>🚀 Quick Start</b></a> &nbsp;&bull;&nbsp;
-    <a href="CONTRIBUTING.md"><b>🤝 Contributing</b></a> &nbsp;&bull;&nbsp;
-    <a href="CODE_OF_CONDUCT.md"><b>🛡️ Code of Conduct</b></a>
-  </p>
+<h1 align="center">OurLittleTribe</h1>
 
-  <p>
-    <img src="https://img.shields.io/github/stars/arpanpathak/ourlittletribe?style=for-the-badge&color=yellow" alt="Stars"/>
-    <img src="https://img.shields.io/github/forks/arpanpathak/ourlittletribe?style=for-the-badge&color=blue" alt="Forks"/>
-    <img src="https://img.shields.io/github/issues/arpanpathak/ourlittletribe?style=for-the-badge&color=red" alt="Issues"/>
-    <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License"/>
-  </p>
-</div>
+<p align="center">Plan hikes, picnics, runs and book clubs with your people.<br>
+A local model works out what to bring from the plan, the forecast and your route.</p>
 
 ---
 
-## 🎯 Mission
+OurLittleTribe is a free, self-hosted alternative to Meetup. A tribe plans an
+outing; the app then helps the group get ready for it:
 
-We believe that community building should be a **fundamental human right**, not a monetized feature gated behind corporate paywalls. Our mission is to democratize community organization by providing a fully open-source, self-hostable platform. We empower individuals, local groups, and organizations to connect, share, and grow together without arbitrary fees, algorithms prioritizing profit over people, or restrictive corporate roadblocks.
+- **The model drafts the prep list.** It reads the organiser's description,
+  the forecast and elevation at the meeting point (Open-Meteo), the drive
+  (OSRM), the daylight and the group size, and returns items with the fact
+  each one answers to: *"Headlamp: sunset 16:42, group stays for photos"*.
+  Answers are JSON constrained by a schema and checked again in Rust.
+- **Search for what you need.** "My feet get cold" becomes wool socks, toe
+  warmers and gaiters, and the map shows stores on *your* route that sell them,
+  ranked by the minutes they add (OSRM duration table, not straight lines).
+- **Everyone sees who has what.** Personal items show "5 of 8 have it" with
+  faces; shared items show who is bringing them and whether they bought them.
+- **Learned, not hand-written, pairings.** "Groups often also got…" comes from
+  what earlier groups marked as bought (support, confidence, lift), and stays
+  hidden until there are at least 10 trips of evidence.
 
-<details>
-<summary><b>Read more about our vision (Click to Expand)</b></summary>
-<br>
-OutLittleTribe is an inclusive, community-driven alternative to mainstream event-planning applications (like Meetup.com). We strive to create a safe, welcoming, and accessible space for absolutely everyone. Our overarching vision is to deliver a **bloat-free, clean, fast, and efficient UI** along with a uniquely superior and easy-to-use UX. Our goal is a decentralized, cloud-agnostic social fabric where you completely own your community's data.
+There are no ads, no merchant accounts and no tracking. A starting point is
+shared per event, only by choice, and deleted a day after the event.
 
-The project is built deliberately for safety, accessibility, and positive social impact.
-</details>
+## Layout
 
-## ✨ Features
+| Path | What it is |
+|---|---|
+| `crates/tribe-core` | Pure logic: route geometry, store ranking, basket analysis, local time formatting |
+| `crates/tribe-db` | SQLite storage: users, sessions, tribes, events, prep items and marks, cached stores |
+| `crates/tribe-places` | Clients for Open-Meteo, OSRM, Overpass (OpenStreetMap) and Nominatim |
+| `crates/tribe-brain` | The model client: trip facts in, checked items out; one request at a time |
+| `crates/tribe-server` | The `ourlittletribe` binary: axum API, Argon2id accounts, the embedded web app |
+| `web/` | The app: plain ES modules and CSS, no build step. Leaflet is vendored; the PNW art is inline SVG |
+| `deploy/` | systemd unit, deploy script, and the voltforge.tech forwarding page |
 
-- ⚡ **Superior User Experience:** Designed to be a bloat-free, clean, blazingly fast, and highly efficient interface. We prioritize an intuitive and exceptionally easy-to-use UX above all else.
-- 🚫 **No Corporate Paywalls:** 100% free and open-source forever. No hidden fees to organize or join events.
-- ☁️ **Cloud-Agnostic Setup:** Run your instance anywhere. Whether using Docker on your local machine or deploying to your own cloud infrastructure, the platform is extremely portable.
-- 🏕️ **Tribe Management:** Seamlessly create, manage, and discover "Tribes" matching your interests, complete with custom avatars and cover photos.
-- 📅 **Event Management:** Robust event creation, RSVP handling, detailed location/time management, and MVC backend architecture.
-- 🛡️ **Inclusive Community First:** Standardized codes of conduct, modern UI, and community-first workflows.
+The whole app is one 8 MB binary with the web files compiled in.
 
-<details>
-<summary><b>View the Technical Capabilities (Click to Expand)</b></summary>
-
-- Advanced REST APIs built on Go with a clean modular MVC design.
-- Secure HTTP/2 routing, decoupled database layer.
-- OAuth2 implementations ready for integration.
-- Responsive, rich-aesthetic frontend stack.
-
-</details>
-
-## 🏗️ Architecture
-
-OutLittleTribe strictly isolates concerns into layers following an **MVC Model**:
-
-1. **Routing Layer**: Expressive, grouped RESTful endpoints.
-2. **Controller Layer**: Inbound request validation and parsing.
-3. **Service Layer**: Pure business logic separated from HTTP details.
-4. **Data Layer**: Clean database repositories ensuring high portability across persistence layers (PostgreSQL / SQLite).
-
-### 📚 Dive Deeper into the Stack
-
-We maintain detailed, intuitive documentation inside each core directory. Dive into the modules below to understand how to develop and deploy OutLittleTribe:
-
-- ⚙️ **[Backend API (Go)](backend/README.md)**: Explore the MVC structure, JWT authentication flow, and local server startup.
-- 🎨 **[Frontend SPA (React/Vite)](frontend/README.md)**: Discover our premium UI/UX design philosophy, CSS architecture, and Envoy routing connectivity.
-- ☸️ **[Kubernetes Infrastructure (Cilium/Envoy)](k8s/README.md)**: Understand our zero-trust network policies, Cert-Manager integrations, and deployment template system.
-
----
-
-## 🚀 Getting Started
-
-OutLittleTribe consists of a decoupled architecture with a dedicated backend API and a modern frontend interface. It is fully containerized to make deployments feel like magic.
-
-### Prerequisites
-- [Docker](https://www.docker.com/) & Docker Compose
-- [Go 1.22+](https://go.dev/) (for backend development)
-- [Node.js](https://nodejs.org/) (for frontend development)
-
-### Quick Start (Docker)
-
-The fastest way to get the entire ecosystem up and running:
+## Run it
 
 ```bash
-git clone https://github.com/arpanpathak/ourlittletribe.git
-cd ourlittletribe
-
-# Fire up the entire stack, including the backend, frontend, and DB securely
-docker-compose up -d
+cargo build --release
+OLT_LLM_URL=http://127.0.0.1:8081/v1 target/release/ourlittletribe
+# open http://127.0.0.1:8090 ; the first account becomes the admin
 ```
-The API and frontend will automatically orchestrate and bind to your local environment.
 
-### Production Deployment (Kubernetes)
+| Variable | Default | Meaning |
+|---|---|---|
+| `OLT_ADDR` | `127.0.0.1:8090` | where to listen |
+| `OLT_DB` | `ourlittletribe.db` | SQLite file |
+| `OLT_LLM_URL` | unset | OpenAI-style base URL ending in `/v1`; unset turns planning and search off |
+| `OLT_LLM_MODEL` | first listed | model id |
+| `OLT_LLM_KEY` | unset | bearer key, if the model server needs one |
+| `OLT_INSECURE_COOKIE` | unset | set to `1` to drop the cookie's `Secure` flag for plain-HTTP testing |
 
-For production environments, OutLittleTribe utilizes a modern, zero-trust Kubernetes architecture powered by **Cilium**, **Envoy Gateway API**, and **Cert-Manager** for automated TLS 1.3.
+Any server with `/v1/chat/completions` and JSON-schema output works. On the
+Jetson AGX Thor it is TensorRT Edge-LLM serving Qwen3.6-35B-A3B (NVFP4).
 
-We have fully streamlined the deployment process into a single command. Please see our [Kubernetes Deployment Guide](README_Deployment.md) for detailed instructions on configuring your secrets and spinning up the cluster.
+## Tests
 
----
+```bash
+cargo test --workspace                                      # 47 tests, no network
+cargo test -p tribe-places --test live -- --ignored         # real map and weather services
+OLT_LLM_URL=http://127.0.0.1:8081/v1 \
+  cargo test -p tribe-brain --test live -- --ignored --nocapture   # the real model
+```
 
-## 🤝 Contributing
+## Deploy on the Thor
 
-We are profoundly grateful for our community of contributors! Whether you're fixing a bug, writing documentation, or proposing entirely new features, your help is what makes OutLittleTribe thrive.
+Same pattern as the Thor Tigress Cub: a user service on localhost, published
+by Tailscale Funnel, with a forwarding page on voltforge.tech.
 
-Please deeply review our [Contributing Guidelines](CONTRIBUTING.md) to get started on local development, architectural conventions, and PR expectations.
+```bash
+deploy/deploy.sh                                                   # build, copy, start the service
+ssh thor 'sudo tailscale funnel --bg --https=8443 http://127.0.0.1:8090'   # once
+```
 
-## 🛡️ Community Standards
+The app is published on port 8443, separate from the chat on 443, so the two
+never share cookies or browser storage. Copy `deploy/ourlittletribe.html`
+into the `arpanpathak/voltforge.tech` repository to make
+`https://voltforge.tech/ourlittletribe` open it.
 
-By participating in this project, you are expected to uphold our [Code of Conduct](CODE_OF_CONDUCT.md). We maintain a strictly inclusive, harassment-free environment for everyone.
+## Measured on 2026-10-31
 
-## 📜 License
+| Step | Result |
+|---|---|
+| Model plan for the Skyline Trail hike (Qwen3.6-35B NVFP4 on Thor) | 6–8 items in 4.6–7.5 s |
+| Route Seattle → Paradise (OSRM) | 169 min, 167 km |
+| Stores along that route (Overpass, 1.5 km corridor) | 68 found; first lookup 17 s, then cached for 30 min |
+| Search "my feet get cold" | 5 items; top store Whittaker Mountaineering, Ashford, 0 min detour |
 
-This project is licensed under the [MIT License](LICENSE). You are completely free to use, modify, distribute, and self-host the software.
+## Limits
+
+- The public OSRM, Overpass and Nominatim servers are rate-limited demo
+  services. A busy instance should run its own (the URLs live in `tribe_places::Endpoints`).
+- Store results only know a shop's *type* from OpenStreetMap, not its stock.
+- Sign-in is email and password; there is no email verification or password reset yet.
+- The Go/React prototype is still on `main`.
+
+## License
+
+MIT. Map data © OpenStreetMap contributors.
