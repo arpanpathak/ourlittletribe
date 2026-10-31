@@ -39,8 +39,30 @@ for this group on this day: when it is best to be out, when rain, wind, cold or 
 or snow matters at their elevation, what to wear or change. Be concrete, with times and numbers from the facts, \
 in plain friendly words. Never invent facts; when the forecast is not available yet, say what is typical for the \
 place and season and that the forecast comes about 16 days before. \
+Write every temperature in both °F and °C. \
 headline: one sentence, at most 14 words. verdict: great, good, mixed or poor for this plan. \
 points: 2 to 4 short sentences, each with a kind: timing, wear, safety, comfort or road.";
+
+/// Instructions for turning someone's own words into a filled-in event form.
+pub const DRAFT_SYSTEM: &str = "You help someone plan an outing for their group. They describe it in their own words, \
+often spoken, so expect loose grammar. Fill in the event form from what they said. \
+title: short and specific, at most 8 words. \
+description: a friendly Markdown description for the group: the plan, the pace or length if known, timing, and anything \
+people should know; use a short heading and bullet points where they help; only include facts they gave or that are \
+common knowledge about the places; at most 150 words. \
+date: YYYY-MM-DD worked out from today's date, or empty if they gave no day. time: HH:MM on the 24-hour clock, or empty. \
+meeting_point: where people gather first, as a real place's name and the area it is in; empty name if not said. \
+stops: other places in order. kind is stop (everyone stops there on the way), optional (some may), or venue (where the \
+event itself happens; at most one). Whenever the outing happens somewhere other than the meeting point, such as a trail, \
+peak, lake, park or restaurant, always include that place as the venue. Give each place's own name as a map would have it, \
+abbreviations written out, and the area it is in. note: a few words from what they said about it, or empty.";
+
+/// Instructions for writing or editing a description.
+pub const WRITE_SYSTEM: &str = "You write descriptions for a small group's outings and groups. \
+Write in Markdown: a short heading or two, short paragraphs, bullet points where they help, checklists for things to bring. \
+Be warm, clear and practical. Use only facts from the details given, the current text, the instruction, and common knowledge \
+about the places; never invent prices, permits, distances or times. Keep what the current text says unless told to change it. \
+Write temperatures as both °F and °C. At most 200 words unless asked for more. Answer with the full new text only.";
 
 pub const SEARCH_SYSTEM: &str = "You help one person on a group trip find what they are searching for. \
 Turn the search into concrete things to buy, using the trip's facts. \

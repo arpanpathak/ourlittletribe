@@ -755,7 +755,6 @@ dialog.lightbox { max-width: min(1100px, calc(100vw - 24px)); }
 
 /* ── Event places: editor and itinerary ─────────────── */
 .page.medium { max-width: 1080px; }
-.icon.rot-180 { transform: rotate(180deg); }
 .form-section-full { grid-template-columns: 1fr; }
 .form-section-full .form-section-intro p { max-width: 70ch; }
 .loc-layout { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -837,3 +836,23 @@ dialog.lightbox { max-width: min(1100px, calc(100vw - 24px)); }
 .fact { display: inline-flex; align-items: center; gap: 6px; }
 .fact .icon { color: var(--text-3); }
 .fact b { font-weight: 650; color: var(--text); }
+.hour { flex-basis: 70px; }
+.hour-temp { display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.hour-temp small { font-size: 11px; font-weight: 600; color: var(--text-3); }
+
+/* ── The plan assistant and voice ───────────────────── */
+.assist-card { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--info) 30%, var(--border)); background: linear-gradient(135deg, color-mix(in srgb, var(--info) 7%, var(--surface)), var(--surface) 60%); box-shadow: var(--shadow-sm); }
+.assist-head { display: flex; gap: 12px; align-items: flex-start; }
+.assist-head h3 { margin-bottom: 2px; }
+.assist-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; background: color-mix(in srgb, var(--info) 14%, transparent); color: var(--info); }
+.assist-input { min-height: 84px; font-size: 15px; }
+.assist-done { color: var(--accent-text); display: inline-flex; gap: 6px; align-items: center; }
+.assist-warn { color: var(--warning-text); }
+.voice-btn.listening { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+.voice-btn.listening .icon { animation: a-pulse 1s ease-in-out infinite; }
+@keyframes a-pulse { 50% { transform: scale(1.25); } }
+.just-filled { animation: a-filled 2.4s ease; }
+@keyframes a-filled { 0%, 40% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--info) 45%, transparent); } 100% { box-shadow: none; } }
+.md-ai { color: var(--info); }
+.md-ai:hover { color: var(--info); }
+.md-working .md-input { opacity: 0.55; }

@@ -37,7 +37,7 @@ const MOST_WORD_SEARCHES: usize = 3;
 
 /// The name of the region around `near`, such as "Seattle, Washington, United States",
 /// to tell the model where the searcher is.
-async fn region_name(state: &AppState, near: LatLng) -> Option<String> {
+pub async fn region_name(state: &AppState, near: LatLng) -> Option<String> {
     let key = format!("{:.1},{:.1}", near.lat, near.lng);
     if let Some(name) = state.regions.get(&key) {
         return Some(name);
@@ -178,6 +178,19 @@ async fn look_up(
     }
     found.truncate(PER_GUESS);
     found
+}
+
+/// The best real place for a guess, if the map has one.
+pub async fn resolve(
+    state: &AppState,
+    guess: PlaceGuess,
+    near: Option<LatLng>,
+) -> Option<PlaceMatch> {
+    if guess.name.trim().is_empty() {
+        return None;
+    }
+    let typed = format!("{} {}", guess.name, guess.area);
+    look_up(state, guess, typed, near).await.into_iter().next()
 }
 
 fn same_place(first: &PlaceMatch, second: &PlaceMatch) -> bool {

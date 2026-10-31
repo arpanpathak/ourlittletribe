@@ -126,6 +126,17 @@ pub struct BriefingPoint {
     pub text: String,
 }
 
+/// How a briefing writes numbers for a reader who uses °F, miles and feet.
+const IMPERIAL_UNITS: &str = "The reader is American: temperatures as °F with °C in brackets, such as 43°F (6°C); \
+wind in mph; distances in miles and feet; times like 1:15 PM.";
+
+/// How a briefing writes numbers for everyone else.
+const METRIC_UNITS: &str = "Temperatures as °C with °F in brackets, such as 6°C (43°F); wind in km/h; \
+distances in km and m; times on the 24-hour clock.";
+
+/// Points a briefing keeps at most.
+const MAX_BRIEFING_POINTS: usize = 4;
+
 const VERDICTS: [&str; 4] = ["great", "good", "mixed", "poor"];
 const POINT_KINDS: [&str; 5] = ["timing", "wear", "safety", "comfort", "road"];
 
@@ -152,6 +163,114 @@ fn briefing_schema() -> serde_json::Value {
         "additionalProperties": false
     })
 }
+
+/// An event form filled in from someone's own words.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EventDraft {
+    /// Short title.
+    pub title: String,
+    /// Markdown description.
+    pub description: String,
+    /// `YYYY-MM-DD`, or empty.
+    pub date: String,
+    /// `HH:MM`, 24-hour, or empty.
+    pub time: String,
+    /// Where people gather first.
+    pub meeting_point: PlaceGuess,
+    /// Other places, in order.
+    pub stops: Vec<DraftStop>,
+}
+
+/// One more place in a drafted event.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DraftStop {
+    /// `stop`, `optional` or `venue`.
+    pub kind: String,
+    /// The place.
+    pub place: PlaceGuess,
+    /// A few words about it.
+    pub note: String,
+}
+
+fn draft_schema() -> serde_json::Value {
+    let place = json!({
+        "type": "object",
+        "properties": { "name": { "type": "string" }, "area": { "type": "string" } },
+        "required": ["name", "area"],
+        "additionalProperties": false
+    });
+    json!({
+        "type": "object",
+        "properties": {
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "date": { "type": "string" },
+            "time": { "type": "string" },
+            "meeting_point": place,
+            "stops": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind": { "type": "string", "enum": ["stop", "optional", "venue"] },
+                        "place": place,
+                        "note": { "type": "string" }
+                    },
+                    "required": ["kind", "place", "note"],
+                    "additionalProperties": false
+                }
+            }
+        },
+        "required": ["title", "description", "date", "time", "meeting_point", "stops"],
+        "additionalProperties": false
+    })
+}
+
+#[derive(Deserialize)]
+struct WrittenText {
+    text: String,
+}
+
+fn written_schema() -> serde_json::Value {
+    json!({
+        "type": "object",
+        "properties": { "text": { "type": "string" } },
+        "required": ["text"],
+        "additionalProperties": false
+    })
+}
+
+/// A place guess with its text trimmed and bounded.
+fn tidy_guess(guess: PlaceGuess) -> PlaceGuess {
+    PlaceGuess {
+        name: clip(&guess.name, 120),
+        area: clip(&guess.area, 120),
+    }
+}
+
+fn is_date(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| index == 4 || index == 7 || byte.is_ascii_digit())
+}
+
+fn is_clock(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    bytes.len() == 5
+        && bytes[2] == b':'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| index == 2 || byte.is_ascii_digit())
+}
+
+/// How many places besides the meeting point a draft may have.
+const MAX_DRAFT_STOPS: usize = 6;
 
 /// How many guesses to look up for one search.
 const MAX_PLACE_GUESSES: usize = 3;
@@ -463,44 +582,143 @@ impl Brain {
         imperial: bool,
     ) -> Result<Briefing, BrainError> {
         let units = match imperial {
-            true => {
-                "Write for an American reader: convert to °F, mph, miles and feet, and write times like 1:15 PM."
-            }
-            false => {
-                "Write temperatures in °C, wind in km/h, distances in km and m, and times on the 24-hour clock."
-            }
+            true => IMPERIAL_UNITS,
+            false => METRIC_UNITS,
         };
+        let question = format!("{}\n{units}", facts.describe());
+
         let answer: Briefing = self
             .ask_json(
                 prompt::BRIEFING_SYSTEM,
-                format!("{}\n{units}", facts.describe()),
+                question,
                 "briefing",
                 briefing_schema(),
                 500,
             )
             .await?;
+
         let verdict = match VERDICTS.contains(&answer.verdict.as_str()) {
             true => answer.verdict,
             false => "mixed".to_string(),
         };
-        let points = answer
-            .points
-            .into_iter()
-            .filter(|point| !point.text.trim().is_empty())
-            .take(4)
-            .map(|point| BriefingPoint {
-                kind: match POINT_KINDS.contains(&point.kind.as_str()) {
-                    true => point.kind,
-                    false => "comfort".to_string(),
-                },
-                text: clip(point.text.trim(), 300),
-            })
-            .collect();
+
+        let mut points = Vec::new();
+        for point in answer.points {
+            if point.text.trim().is_empty() || points.len() == MAX_BRIEFING_POINTS {
+                continue;
+            }
+            let kind = match POINT_KINDS.contains(&point.kind.as_str()) {
+                true => point.kind,
+                false => "comfort".to_string(),
+            };
+            points.push(BriefingPoint {
+                kind,
+                text: clip(&point.text, 300),
+            });
+        }
+
         Ok(Briefing {
             headline: clip(answer.headline.trim(), 160),
             verdict,
             points,
         })
+    }
+
+    /// Fills in an event form from what someone said or typed. `today` is
+    /// their local date and time, such as "Saturday 2026-10-31 13:05";
+    /// `near` names where they are.
+    pub async fn draft_event(
+        &self,
+        said: &str,
+        today: &str,
+        near: Option<&str>,
+    ) -> Result<EventDraft, BrainError> {
+        let mut user = format!("Today is {}.", clip(today, 60));
+        if let Some(region) = near {
+            user.push_str(&format!(" They are near {}.", clip(region, 120)));
+        }
+        user.push_str(&format!(
+            "\nWhat they said:\n\"\"\"\n{}\n\"\"\"",
+            clip(said, 2000)
+        ));
+
+        let draft: EventDraft = self
+            .ask_json(
+                prompt::DRAFT_SYSTEM,
+                user,
+                "event_draft",
+                draft_schema(),
+                1200,
+            )
+            .await?;
+
+        let mut stops = Vec::new();
+        let mut has_venue = false;
+        for stop in draft.stops {
+            if stop.place.name.trim().is_empty() || stops.len() == MAX_DRAFT_STOPS {
+                continue;
+            }
+            match stop.kind.as_str() {
+                "stop" | "optional" => {}
+                "venue" if !has_venue => has_venue = true,
+                _ => continue,
+            }
+            stops.push(DraftStop {
+                kind: stop.kind,
+                place: tidy_guess(stop.place),
+                note: clip(&stop.note, 200),
+            });
+        }
+
+        let date = match is_date(draft.date.trim()) {
+            true => draft.date.trim().to_string(),
+            false => String::new(),
+        };
+        let time = match is_clock(draft.time.trim()) {
+            true => draft.time.trim().to_string(),
+            false => String::new(),
+        };
+
+        Ok(EventDraft {
+            title: clip(&draft.title, 120),
+            description: clip(&draft.description, 6000),
+            date,
+            time,
+            meeting_point: tidy_guess(draft.meeting_point),
+            stops,
+        })
+    }
+
+    /// Writes or rewrites a description. `details` are lines about the event
+    /// or tribe, `current` is the text so far, and `instruction` says what to do.
+    pub async fn write_description(
+        &self,
+        details: &[String],
+        current: &str,
+        instruction: &str,
+    ) -> Result<String, BrainError> {
+        let mut user = String::from("Details:\n");
+        for line in details {
+            user.push_str(&format!("- {}\n", clip(line, 300)));
+        }
+        match current.trim() {
+            "" => user.push_str("Current text: none yet.\n"),
+            text => user.push_str(&format!(
+                "Current text:\n\"\"\"\n{}\n\"\"\"\n",
+                clip(text, 6000)
+            )),
+        }
+        user.push_str(&format!("Instruction: {}", clip(instruction, 500)));
+        let written: WrittenText = self
+            .ask_json(
+                prompt::WRITE_SYSTEM,
+                user,
+                "description",
+                written_schema(),
+                1200,
+            )
+            .await?;
+        Ok(clip(written.text.trim(), 7000))
     }
 
     /// What this group should bring, given the facts of the trip.
@@ -532,6 +750,15 @@ impl Brain {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dates_and_clock_times_are_checked() {
+        assert!(is_date("2026-11-07"));
+        assert!(!is_date("next Saturday"));
+        assert!(!is_date("2026/11/07"));
+        assert!(is_clock("08:30"));
+        assert!(!is_clock("8:30 AM"));
+    }
 
     fn raw(name: &str, scope: &str, quantity: i64, tags: &[&str]) -> PlannedItem {
         PlannedItem {

@@ -1,6 +1,7 @@
 //! The HTTP routes.
 
 mod account;
+mod assist;
 mod discover;
 mod events;
 mod media;
@@ -143,7 +144,9 @@ pub fn router(state: AppState) -> Router {
         .route("/search", get(discover::search))
         .route("/places", get(discover::places))
         .route("/places/at", get(discover::place_at))
-        .route("/places/smart", get(discover::smart_places));
+        .route("/places/smart", get(discover::smart_places))
+        .route("/assist/event-draft", post(assist::event_draft))
+        .route("/assist/description", post(assist::description));
 
     Router::new()
         .nest("/api", api)

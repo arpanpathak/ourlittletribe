@@ -3,9 +3,10 @@
 // it can type it, and people who don't never have to.
 
 import { api } from "../api.js";
-import { h, mount, icon, toast, dropdown, menuItem, pictureUrl } from "../ui.js";
+import { h, mount, icon, toast, dropdown, menuItem, pictureUrl, openModal } from "../ui.js";
 import { renderMarkdown } from "../markdown.js";
 import { choosePictures, pictureProblem } from "./picture_picker.js";
+import { voiceButton } from "./voice.js";
 
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 const MOD = MAC ? "⌘" : "Ctrl+";
@@ -29,7 +30,16 @@ const CHEATSHEET = [
  * offered while the box is empty or from the Outline menu.
  * Returns `{ element, textarea, value(), focus() }`.
  */
-export function markdownEditor({ value = "", placeholder = "", maxLength = 8000, rows = 8, templates = [] } = {}) {
+/** What the AI menu offers: [label, icon, instruction]. */
+const AI_ACTIONS = [
+  ["Write it for me", "wand", "Write a description from the details."],
+  ["Improve the writing", "sparkles", "Improve this description: clearer, friendlier, well organised. Keep every fact."],
+  ["Make it shorter", "minus", "Make this description about half as long, keeping the important facts."],
+  ["Add a schedule", "clock", "Add a short schedule section with times, based on the details."],
+  ["Add what to bring", "listChecks", "Add a short checklist of what to bring, suited to the place, season and plan."],
+];
+
+export function markdownEditor({ value = "", placeholder = "", maxLength = 8000, rows = 8, templates = [], details = null } = {}) {
   const textarea = h("textarea", { class: "md-input", rows, maxlength: maxLength, placeholder, spellcheck: "true" });
   textarea.value = value;
   const preview = h("div", { class: "md-preview", hidden: true });
@@ -159,19 +169,82 @@ export function markdownEditor({ value = "", placeholder = "", maxLength = 8000,
     }, icon(iconName, "sm"));
   });
 
-  const outline = templates.length
-    ? dropdown(h("button", { type: "button", class: "md-tool md-tool-text", title: "Start from an outline" }, icon("fileText", "sm"), h("span", {}, "Outline")),
-        () => templates.map(([label, markdown]) => menuItem("fileText", label, () => {
-          setMode("write");
-          if (textarea.value.trim()) {
-            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-            insertBlock(markdown);
-          } else {
-            textarea.setSelectionRange(0, 0);
-            replaceSelection(markdown);
-          }
-        })))
-    : null;
+  /** Replaces all the text with `text`, keeping it undoable where the browser allows. */
+  function replaceAll(text) {
+    setMode("write", false);
+    textarea.focus();
+    textarea.setSelectionRange(0, textarea.value.length);
+    replaceSelection(text, 0, 0);
+    textarea.setSelectionRange(0, 0);
+    textarea.scrollTop = 0;
+  }
+
+  async function runAssist(instruction) {
+    status.textContent = "The model is writing…";
+    element.classList.add("md-working");
+
+    try {
+      const request = { details: details ? details() : [], current: textarea.value, instruction };
+      const written = await api.writeDescription(request);
+
+      replaceAll(written.text);
+      toast("Written. Press Ctrl+Z to undo.", "success");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      status.textContent = "";
+      element.classList.remove("md-working");
+    }
+  }
+
+  /** Asks for an instruction, typed or spoken, then has the model write it. */
+  async function askCustom() {
+    const box = h("textarea", { rows: 3, maxlength: 500, placeholder: "e.g. Mention carpooling from Ballard, and that kids are welcome" });
+    const voiceRow = h("div", { class: "row" }, voiceButton(box), h("span", { class: "small muted" }, "It sees the details and the current text."));
+
+    const cancel = (close) => h("button", { type: "button", class: "btn", onclick: () => close(null) }, "Cancel");
+    const write = (close) => h("button", { type: "button", class: "btn btn-primary", onclick: () => close(box.value.trim()) }, icon("sparkles", "sm"), "Write");
+
+    const instruction = await openModal({
+      title: "Tell the model what to write",
+      build: () => h("div", { class: "stack" }, box, voiceRow),
+      actions: (close) => [cancel(close), write(close)],
+    });
+
+    if (instruction) runAssist(instruction);
+  }
+
+  function assistMenuItems() {
+    const items = [];
+
+    for (const [label, iconName, instruction] of AI_ACTIONS) {
+      items.push(menuItem(iconName, label, () => runAssist(instruction)));
+    }
+    items.push("-");
+    items.push(menuItem("mic", "Tell it what to write…", askCustom));
+
+    return items;
+  }
+
+  /** Puts an outline at the end of the text, or in an empty box. */
+  function insertOutline(markdown) {
+    setMode("write");
+
+    if (textarea.value.trim()) {
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      insertBlock(markdown);
+    } else {
+      textarea.setSelectionRange(0, 0);
+      replaceSelection(markdown);
+    }
+  }
+
+  const assistButton = h("button", { type: "button", class: "md-tool md-tool-text md-ai", title: "Write with the model" }, icon("sparkles", "sm"), h("span", {}, "Write with AI"));
+  const assist = details ? dropdown(assistButton, assistMenuItems) : null;
+
+  const outlineButton = h("button", { type: "button", class: "md-tool md-tool-text", title: "Start from an outline" }, icon("fileText", "sm"), h("span", {}, "Outline"));
+  const outlineItems = () => templates.map(([label, markdown]) => menuItem("fileText", label, () => insertOutline(markdown)));
+  const outline = templates.length ? dropdown(outlineButton, outlineItems) : null;
 
   const help = h("div", { class: "md-help", hidden: true },
     h("div", { class: "md-help-grid" }, CHEATSHEET.map(([syntax, meaning]) => [h("code", {}, syntax), h("span", {}, meaning)])),
@@ -261,7 +334,7 @@ export function markdownEditor({ value = "", placeholder = "", maxLength = 8000,
   mount(toolbar,
     h("div", { class: "md-tabs", role: "tablist" }, writeTab, previewTab),
     h("div", { class: "md-tools" }, toolButtons),
-    h("div", { class: "md-tools md-tools-end" }, outline, helpButton));
+    h("div", { class: "md-tools md-tools-end" }, assist, outline, helpButton));
 
   const element = h("div", { class: "md-editor" },
     toolbar,
@@ -279,6 +352,7 @@ export function markdownEditor({ value = "", placeholder = "", maxLength = 8000,
     element,
     textarea,
     value: () => textarea.value.trim(),
+    setValue: (text) => replaceAll(text),
     focus: () => textarea.focus(),
   };
 }

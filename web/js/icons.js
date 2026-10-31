@@ -10,6 +10,7 @@ const PATHS = {
   moon: '<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>',
   chevronDown: '<path d="m6 9 6 6 6-6"/>',
   chevronRight: '<path d="m9 6 6 6-6 6"/>',
+  chevronUp: '<path d="m6 15 6-6 6 6"/>',
   chevronLeft: '<path d="m15 6-6 6 6 6"/>',
   pin: '<path d="M12 21.5s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9.5" r="2.5"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -67,6 +68,8 @@ const PATHS = {
   cloudSun: '<path d="M8.5 6.2a3.6 3.6 0 0 1 6 1.4M6.2 3.6l.7 1.2M11 2.5v1.4M3.5 7.8l1.2.6"/><path d="M8 19.5h9.5a3.5 3.5 0 0 0 .3-7 5.2 5.2 0 0 0-10 1.4A2.9 2.9 0 0 0 8 19.5z"/>',
   fog: '<path d="M5 9.5a5.5 5.5 0 0 1 10.6-2A3.8 3.8 0 0 1 19 11"/><path d="M3.5 14h17M5.5 17.5h13M8 21h8"/>',
   storm: '<path d="M17.5 14A4.5 4.5 0 0 0 17 5a6 6 0 0 0-11.5 2A3.5 3.5 0 0 0 6 14"/><path d="m12.5 12-2.5 4.5h4L11.5 21"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/>',
+  wand: '<path d="m4 20 11-11M14 4v2M19 9h2M17.5 5.5 19 4M17.5 12.5 19 14M11 5.5 9.5 4"/><path d="m13.5 7.5 3 3"/>',
   logoPeak: '<path d="m3 19 6.5-11 3.5 6 2.5-3.5L21 19z"/><circle cx="17" cy="6" r="1.6"/>',
 };
 

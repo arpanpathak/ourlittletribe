@@ -32,6 +32,7 @@ export async function renderTribeForm(view, tribeId) {
     rows: 6,
     placeholder: "What you do, how often, who it's for. Easy weekend hikes, dogs welcome, coffee after.",
     templates: [["About a tribe", "## What we do\n\n\n## How often\n\n\n## Who it's for\n- \n"]],
+    details: () => ["This is a tribe: a group that plans outings together.", `Name: ${name.value.trim() || "not named yet"}`, area.value.trim() ? `Home area: ${area.value.trim()}` : "Home area: not given"],
   });
   const nameField = field("Name", name);
   const cover = picturePicker({ existingUrl: tribe?.cover_image ? pictureUrl(tribe.cover_image) : null });
