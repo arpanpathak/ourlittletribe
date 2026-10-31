@@ -12,10 +12,12 @@
 //! | [`items`] | the packing list, and items that answer a search |
 //! | [`briefing`] | what the forecast means for this plan |
 //! | [`places`] | reading a map search, and choosing among real places |
-//! | [`drafting`] | an event from someone's words, and descriptions |
+//! | [`drafting`] | an event or a tribe from someone's words, and descriptions |
+//! | [`covers`] | the scene for a tribe or event cover |
 
 pub mod briefing;
 mod client;
+pub mod covers;
 pub mod drafting;
 pub mod items;
 pub mod places;

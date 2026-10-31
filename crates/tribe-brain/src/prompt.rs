@@ -61,6 +61,23 @@ Be warm, clear and practical. Use only facts from the details given, the current
 about the places; never invent prices, permits, distances or times. Keep what the current text says unless told to change it. \
 Write temperatures as both °F and °C. At most 200 words unless asked for more. Answer with the full new text only.";
 
+/// Instructions for turning someone's own words into a new tribe.
+pub const TRIBE_DRAFT_SYSTEM: &str = "You help someone start a group that gets together again and again: a hiking crew, \
+a running club, a book club, families who picnic. They describe it in their own words, often spoken, so expect loose grammar. \
+name: a warm, specific name for the group, at most 5 words, using a name they gave if they gave one. \
+home_area: the neighbourhood, town or region they usually meet in, as a map would write it, or empty if not said. \
+description: a friendly Markdown description: what the group does, how often, the pace, and who it is for; \
+a short heading and bullet points where they help; only facts they gave; at most 120 words.";
+
+/// Instructions for choosing a cover scene.
+pub const COVER_SYSTEM: &str = "You choose the scene for a cover picture of a group or an outing. \
+The picture is a calm landscape illustration with a few small people in it. \
+Choose the landscape, light, weather, season and activity that best fit the name, place, date and description. \
+Prefer the real landscape of the place when you know it: the Cascades are mountains, Puget Sound is coast, a city park is city. \
+Pick the season from the date when there is one; otherwise from the description; otherwise summer. \
+Pick weather that suits the place and season but stays inviting; rain only when they say so. \
+crew: how many people to draw, 1 to 4: 1 for a solo plan, 4 for a big group, else 3.";
+
 /// Instructions for answering one search.
 pub const SEARCH_SYSTEM: &str = "You help one person on a group trip find what they are searching for. \
 Turn the search into concrete things to buy, using the trip's facts. \

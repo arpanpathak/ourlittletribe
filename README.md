@@ -57,7 +57,7 @@ shared per event, only by choice, and deleted a day after the event.
 | `crates/tribe-media` | Uploaded pictures: checked, turned upright, resized, re-encoded, stored on disk |
 | `crates/tribe-brain` | The model client: trip facts in, checked items out; one request at a time |
 | `crates/tribe-server` | The `ourlittletribe` binary: axum API, Argon2id accounts, the embedded web app |
-| `web/` | The app: plain ES modules and CSS, no build step. Leaflet and the Inter font are vendored |
+| `web/` | The app: strict TypeScript in `web/src`, compiled to `web/dist` by the server's build script. Leaflet and the Inter font are vendored |
 | `deploy/` | systemd unit, deploy script, and the voltforge.tech forwarding page |
 
 The whole app is one 9.4 MB binary with the web files compiled in. Uploaded
@@ -66,7 +66,8 @@ pictures are the only files kept outside the database.
 ## Run it
 
 ```bash
-cargo build --release
+(cd web && npm ci)    # once: the TypeScript compiler
+cargo build --release   # compiles web/src, then embeds web/ in the binary
 OLT_LLM_URL=http://127.0.0.1:8081/v1 target/release/ourlittletribe
 # open http://127.0.0.1:8090 ; the first account becomes the admin
 ```

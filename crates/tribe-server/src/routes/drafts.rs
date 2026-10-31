@@ -1,11 +1,13 @@
-//! Drafts the model writes for people to check: an event filled in from their
-//! own words, and descriptions.
+//! Drafts the model writes for people to check: an event or a tribe filled in from their
+//! own words, descriptions, and cover scenes.
 
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
+use tribe_brain::covers::{CoverDesign, CoverFor, CoverSubject};
+use tribe_brain::drafting::TribeDraft;
 use tribe_brain::places::PlaceGuess;
 use tribe_core::geo::LatLng;
 use tribe_core::itinerary::StopKind;
@@ -199,4 +201,82 @@ pub async fn description_draft(
         .write_description(&details, &current, &instruction)
         .await?;
     Ok((StatusCode::CREATED, Json(DescriptionDraft { text })))
+}
+
+/// Body of `POST /api/tribe-drafts`.
+#[derive(Deserialize)]
+pub struct TribeDraftRequest {
+    /// What the person said or typed about the group, 5 to 2,000 characters.
+    text: String,
+}
+
+/// `POST /api/tribe-drafts`: fills in a new tribe from what someone said.
+/// Nothing is saved; the page puts the draft in the form.
+pub async fn tribe_draft(
+    State(state): State<AppState>,
+    CurrentUser(_user): CurrentUser,
+    Json(request): Json<TribeDraftRequest>,
+) -> ApiResult<(StatusCode, Json<TribeDraft>)> {
+    let brain = model(&state)?;
+    let text = bounded(
+        &request.text,
+        2000,
+        "that is too long; keep it under 2,000 characters",
+    )?;
+    if text.chars().count() < 5 {
+        return Err(ApiError::Invalid("say a little about the group first"));
+    }
+
+    let draft = brain.draft_tribe(&text).await?;
+    Ok((StatusCode::CREATED, Json(draft)))
+}
+
+/// Body of `POST /api/cover-designs`.
+#[derive(Deserialize)]
+pub struct CoverDesignRequest {
+    /// A tribe or an event.
+    subject: CoverFor,
+    /// Its name or title, at most 120 characters.
+    title: String,
+    /// Its description so far, at most 8,000 characters.
+    #[serde(default)]
+    description: String,
+    /// Where it happens or meets, at most 160 characters.
+    #[serde(default)]
+    place: String,
+    /// When it happens, such as "Saturday 7 November 2026", at most 60 characters.
+    #[serde(default)]
+    when: String,
+}
+
+/// Some text, or `None` when it is blank.
+fn given(text: &str) -> Option<&str> {
+    Some(text).filter(|text| !text.is_empty())
+}
+
+/// `POST /api/cover-designs`: has the model choose a cover scene. The page
+/// draws the scene and uploads the picture as the cover.
+pub async fn cover_design(
+    State(state): State<AppState>,
+    CurrentUser(_user): CurrentUser,
+    Json(request): Json<CoverDesignRequest>,
+) -> ApiResult<(StatusCode, Json<CoverDesign>)> {
+    let brain = model(&state)?;
+    let title = bounded(&request.title, 120, "the name is too long")?;
+    if title.is_empty() {
+        return Err(ApiError::Invalid("give it a name first"));
+    }
+    let description = bounded(&request.description, 8000, "the description is too long")?;
+    let place = bounded(&request.place, 160, "the place is too long")?;
+    let when = bounded(&request.when, 60, "the date is too long")?;
+
+    let subject = CoverSubject {
+        kind: request.subject,
+        title: &title,
+        description: &description,
+        place: given(&place),
+        when: given(&when),
+    };
+    let design = brain.design_cover(&subject).await?;
+    Ok((StatusCode::CREATED, Json(design)))
 }

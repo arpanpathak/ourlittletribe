@@ -7,53 +7,7 @@ use axum::http::header::{
 use axum::http::{HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 
-macro_rules! web_file {
-    ($path:literal) => {
-        (
-            $path,
-            include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../web/", $path)).as_slice(),
-        )
-    };
-}
-
-const FILES: &[(&str, &[u8])] = &[
-    web_file!("app.css"),
-    web_file!("favicon.svg"),
-    web_file!("index.html"),
-    web_file!("js/api.js"),
-    web_file!("js/app.js"),
-    web_file!("js/art.js"),
-    web_file!("js/icons.js"),
-    web_file!("js/map.js"),
-    web_file!("js/markdown.js"),
-    web_file!("js/stops.js"),
-    web_file!("js/theme.js"),
-    web_file!("js/ui.js"),
-    web_file!("js/units.js"),
-    web_file!("js/components/cards.js"),
-    web_file!("js/components/conditions.js"),
-    web_file!("js/components/locations_editor.js"),
-    web_file!("js/components/markdown_editor.js"),
-    web_file!("js/components/picture_picker.js"),
-    web_file!("js/components/place_search.js"),
-    web_file!("js/components/plan_assistant.js"),
-    web_file!("js/components/voice.js"),
-    web_file!("js/views/auth.js"),
-    web_file!("js/views/event.js"),
-    web_file!("js/views/event_form.js"),
-    web_file!("js/views/explore.js"),
-    web_file!("js/views/feed.js"),
-    web_file!("js/views/profile.js"),
-    web_file!("js/views/search.js"),
-    web_file!("js/views/tribe.js"),
-    web_file!("js/views/tribe_form.js"),
-    web_file!("js/views/tribes.js"),
-    web_file!("vendor/fonts/inter-latin-wght-normal.woff2"),
-    web_file!("vendor/images/layers-2x.png"),
-    web_file!("vendor/images/layers.png"),
-    web_file!("vendor/leaflet.css"),
-    web_file!("vendor/leaflet.js"),
-];
+include!(concat!(env!("OUT_DIR"), "/web_files.rs"));
 
 const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
 img-src 'self' data: blob: https://*.tile.opentopomap.org https://tile.openstreetmap.org; \

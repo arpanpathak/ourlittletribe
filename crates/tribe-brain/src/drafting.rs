@@ -56,6 +56,35 @@ struct WrittenText {
     text: String,
 }
 
+/// A new tribe's form filled in from someone's own words.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TribeDraft {
+    /// The tribe's name.
+    pub name: String,
+    /// Where it usually meets; empty when they did not say.
+    pub home_area: String,
+    /// A Markdown description.
+    pub description: String,
+}
+
+fn tribe_question() -> Question {
+    Question {
+        instructions: prompt::TRIBE_DRAFT_SYSTEM,
+        schema_name: "tribe_draft",
+        max_tokens: 800,
+        schema: json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "home_area": { "type": "string" },
+                "description": { "type": "string" }
+            },
+            "required": ["name", "home_area", "description"],
+            "additionalProperties": false
+        }),
+    }
+}
+
 fn draft_question() -> Question {
     Question {
         instructions: prompt::DRAFT_SYSTEM,
@@ -186,6 +215,18 @@ impl Brain {
 
         let raw: RawDraft = self.ask(draft_question(), question).await?;
         Ok(tidy_draft(raw))
+    }
+
+    /// Fills in a new tribe's form from what someone said or typed.
+    pub async fn draft_tribe(&self, said: &str) -> Result<TribeDraft, BrainError> {
+        let question = format!("What they said:\n\"\"\"\n{}\n\"\"\"", clip(said, 2000));
+        let raw: TribeDraft = self.ask(tribe_question(), question).await?;
+
+        Ok(TribeDraft {
+            name: clip(&raw.name, 80),
+            home_area: clip(&raw.home_area, 80),
+            description: clip(&raw.description, 4000),
+        })
     }
 
     /// Writes or rewrites a description. `details` are lines about the event

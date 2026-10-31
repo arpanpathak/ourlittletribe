@@ -7,6 +7,7 @@ set -euo pipefail
 host="${1:-thor}"
 cd "$(dirname "$0")/.."
 
+[ -d web/node_modules ] || (cd web && npm ci)
 cargo build --release -p tribe-server
 
 ssh "$host" 'mkdir -p .local/bin .config/systemd/user'
