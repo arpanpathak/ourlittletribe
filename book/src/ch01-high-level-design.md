@@ -34,14 +34,14 @@ You reach the server through Tailscale Funnel, which gives it a public HTTPS add
 
 <figure>
 <img src="figures/ch01-crates.svg" alt="tribe-server depends on tribe-db, tribe-places, tribe-brain and tribe-media. tribe-db, tribe-places and tribe-brain depend on tribe-core. tribe-media uses nothing else.">
-<figcaption><b>Figure 1.2</b> The six crates. An arrow means "depends on". Line counts are from the commit this book describes.</figcaption>
+<figcaption><b>Figure 1.2</b> The six crates. An arrow means "depends on". Line counts are from the commit this book describes: 13,706 lines in all.</figcaption>
 </figure>
 
 The Rust code is split into six crates, and one rule decides where code goes: code that makes a decision lives apart from code that talks to the outside world.
 
 `tribe-core` holds the decisions: route geometry, local time, store ranking, and the statistics behind "groups often also got". It has no I/O at all, so you test it by passing in plain values and checking what comes back. Each crate around it owns one kind of I/O. `tribe-db` owns the schema and every query, and takes a `&Connection`, so each test runs against a fresh in-memory database. `tribe-places` owns the five public services; its unit tests parse saved answers, and the tests that call the real services sit in `tests/live.rs`, run only when you ask for them with `--ignored`. `tribe-brain` owns the prompts, the JSON schemas and the checks on the model's answers. `tribe-media` owns decoding and resizing pictures.
 
-`tribe-server` joins them: the HTTP routes, sessions, caches, the place search that combines services with the model, and trip planning. It is the only crate that knows all the others exist.
+`tribe-server` joins them: the HTTP routes, sessions, caches, the place search that combines services with the model, and trip planning and trails. It is the only crate that knows all the others exist.
 
 ## 1.3 Opening an event
 

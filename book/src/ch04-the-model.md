@@ -2,7 +2,7 @@
 
 # The model
 
-Nine features of the app ask a language model a question: the packing list, the conditions briefing, the place search, the drafts, Write with AI and the covers. They share one path through the code, and that path decides how far you can trust each answer. This chapter describes the model and where it runs, follows one question along that path, and then takes the nine jobs in turn.
+Ten features of the app ask a language model a question: the packing list, the conditions briefing, the place search, the drafts, Write with AI, the covers, and the related words that widen a search. They share one path through the code, and that path decides how far you can trust each answer. This chapter describes the model and where it runs, follows one question along that path, and then takes the ten jobs in turn.
 
 <div class="covers" markdown="1">
 
@@ -10,7 +10,7 @@ This chapter covers
 
 - the model the app runs, and how fast it answers
 - the one path every question follows: facts, a queue, a schema and checks
-- the nine jobs, and what each one gets and gives back
+- the ten jobs, and what each one gets and gives back
 - how prompts are written
 - what the app does when the model is wrong or missing
 
@@ -44,8 +44,8 @@ The schema stops malformed JSON, and the Rust checks stop well-formed nonsense. 
 ## 4.3 The jobs
 
 <figure>
-<img src="figures/ch04-model-jobs.svg" alt="Nine cards: plan_items, the packing list, about 7 seconds; items_for_search; write_briefing, 4.5 seconds; interpret_place_search, about 1 second; choose_places; draft_event; draft_tribe, 1.7 seconds; write_description; design_cover, 0.8 seconds.">
-<figcaption><b>Figure 4.2</b> The nine jobs, each a method on <code>Brain</code>.</figcaption>
+<img src="figures/ch04-model-jobs.svg" alt="Ten cards: plan_items, the packing list, about 7 seconds; items_for_search; write_briefing, 4.5 seconds; interpret_place_search, about 1 second; choose_places; draft_event; draft_tribe, 1.7 seconds; write_description; design_cover, 0.8 seconds; related_words, 0.9 seconds.">
+<figcaption><b>Figure 4.2</b> The ten jobs, each a method on <code>Brain</code>.</figcaption>
 </figure>
 
 **The packing list**, `plan_items`. The model gets the trip facts, what is already on the list, and the learned pairings from chapter 2. It answers with items, of which the server keeps at most 14. Each item has a `why` that must name the fact it answers to, with its number: "Freezing level 1,900 m, below the trail", not "good for hiking". Each also carries the OpenStreetMap shop kinds that sell it, which chapter 6 uses to find stores. Items are added with `source = model`, and anyone can delete them.
@@ -63,6 +63,8 @@ The schema stops malformed JSON, and the Rust checks stop well-formed nonsense. 
 **Write with AI**, `write_description`. The description editor's menu sends the form's details as lines, the current text, and an instruction: write it, improve it, shorten it, add a schedule, add what to bring, or anything you type or say. The answer replaces the text in a way the browser's undo can reverse.
 
 **A cover**, `design_cover`. Chapter 7.
+
+**Related words**, `related_words`. Someone searching for "hiking" probably also means "hike", "trail" and "trek". The model lists up to eight such words, the server drops any already in the search, and the search index from chapter 2 answers them. The page shows those results under "Related", after the direct matches, which never wait for the model.
 
 ## 4.4 Prompts
 

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 664" width="1040" height="664" role="img">
 <rect x="0.5" y="0.5" width="1039" height="663" rx="18" fill="#faf7f0" stroke="#ddd6c6"/>
 <text x="32" y="46" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="700" fill="#1d2722" text-anchor="start">The web app, top to bottom</text>
-<text x="32" y="70" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="13.5" font-weight="400" fill="#5d6a63" text-anchor="start">47 TypeScript modules, strict mode. Each layer only imports from the layers below it.</text>
+<text x="32" y="70" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="13.5" font-weight="400" fill="#5d6a63" text-anchor="start">49 TypeScript modules, strict mode. Each layer only imports from the layers below it.</text>
 <g>
 <rect x="32" y="110" width="976" height="63" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
 <rect x="32" y="120" width="4" height="43" rx="2" fill="#4f5d68"/>

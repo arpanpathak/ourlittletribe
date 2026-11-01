@@ -31,7 +31,7 @@ People describe places the first way. They give the area and a name they half re
 
 The search box, `components/place_search.ts`, sends two requests for the same text.
 
-The **plain lane** waits until you stop typing for 250 ms, then sends `GET /api/places`. The server passes the text to the geocoder as it is, and the results appear under "Other matches". For a name you know exactly, this is all you need, and it answers in well under a second.
+The **plain lane** waits until you stop typing for 250 ms, then sends `GET /api/places`. The server passes the text to the geocoder as it is, and the results appear under "Other matches". For a name you know exactly, this is all you need, and it answers in well under a second. The plain lane also tries one respelling: map names write "and" as "&" as often as not, so "green lake park and ride" is searched both as typed and as "green lake park & ride", which is the Green Lake Park & Ride's name in OpenStreetMap. The two answers are merged and sorted nearest first, so a park-and-ride in Virginia never sits above one in Seattle.
 
 The **model lane** waits for a longer pause, 700 ms, then sends `GET /api/places/best-matches`. Waiting longer means the model is not asked about every half-typed word. The server, in `place_search.rs`, then works in four steps:
 

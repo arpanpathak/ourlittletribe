@@ -1,94 +1,81 @@
-<img class="plate" src="art/ch09.svg" alt="A hiker in a red hat beside a large compass whose needle wobbles, with a question mark above">
+<img class="plate" src="art/ch09.svg" alt="Chapter 9 opener: two campers stand by a tent and a small fire in an autumn forest at dusk, with mist drifting between the trees. Caption: the key stays with you.">
 
 # Security and privacy
+
+The app holds people's names, their plans, where they set off from, and their photos, and it is reachable from the whole internet. This chapter explains how accounts and sessions work, who may change what, what the browser is allowed to load, and what the app keeps about people and sends elsewhere. It ends with the gaps that remain.
 
 <div class="covers" markdown="1">
 
 This chapter covers
 
-- Accounts, passwords and sessions
-- Who may see and change what
-- What the browser is allowed to load
-- What the app keeps about people, and what it never sends anywhere
+- passwords, session tokens and the cookie that carries them
+- who may see and change what, and where that is checked
+- the content security policy, and keeping people's text out of the page's code
+- what is kept, for how long, and what leaves the machine
+- the gaps that remain
 
 </div>
 
-## 9.1 Accounts and sessions
+## 9.1 Signing in
 
-Passwords are at least 10 characters and are stored as **Argon2id** hashes with
-a fresh salt each. Signing in creates a random 256-bit token, sent to the
-browser in a cookie:
+<figure>
+<img src="figures/ch09-session.svg" alt="The browser sends POST /api/sessions to the server. The server checks the password with Argon2id, makes a token of 256 random bits, keeps no copy of it, and writes only its SHA-256 to the sessions table. It answers with Set-Cookie: olt_session, HttpOnly, SameSite=Lax, Secure, 30 days.">
+<figcaption><b>Figure 9.1</b> The token lives in the browser; the database holds only its hash.</figcaption>
+</figure>
+
+A password must be at least 10 characters. It is stored as an **Argon2id** hash with its own random salt, so two people with the same password have different hashes, and checking a guess costs real time and memory.
+
+When Ada signs in with `POST /api/sessions`, the server checks her password, creates a random 256-bit token, and sends it to her browser in a cookie:
 
 ```text
 olt_session=…; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000; Secure
 ```
 
-The database keeps only the SHA-256 of the token, so a copy of the database
-cannot be used to sign in. `HttpOnly` keeps the token away from page scripts;
-`SameSite=Lax` stops other sites from sending it with their requests; `Secure`
-keeps it off plain HTTP (it is turned off only for local testing with
-`OLT_INSECURE_COOKIE`). A session lasts 30 days.
+The database keeps only the SHA-256 of the token. Someone holding a copy of the database cannot sign in as anyone, because the tokens themselves are not in it. `HttpOnly` keeps the token out of reach of the page's scripts. `SameSite=Lax` stops other sites from sending it along with their requests. `Secure` keeps it off plain HTTP; it is turned off only for testing on your own machine, with `OLT_INSECURE_COOKIE`. A session lasts 30 days, and `DELETE /api/sessions/current` ends it.
 
-Two limits slow down guessing: at most 30 new accounts an hour, and at most
-60 failed sign-ins in 10 minutes, across the server. The first account on a
-new server becomes its admin.
+A wrong password answers `401 Unauthorized`, the same status as no session at all. Two limits slow down guessing: at most 30 new accounts an hour and at most 60 failed sign-ins in ten minutes, each counted across the whole server. The first account on a new server becomes its admin.
 
 ## 9.2 Who may do what
 
 | Action | Allowed for |
 |---|---|
-| See tribes, events, people, pictures | anyone signed in |
-| Create an event in a tribe; add list items; share photos | members of that tribe |
-| Edit or delete an event; change its cover | its planner, the tribe's organizers, admins |
-| Edit a tribe; change its cover | its organizers, admins |
+| See tribes, events, people and pictures | anyone signed in |
+| Create an event in a tribe, add to its lists, share photos | members of that tribe |
+| Edit or delete an event, change its cover | its planner, the tribe's organizers, admins |
+| Edit a tribe, change its cover | its organizers, admins |
 | Delete a photo | whoever shared it, the event's managers, admins |
-| Change a profile, picture or banner | the person themselves |
+| Change a profile, profile picture or banner | the person themselves |
 
-Each rule is checked in the route handler before anything is written
-(`require_member`, `managed_event`, `require_organizer`). They were tested by
-hand, calling the routes as someone who is not allowed and getting `403`;
-automated tests for them are on the roadmap.
+Each rule is checked in the route handler before anything is written, by a small function such as `require_member` or `managed_event` that answers `403 Forbidden` when the rule fails. The rules were tested by calling every write route as someone who is not allowed and checking for `403`. That was done by hand; automated tests for it are on the roadmap.
 
 ## 9.3 What the browser may load
 
-Every web file is served with:
+Every file of the web app is served with these headers:
 
 ```text
 Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
-  img-src 'self' data: blob: https://*.tile.opentopomap.org https://tile.openstreetmap.org;
+  img-src 'self' data: blob: https://*.tile.opentopomap.org https://tile.openstreetmap.org
+          https://tile.waymarkedtrails.org;
   connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 ```
 
-Scripts come only from the app itself, so even text that slipped into the page
-as markup could not run code. Pages cannot be framed. Images come only from
-the app, its uploads and the two tile servers. Inline styles are allowed
-because the DOM helpers set `style` attributes; no inline scripts are.
+Scripts can come only from the app itself. Even if some text did reach the page as markup, the browser would not run code from it. Pictures can come only from the app, its uploads, and the three map tile servers. No other site can put the app in a frame. Inline styles are allowed because the page sets `style` attributes on elements it builds, such as a cover's gradient; inline scripts are not.
 
-Inside the app, text people write never becomes markup: views add it as text
-nodes, and the Markdown renderer builds DOM nodes (chapter 8). Pictures are
-re-encoded before they are stored (chapter 7).
+Inside the app, people's text never becomes markup in the first place. Views add it as text nodes, and the Markdown renderer builds elements instead of HTML strings (chapter 8). Uploaded pictures are decoded and written again before they are stored (chapter 7).
 
-## 9.4 What the app keeps
+## 9.4 What is kept, and what leaves
 
 | Data | Kept | Seen by |
 |---|---|---|
 | Name, bio, home area, pictures | until changed | everyone signed in |
 | Email | until the account is deleted | only its owner |
-| Where you start from | until a day after the event | only you; used to find stores |
+| Where you set off from | until a day after the event | only you; used to find shops |
 | Events and everything attached | a year after the event | everyone signed in |
-| Photos | with their event | everyone signed in |
 
-The model runs on the same machine, so plans, descriptions and starting points
-are never sent to a model company. What does leave the machine: place searches
-go to Photon or Nominatim, event coordinates to Open-Meteo, and routes and
-store searches to OSRM and Overpass. None of these requests carries a name or
-an account. Voice input in Chrome is recognised by Google (chapter 8).
+The model runs on the same machine, so plans, descriptions, starting points and searches are never sent to a model company. Some requests do leave the machine: place searches go to Photon or Nominatim, event coordinates go to Open-Meteo, Waymarked Trails and Overpass, and routes go to OSRM. None of these requests carries a name or an account. Voice input in Chrome is recognised on Google's servers (chapter 8), and map tiles load from their tile servers straight from your browser.
 
-## 9.5 Known gaps
+## 9.5 Gaps
 
-- No email verification and no password reset.
-- Tribes are open to everyone signed in; there are no private tribes yet.
-- Anyone who can open the public address can create an account. The limits in
-  9.1 slow abuse but do not stop a determined one.
+There is no email verification and no password reset yet. Tribes are open to everyone signed in, with no private tribes. Anyone who can open the public address can create an account; the limits in section 9.1 slow abuse down, but because they are counted across the server, a flood of sign-ups would also block real ones. All three are on the roadmap.

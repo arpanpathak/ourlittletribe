@@ -25,7 +25,7 @@ const CHAPTERS = [
   { file: "ch04.svg", number: 4, title: "The model", caption: "one fire, one question at a time", scene: { landscape: "forest", light: "night", weather: "clear", season: "summer", activity: "camping", crew: 3 } },
   { file: "ch05.svg", number: 5, title: "Conditions", caption: "the weather is at the trail", scene: { landscape: "mountains", light: "day", weather: "snow", season: "winter", activity: "skiing", crew: 2 } },
   { file: "ch06.svg", number: 6, title: "Stores on the way", caption: "a stop worth the detour", scene: { landscape: "city", light: "golden_hour", weather: "clear", season: "autumn", activity: "cycling", crew: 2 } },
-  { file: "ch07.svg", number: 7, title: "Pictures", caption: "drawn, not downloaded", scene: { landscape: "lake", light: "dawn", weather: "clear", season: "autumn", activity: "paddling", crew: 3 } },
+  { file: "ch07.svg", number: 7, title: "Pictures", caption: "drawn in the browser", scene: { landscape: "lake", light: "dawn", weather: "clear", season: "autumn", activity: "paddling", crew: 3 } },
   { file: "ch08.svg", number: 8, title: "The web app", caption: "many hands, one page", scene: { landscape: "hills", light: "day", weather: "clouds", season: "spring", activity: "gathering", crew: 4 } },
   { file: "ch09.svg", number: 9, title: "Security and privacy", caption: "the key stays with you", scene: { landscape: "forest", light: "dusk", weather: "mist", season: "autumn", activity: "camping", crew: 2 } },
   { file: "ch10.svg", number: 10, title: "Going live", caption: "out in the open", scene: { landscape: "coast", light: "golden_hour", weather: "clouds", season: "summer", activity: "running", crew: 1 } },

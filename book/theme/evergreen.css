@@ -170,7 +170,7 @@ html.light .covers > p:first-child { color: #165c3f; }
 html.light figcaption b { color: #165c3f; }
 
 /* Chapter pictures and the cover come from the app's own animated scenes. */
-img.plate { display: block; width: 100%; max-width: 420px; margin: 0.5em auto 1em; }
+img.plate { display: block; width: 100%; max-width: 760px; margin: 0.5em auto 1.5em; border-radius: 16px; box-shadow: 0 10px 30px rgba(20, 28, 24, 0.16); }
 img.cover { display: block; width: 100%; max-width: 760px; margin: 1em auto 2em; border-radius: 16px; box-shadow: 0 10px 30px rgba(20, 28, 24, 0.18); }
 .built { color: #1f6f4e; font-weight: bold; }
 .planned { color: #a8741a; font-weight: bold; }

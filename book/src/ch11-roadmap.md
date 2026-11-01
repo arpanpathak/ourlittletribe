@@ -1,48 +1,25 @@
+<img class="plate" src="art/ch11.svg" alt="Chapter 11 opener: three hikers walk a sandy trail through desert at dawn, between red mesas, toward a low sun. Caption: the trail ahead.">
+
 # Roadmap
 
-The full list, with what "done" means for each item, is in
-[`ROADMAP.md`](https://github.com/arpanpathak/ourlittletribe/blob/main/ROADMAP.md)
-in the repository. This chapter explains the design behind the larger items.
+The full list, with what "done" means for each item, is in [`ROADMAP.md`](https://github.com/arpanpathak/ourlittletribe/blob/main/ROADMAP.md). This chapter explains the design behind the larger items, in the order they are likely to happen.
 
-## 11.1 Own place index
+## 11.1 The map services on the Thor
 
-The place search in chapter 3 depends on Photon and Nominatim, and both can
-refuse. The plan is a gazetteer built into the app: every named place in a
-Washington OpenStreetMap extract (Geofabrik's, about 250 MB), read with a Rust
-PBF reader, stored in SQLite with an FTS5 **trigram** index on the names.
+Every slow or failed request in chapters 3, 5 and 6 came from a public service: Photon refusing connections, Nominatim's one request a second, and Overpass answering `502` or nothing at all. All three can run on the Thor from one OpenStreetMap extract of Washington State.
 
-A trigram index matches any three-letter piece of a name, so "javkson" still
-shares "kso" and "son" with "jackson". Candidates from the index are then
-ranked by how closely each typed word matches a word of the name, by how
-notable the place is (a Wikidata link counts), and by distance. Each place also
-keeps its OpenStreetMap kind, so "hiking" can become a query for trailheads and
-peaks near you without any network call. The model's two steps from chapter 3
-stay; their lookups become local and take milliseconds.
+The place index is the first. Every named place in the extract would be read with a Rust PBF reader and stored in SQLite with an FTS5 trigram index on the names, the same kind of index that chapter 2 already uses for tribes and events. "javkson" shares "kso" and "son" with "jackson", so a typo still finds the place. Candidates would be ranked by how closely each typed word matches a word of the name, by how notable the place is, and by distance. Each place keeps its OpenStreetMap kind, so "hiking" can become a query for trailheads and peaks near you with no network call. The model's steps from chapter 3 stay the same; their lookups become local and take milliseconds.
 
-## 11.2 Covers that fit
+OSRM for routes, Overpass for shops, and a copy of Waymarked Trails' routes follow, from the same extract.
 
-Three changes to pictures (chapter 7):
+## 11.2 Pictures
 
-- **A focal point** stored with each cover, set by dragging the picture in its
-  frame, and applied with `object-position` wherever the cover is shown.
-- **Animated GIFs** kept as GIF or animated WebP after checking every frame,
-  instead of a JPEG of the first frame.
-- **SVG covers**, which scale to any frame and need no focal point, accepted
-  only after reducing them to safe elements and served with a policy that
-  forbids scripts.
+A cover will store a **focal point**, which you set by dragging the picture inside its frame and which every page applies with `object-position`. Animated GIFs will be kept as GIF or converted to animated WebP after every frame is checked, instead of keeping only the first frame. SVG covers, which fit any frame without a focal point, will be accepted once uploads are reduced to safe elements and served with a policy that forbids scripts.
 
 ## 11.3 The model
 
-- **Check briefings against their facts**: find every number in the text and
-  compare it with the forecast lines it was given; drop a sentence that
-  disagrees.
-- **Speech on the Thor**: Whisper on TensorRT, so voice works over plain HTTP
-  and no audio leaves the machine.
-- **Plan from a picture**: a flyer or a trail page screenshot, read by a vision
-  model, filling the form as the plan assistant does.
+The briefing's numbers will be checked against the facts it was given: every number in the text found and compared with the forecast lines, and any sentence that disagrees dropped (chapter 4). Speech recognition will move onto the Thor, with Whisper on TensorRT, so voice works over plain HTTP and no audio leaves the house. And the assistants will read a picture: a flyer or a screenshot of a trail page, filling in the form as the typed assistant does.
 
 ## 11.4 People
 
-Private tribes with invitations, comments on events, notifications before an
-event and when it changes, and carpools: who drives, who has seats, who needs
-a ride from where.
+Private tribes with invitations, comments on events, notifications before an event and when it changes, and carpools: who drives, who has seats, and who needs a ride from where. Password reset, email verification and automated tests of who may do what (chapter 9) come before any of these.

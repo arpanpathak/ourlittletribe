@@ -13,6 +13,7 @@ This chapter covers
 - adding columns to an existing database on start
 - what is deleted, and when
 - support, confidence and lift, the counts behind learned pairings
+- the search index: stemmed words, and three-letter pieces for typos
 
 </div>
 
@@ -75,3 +76,15 @@ When you look at an item on a list, the app may say "groups who bought this also
 In figure 2.2, 8 of 20 baskets have microspikes, 6 have hand warmers, and 5 have both. Of the baskets with microspikes, 5 of 8, or 0.63, also have hand warmers, while hand warmers appear in 6 of 20 baskets overall, or 0.30. The lift is 0.63 / 0.30 = 2.08: a group that buys microspikes is about twice as likely as an average group to buy hand warmers.
 
 The app shows a pair only when there are at least 10 baskets in total, at least 3 of them hold both items, and the lift is at least 1.1. Below those thresholds a "pattern" is three trips that happened to look alike, so the app shows nothing. The same pairings are given to the model as facts when it plans a list (chapter 4).
+
+## 2.6 The search index
+
+Someone in Ada's tribe started a tribe called "ai-won't-replace-us". Searching for "ai replacing" has to find it, even though neither the phrase nor the word "replacing" appears in the name. A `LIKE '%ai replacing%'` query finds nothing, and the first version of search used exactly that. `tribe-db` now keeps two SQLite FTS5 tables beside the data, in `search_index.rs`.
+
+`search_words` splits every tribe's, event's and person's text into words, and stems each word with the Porter stemmer. "replacing", "replaced" and "replace" all become `replac`, and the punctuation in "ai-won't-replace-us" splits it into the words `ai`, `won`, `t`, `replac` and `us`. A search becomes a query that matches any of its words as a prefix, `"ai"* OR "replacing"*`, and SQLite's `bm25` ranks the rows that match more words, and match in the name rather than the description, first. Words of one letter, such as the `t` of "won't", are left out of the query, because as a prefix they match nearly everything.
+
+`search_grams` indexes every three-letter piece of each name instead of its words, which is how a typo still matches. "snoqualme" shares most of its pieces with "Snoqualmie". The server asks this table for rows sharing any piece with a word of the search, and then keeps only rows with a word that shares at least half of the search word's pieces. Each word is padded with spaces before it is cut, so its first and last letters form pieces of their own, and a typo in the middle of a word leaves most of them intact: "javkson" shares 5 of its 8 padded pieces with "jackson".
+
+Triggers on `tribes`, `events` and `users` keep both tables in step with every insert, update and delete, and `schema::prepare` refills them on start, so a database written before the index existed is searchable at once. A renamed tribe is found by its new name and no longer by its old one; a test checks exactly that.
+
+The search page also asks the model for related words (chapter 4). The same index answers those words, and the results appear under "Related".

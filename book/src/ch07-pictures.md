@@ -1,75 +1,58 @@
-<img class="plate" src="art/ch07.svg" alt="A camera flashing between two floating instant photos of mountains">
+<img class="plate" src="art/ch07.svg" alt="Chapter 7 opener: three people stand in a red canoe on a lake at dawn, with a pale sun over purple hills and autumn trees on the far shore. Caption: drawn in the browser.">
 
 # Pictures
+
+People put pictures in four places: a cover for a tribe or an event, a profile picture and banner, photos shared after an outing, and pictures inside a description. Every one of them goes through the same short pipeline before it is stored. This chapter explains that pipeline and why it re-encodes everything, where pictures live and who sees them, and how the model draws a cover when you have no photo.
 
 <div class="covers" markdown="1">
 
 This chapter covers
 
-- What happens to an uploaded picture, and why every one is re-encoded
-- Where pictures live, who can see them, and when they are deleted
-- Why GIF covers lose their animation and SVG is refused
+- what happens to an uploaded picture, and why every one is written again
+- where pictures are kept, who can see them, and when they are deleted
+- why a GIF cover loses its animation and an SVG is refused
+- covers drawn from a scene the model chooses
 
 </div>
 
 ## 7.1 The pipeline
 
 <figure>
-<img src="figures/pictures.svg" alt="A picture's path: the upload is checked and limited, decoded off the async threads two at a time, turned upright, resized to 1600 and 560 pixels, re-encoded as JPEG without metadata, written to disk, and recorded in the database.">
-<figcaption><b>Figure 7.1</b> From upload to file.</figcaption>
+<img src="figures/ch07-pictures.svg" alt="Five steps: check and decode JPEG, PNG, WebP or GIF up to 12,000 pixels a side; turn upright from the EXIF orientation; flatten transparency onto white; make two sizes, 1,600 and 560 pixels on the long side; write JPEG at quality 82 with no metadata. Limits: 15 MB an upload, 300 uploads an hour, two at a time off the request threads.">
+<figcaption><b>Figure 7.1</b> <code>tribe-media::process</code>, the path of every upload.</figcaption>
 </figure>
 
-A picture arrives as the raw request body, at most 15 MB, and at most 300
-uploads an hour across the server. `tribe-media::process` then:
+A picture arrives as the raw body of the request, at most 15 MB, and the whole server accepts at most 300 uploads an hour. `tribe-media::process` checks the first bytes to confirm the file is a JPEG, PNG, WebP or GIF, and decodes it with a limit of 12,000 pixels a side. It turns the picture upright using its EXIF orientation, flattens any transparency onto white, makes two copies at most 1,600 and 560 pixels on the long side, and encodes both as JPEG at quality 82.
 
-1. checks the first bytes are a JPEG, PNG, WebP or GIF, and decodes it with
-   limits of 12,000 pixels a side;
-2. turns it upright from its EXIF orientation;
-3. flattens transparency onto white;
-4. makes two copies, at most 1,600 and 560 pixels on the long side;
-5. encodes both as JPEG at quality 82.
+Decoding a large photo takes a few hundred megabytes of memory and a second or more of processor time. It therefore runs on Tokio's blocking pool, at most two pictures at a time behind a semaphore, and never on the threads that answer requests.
 
-Decoding a large photo takes a few hundred megabytes and a second or more of
-CPU, so it runs on Tokio's blocking pool, two at a time behind a semaphore,
-never on the threads that answer requests.
+The reason for writing every picture again is privacy. A phone photo carries EXIF metadata, and that usually includes the GPS position where it was taken, which is often someone's home. A file written from the decoded pixels carries none of it. It also means the server only ever serves files it wrote itself, in one format it knows.
 
-**Why re-encode everything.** A phone photo carries EXIF metadata, including
-the GPS position where it was taken: often someone's home. Writing new JPEG
-files from the decoded pixels keeps none of it. It also means the server only
-ever serves files it wrote itself, in one format.
+## 7.2 Where pictures live
 
-## 7.2 Storage and access
+Files live in the pictures folder (`OLT_MEDIA`, by default a `media` folder next to the database) as `{id}.jpg` and `{id}_s.jpg`, where the id is a lower-case UUID. A row in `images` or `inline_images`, or a column on `users`, records what each picture belongs to (chapter 2).
 
-Files live in the pictures folder (`OLT_MEDIA`, by default `media` next to the
-database) as `{id}.jpg` and `{id}_s.jpg`, where the id is a lower-case UUID.
-The database records what each picture belongs to: an event cover, an event
-photo, a tribe cover, a picture in a description, or a person's profile
-picture or banner.
+`GET /media/{file}` serves pictures to signed-in people only, with `Cache-Control: private, max-age=31536000, immutable`. A picture never changes under its id; a new picture gets a new id, so a browser can keep a copy for a year. The server parses the file name instead of joining it to a path, so a request for `../` cannot reach anything outside the folder.
 
-`GET /media/{file}` serves them to signed-in people only, with
-`Cache-Control: private, max-age=31536000, immutable`; a picture never changes
-under its id, a new one gets a new id. The file name is parsed, not joined to
-a path, so `../` cannot reach anything.
-
-Who may change what: the event's planner, the tribe's organizers and admins
-set an event's cover; organizers set a tribe's; anyone in the tribe adds
-photos; whoever shared a photo, or the event's managers, can delete it.
-
-The hourly sweep deletes any file whose id no row mentions, so a replaced
-cover or a removed photo leaves nothing behind.
+An event's cover can be changed by its planner, the tribe's organizers and admins, and a tribe's cover by its organizers. Anyone in the tribe can add photos to its events, and a photo can be deleted by whoever shared it or by the event's managers. The hourly sweep deletes every file whose id no row mentions, so a replaced cover or a deleted photo leaves nothing behind.
 
 ## 7.3 GIF and SVG
 
-**A GIF cover loses its animation.** The upload works, but step 5 writes a
-JPEG of the first frame. Keeping animated GIFs needs a second path that checks
-every frame and keeps the GIF (or converts it to animated WebP) instead of
-re-encoding.
+A GIF cover loses its animation. The upload works, but the last step writes a JPEG of the first frame. Keeping animated GIFs needs a second path that checks every frame and keeps the GIF, or converts it to animated WebP, instead of re-encoding it.
 
-**SVG is refused.** An SVG is a document, not a picture: it can contain
-scripts and links to other servers. The server accepts only formats it can
-decode to pixels. An SVG cover would scale to any banner without cropping, so
-it is worth supporting once uploads are reduced to a safe subset of SVG: shapes,
-paths, gradients and text, with no scripts, no external references and no
-embedded HTML.
+An SVG is refused. SVG is a document format: a file can contain scripts and links to other servers. The server only accepts formats it can decode into pixels. SVG covers would be worth having, because they scale to any banner without cropping, but only once uploads are reduced to a safe subset of shapes, paths, gradients and text. Both changes are on the roadmap.
 
-Both are on the roadmap, with choosing which part of a photo shows in a banner.
+## 7.4 Covers the model draws
+
+<figure>
+<img src="figures/ch07-ai-cover.svg" alt="design_cover reads the name, place, date and description in 0.8 seconds and answers six words: landscape lake, light dawn, weather clear, season autumn, activity paddling, crew 3. The browser draws the scene with the app's own people and trees, a canvas turns it into a 1,600 by 900 PNG, and it takes the same upload path as any picture. Beside it, the drawn scene: three people in a canoe on a lake at dawn.">
+<figcaption><b>Figure 7.2</b> A cover from one short answer. The picture is the scene drawn from the answer shown.</figcaption>
+</figure>
+
+When you press "Draw one with AI" on a tribe or event, the model reads the name, the place, the date and the description, and `design_cover` answers with six words: a landscape, a time of day, the weather, the season, an activity and how many people. For "Lake Twenty-Two first light paddle" on 14 November it chose a lake at dawn in autumn, with three people paddling.
+
+The browser draws that scene with `cover_art.ts`, from the same people and trees as the rest of the app's illustrations, writing every colour into the drawing so it stands on its own. A canvas turns it into a 1,600 × 900 PNG, and the PNG goes through the upload pipeline in figure 7.1 like any photo. There is no image model to host, and a cover costs one answer of about 30 tokens.
+
+The six words set the backdrop. A random seed, new for every press, sets everything else: which of ten people are in the group and in what order, how far apart they stand and how tall each one is, where the trees and clouds go, whether birds cross the sky, and whether a dog comes along. Two covers for the same plan therefore look different, and pressing again draws another. The book uses fixed seeds, so its pictures stay the same between builds.
+
+The drawing is composed for two crops. Cards show a cover at 16:9, and the top of a tribe or event page crops it to a band about 4:1 across the middle. The land and the people are lifted into that band, so the group stays in view in both.

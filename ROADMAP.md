@@ -12,12 +12,14 @@ what "done" looks like.
   ("henry javkson visitor"), works when Photon and Nominatim refuse us, and can
   search by kind ("hiking" → trailheads and peaks near you).
   *Done when:* a typed query answers in under 50 ms on the Thor with no network.
-- **Search by meaning.** The model reads a search like "hiking" or "somewhere
-  to swim" and turns it into kinds of places (OpenStreetMap tags) and events
-  and tribes that fit, even when the words differ.
-  *Done when:* "hiking" finds the Skyline Trail loop and nearby trailheads.
-- **Own copies of the map services.** OSRM and Overpass for Washington on the
-  Thor, so routes and store searches no longer wait on busy public servers.
+- **Search places by meaning.** Tribes and events already are: the model adds
+  related words and the search index answers them. Places are next: the model
+  turns "hiking" or "somewhere to swim" into kinds of places (OpenStreetMap
+  tags) near you.
+  *Done when:* "hiking" in a place box finds trailheads near the map's centre.
+- **Own copies of the map services.** OSRM, Overpass and the marked hiking
+  routes for Washington on the Thor, so routes, store searches and trails no
+  longer wait on busy public servers.
 - **Password reset and email verification.** Today a forgotten password means a
   new account.
 - **Tests for who may do what.** Route tests that sign in as a non-member, a
@@ -69,5 +71,3 @@ what "done" looks like.
 - **Calendar subscription** per person: every event you're going to, in one
   `.ics` feed.
 - **Accessibility pass** with a screen reader on every page.
-- **Clean up the older frontend code** to the same flat style as the newer
-  modules: small named helpers, no deep nesting.

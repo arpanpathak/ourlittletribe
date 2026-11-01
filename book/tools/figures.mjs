@@ -3,7 +3,7 @@
 // tools/audit.mjs.
 // Usage: node book/tools/figures.mjs
 
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,7 +12,8 @@ import { FAINT, HUE, INK, LINE, MUTED, TOP, across, arrow, card, down, edges, fi
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const { coverSvg } = await import(join(repo, "web", "dist", "cover_art.js"));
 
-const out = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "figures");
+const here = dirname(fileURLToPath(import.meta.url));
+const out = join(here, "..", "src", "figures");
 
 /** Every figure, by file name. */
 const FIGURES = {};
@@ -45,7 +46,7 @@ FIGURES["ch01-system.svg"] = () => {
   const width = 1000;
   const middle = width / 2;
 
-  const [browser] = row(middle, TOP + 10, 0, [{ title: "Your browser", lines: ["The web app: 47 TypeScript modules", "Map tiles straight from OpenStreetMap"], hue: "orange", icon: "monitor" }]);
+  const [browser] = row(middle, TOP + 10, 0, [{ title: "Your browser", lines: ["The web app: 49 TypeScript modules", "Map tiles straight from OpenStreetMap"], hue: "orange", icon: "monitor" }]);
 
   const thorTop = TOP + 150;
   const [server] = row(middle, thorTop + 70, 0, [{ title: "ourlittletribe", lines: ["One Rust binary on 127.0.0.1:8090", "JSON under /api, pictures under /media"], hue: "green", icon: "logoPeak", w: 320 }]);
@@ -82,14 +83,14 @@ FIGURES["ch01-crates.svg"] = () => {
   const width = 1060;
   const middle = width / 2;
 
-  const [server] = row(middle, TOP + 10, 0, [{ title: "tribe-server", lines: ["routes, sessions, caches, search, trips · 4,436 lines"], hue: "green", icon: "logoPeak" }]);
+  const [server] = row(middle, TOP + 10, 0, [{ title: "tribe-server", lines: ["routes, sessions, caches, search, trips, trails · 4,710 lines"], hue: "green", icon: "logoPeak" }]);
   const middleRow = row(middle, TOP + 150, 18, [
-    { title: "tribe-db", lines: ["schema, queries", "3,144 lines"], hue: "gold", icon: "list", w: 226 },
-    { title: "tribe-places", lines: ["five map services", "1,644 lines"], hue: "blue", icon: "map", w: 226 },
-    { title: "tribe-brain", lines: ["prompts, schemas, checks", "1,601 lines"], hue: "purple", icon: "sparkles", w: 236 },
+    { title: "tribe-db", lines: ["schema, queries, search", "3,493 lines"], hue: "gold", icon: "list", w: 226 },
+    { title: "tribe-places", lines: ["map services, trails", "2,196 lines"], hue: "blue", icon: "map", w: 226 },
+    { title: "tribe-brain", lines: ["prompts, schemas, checks", "1,693 lines"], hue: "purple", icon: "sparkles", w: 236 },
     { title: "tribe-media", lines: ["decode, resize, store", "367 lines"], hue: "slate", icon: "image", w: 226 },
   ]);
-  const [core] = row(middle - 115, TOP + 300, 0, [{ title: "tribe-core", lines: ["geometry, ranking, baskets, time · no I/O · 833 lines"], hue: "green", icon: "gauge" }]);
+  const [core] = row(middle - 115, TOP + 300, 0, [{ title: "tribe-core", lines: ["geometry, ranking, baskets, trails · no I/O · 969 lines"], hue: "green", icon: "gauge" }]);
 
   const fromServer = middleRow.map((crate) => down(server.box, crate.box, { hue: "green" })).join("");
   const toCore = middleRow.slice(0, 3).map((crate) => down(crate.box, core.box, { hue: "slate" })).join("");
@@ -323,12 +324,13 @@ FIGURES["ch04-model-jobs.svg"] = () => {
     { title: "draft_tribe", lines: ["a tribe from your words · 1.7 s"], icon: "users" },
     { title: "write_description", lines: ["Write with AI"], icon: "wand" },
     { title: "design_cover", lines: ["a cover scene · 0.8 s"], icon: "image" },
+    { title: "related_words", lines: ["widen a search · 0.9 s"], icon: "sparkles" },
   ];
-  const columns = 3;
+  const columns = 2;
   const cellWidth = (width - 64 - 2 * 18) / columns;
   const drawn = jobs.map((job, index) => card({ ...job, x: 32 + (index % columns) * (cellWidth + 18), y: TOP + 10 + Math.floor(index / columns) * 82, w: cellWidth, hue: "purple", mono: false }));
 
-  return figure({ width, height: TOP + 10 + 3 * 82 + 20, title: "Nine jobs, one model", subtitle: "Each is a method on Brain with its own prompt and schema. Times measured on the Thor, 2026-10-31." }, svgOf(drawn));
+  return figure({ width, height: TOP + 10 + 5 * 82 + 20, title: "Ten jobs, one model", subtitle: "Each is a method on Brain with its own prompt and schema. Times measured on the Thor, 2026-10-31." }, svgOf(drawn));
 };
 
 /* ── Chapter 5 ────────────────────────────────────── */
@@ -383,6 +385,61 @@ FIGURES["ch05-briefing.svg"] = () => {
 
   return figure({ width, height: answerY + 186, title: "From forecast hours to a briefing", subtitle: "One answer for the test hike, as the event page showed it: a verdict, a headline, and tagged points." },
     links + svgOf(steps) + answer + caches);
+};
+
+FIGURES["ch05-trail.svg"] = () => {
+  const trail = JSON.parse(readFileSync(join(here, "data", "skyline-trail.json"), "utf8"));
+  const width = 1060;
+  const top = TOP + 10;
+  const height = 300;
+
+  const shapeLeft = 32;
+  const shapeWidth = 300;
+  const lats = trail.line.map(([lat]) => lat);
+  const lngs = trail.line.map(([, lng]) => lng);
+  const north = Math.max(...lats);
+  const south = Math.min(...lats);
+  const east = Math.max(...lngs);
+  const west = Math.min(...lngs);
+  const squash = Math.cos((north * Math.PI) / 180);
+  const scale = Math.min((shapeWidth - 60) / ((east - west) * squash), (height - 60) / (north - south));
+  const shapeX = (lng) => shapeLeft + 30 + (lng - west) * squash * scale;
+  const shapeY = (lat) => top + 30 + (north - lat) * scale;
+
+  const path = trail.line.map(([lat, lng], index) => `${index ? "L" : "M"}${shapeX(lng).toFixed(1)} ${shapeY(lat).toFixed(1)}`).join(" ");
+  const [startLat, startLng] = trail.line[0];
+  const shape = `<rect x="${shapeLeft}" y="${top}" width="${shapeWidth}" height="${height}" rx="14" fill="#ffffff" stroke="${LINE}"/>`
+    + `<path d="${path}" fill="none" stroke="#ffffff" stroke-width="8" stroke-linejoin="round"/>`
+    + `<path d="${path}" fill="none" stroke="${HUE.orange.strong}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>`
+    + `<circle cx="${shapeX(startLng)}" cy="${shapeY(startLat)}" r="7" fill="${HUE.green.strong}"/>`
+    + text(shapeX(startLng) + 12, shapeY(startLat) + 20, "start and finish", { size: 11.5, fill: MUTED });
+
+  const chartLeft = shapeLeft + shapeWidth + 70;
+  const chartRight = width - 40;
+  const chartTop = top + 20;
+  const chartBottom = top + height - 50;
+  const { lowest_m: lowest, highest_m: highest } = trail.climb;
+  const pad = 40;
+  const yOf = (metres) => chartBottom - ((metres - (lowest - pad)) / (highest - lowest + 2 * pad)) * (chartBottom - chartTop);
+  const xOf = (index) => chartLeft + (index / (trail.profile.length - 1)) * (chartRight - chartLeft);
+
+  const profileLine = trail.profile.map((metres, index) => `${xOf(index).toFixed(1)},${yOf(metres).toFixed(1)}`).join(" ");
+  const area = `${chartLeft},${chartBottom} ${profileLine} ${chartRight},${chartBottom}`;
+  const gridHeights = [1700, 1800, 1900, 2000, 2100];
+  const grid = gridHeights.map((metres) => `<path d="M${chartLeft} ${yOf(metres)} H${chartRight}" stroke="${LINE}"/>` + text(chartLeft - 10, yOf(metres) + 4, `${metres.toLocaleString("en-US")} m`, { size: 11, fill: FAINT, anchor: "end", mono: true })).join("");
+  const axis = text(chartLeft, chartBottom + 22, "0 km", { size: 11, fill: FAINT, mono: true }) + text(chartRight, chartBottom + 22, `${trail.length_km.toFixed(1)} km`, { size: 11, fill: FAINT, mono: true, anchor: "end" });
+
+  const peakIndex = trail.profile.indexOf(Math.max(...trail.profile));
+  const peak = `<circle cx="${xOf(peakIndex)}" cy="${yOf(highest)}" r="5" fill="${HUE.orange.strong}"/>` + text(xOf(peakIndex) + 10, yOf(highest) - 8, `high point ${highest.toLocaleString("en-US")} m`, { size: 12, weight: 600 });
+  const chart = grid + `<polygon points="${area}" fill="${HUE.orange.soft}"/><polyline points="${profileLine}" fill="none" stroke="${HUE.orange.strong}" stroke-width="2.5"/>` + axis + peak;
+
+  const facts = [
+    pill(chartLeft, top + height + 6, `${trail.length_km.toFixed(1)} km`, { hue: "slate", mono: true }),
+    pill(chartLeft + 100, top + height + 6, `↑ about ${trail.climb.gain_m} m`, { hue: "orange", mono: true }),
+    pill(chartLeft + 254, top + height + 6, `grade: ${trail.difficulty}`, { hue: "gold", mono: true }),
+  ].map((drawn) => drawn.svg).join("");
+
+  return figure({ width, height: top + height + 44, title: "The Skyline Trail, measured", subtitle: `Its line from Waymarked Trails, 60 heights from Open-Meteo along it. Measured ${trail.measured}.` }, shape + chart + facts);
 };
 
 /* ── Chapter 6 ────────────────────────────────────── */
@@ -499,7 +556,7 @@ FIGURES["ch08-web-app.svg"] = () => {
   const links = drawn.slice(1).map((layer, index) => down(drawn[index].box, layer.box, { hue: "slate" })).join("");
   const rest = pill(width / 2, top + 6, "calls /api on the same server", { hue: "purple", anchor: "middle" }).svg;
 
-  return figure({ width, height: top + 44, title: "The web app, top to bottom", subtitle: "47 TypeScript modules, strict mode. Each layer only imports from the layers below it." }, svgOf(drawn) + links + rest);
+  return figure({ width, height: top + 44, title: "The web app, top to bottom", subtitle: "49 TypeScript modules, strict mode. Each layer only imports from the layers below it." }, svgOf(drawn) + links + rest);
 };
 
 FIGURES["ch08-build.svg"] = () => {
@@ -509,7 +566,7 @@ FIGURES["ch08-build.svg"] = () => {
     { title: "tsc", lines: ["strict, no unchecked", "index access"], hue: "blue", icon: "check", w: 190 },
     { title: "web/dist", lines: ["ES modules"], hue: "slate", icon: "fileText", w: 160 },
     { title: "build.rs", lines: ["lists every file", "the page loads"], hue: "green", icon: "list", w: 180 },
-    { title: "one binary", lines: ["include_bytes!", "10.4 MB"], hue: "green", icon: "logoPeak", w: 180 },
+    { title: "one binary", lines: ["include_bytes!", "10.7 MB"], hue: "green", icon: "logoPeak", w: 180 },
   ]);
   const links = steps.slice(1).map((drawn, index) => across(steps[index].box, drawn.box, { hue: "slate" })).join("");
   const note = text(width / 2, steps[0].box.y + steps[0].box.h + 40, "cargo build does all of it; the web app can never be a different version from the API.", { size: 12.5, fill: MUTED, anchor: "middle", italic: true });
