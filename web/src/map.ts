@@ -4,6 +4,7 @@
 import type { DivIcon, LatLngTuple, LayerGroup, Map as LeafletMap, TileLayer } from "leaflet";
 
 import type { LatLng } from "./api/types.js";
+import { h, mount } from "./dom.js";
 import { iconMarkup } from "./icons.js";
 import type { PlaceKind } from "./itinerary.js";
 
@@ -27,14 +28,70 @@ function trailsOverlay(): TileLayer {
   return L.tileLayer("https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png", { maxZoom: 18, opacity: 0.85, attribution });
 }
 
-/** Makes a map inside `element`, with a switch between streets and terrain and a trails layer to turn on. */
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
+
+/** Aerial photos, with roads and place names on top so a car park or trailhead has context. */
+function satelliteLayer(): LayerGroup {
+  const attribution = "Imagery © Esri, Maxar, Earthstar Geographics";
+  const imagery = L.tileLayer(`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution });
+  const roads = L.tileLayer(`${ESRI}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, opacity: 0.7 });
+  const names = L.tileLayer(`${ESRI}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19 });
+
+  return L.layerGroup([imagery, roads, names]);
+}
+
+/** The base pictures a map can show. */
+type BaseLayer = "map" | "terrain" | "satellite";
+
+const BASE_NAMES: Record<BaseLayer, string> = { map: "Map", terrain: "Terrain", satellite: "Satellite" };
+
+/** Buttons on the map to choose the base picture and turn trails on and off; big enough for a finger. */
+function addLayerSwitcher(map: LeafletMap): void {
+  const bases: Record<BaseLayer, TileLayer | LayerGroup> = { map: streetLayer(), terrain: terrainLayer(), satellite: satelliteLayer() };
+  const trails = trailsOverlay();
+  let shown: BaseLayer = "map";
+  bases.map.addTo(map);
+
+  const panel = h("div", { class: "map-switcher" });
+
+  const draw = () => {
+    const baseButtons = (Object.keys(bases) as BaseLayer[]).map((base) =>
+      h("button", { type: "button", class: base === shown ? "active" : null, "aria-pressed": String(base === shown), onclick: () => choose(base) }, BASE_NAMES[base]));
+    const trailsOn = map.hasLayer(trails);
+    const trailButton = h("button", { type: "button", class: trailsOn ? "active trail-toggle" : "trail-toggle", "aria-pressed": String(trailsOn), onclick: toggleTrails }, "Trails");
+
+    mount(panel, h("div", { class: "map-switcher-bases" }, baseButtons), trailButton);
+  };
+
+  const choose = (base: BaseLayer) => {
+    map.removeLayer(bases[shown]);
+    bases[base].addTo(map);
+    shown = base;
+    if (map.hasLayer(trails)) trails.bringToFront();
+    draw();
+  };
+
+  const toggleTrails = () => {
+    if (map.hasLayer(trails)) map.removeLayer(trails);
+    else trails.addTo(map);
+    draw();
+  };
+
+  L.DomEvent.disableClickPropagation(panel);
+  L.DomEvent.disableScrollPropagation(panel);
+
+  const control = new L.Control({ position: "topright" });
+  control.onAdd = () => panel;
+  control.addTo(map);
+  draw();
+}
+
+/** Makes a map inside `element`, with buttons for map, terrain and satellite views and a trails layer. */
 export function createMap(element: HTMLElement, center: LatLng = DEFAULT_CENTER, zoom = 11): LeafletMap {
   const map = L.map(element, { zoomControl: true, scrollWheelZoom: true, attributionControl: true });
   map.setView([center.lat, center.lng], zoom);
 
-  const streets = streetLayer();
-  streets.addTo(map);
-  L.control.layers({ Streets: streets, Terrain: terrainLayer() }, { "Hiking trails": trailsOverlay() }, { position: "topright" }).addTo(map);
+  addLayerSwitcher(map);
   map.attributionControl.setPrefix(false);
 
   // The map's box may still be settling when it is made.

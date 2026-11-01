@@ -1,5 +1,5 @@
-//! Writing for people: filling in an event from what someone said, and
-//! writing or rewriting a description.
+//! Writing for people: filling in an event or a tribe from what someone
+//! said, and writing or rewriting a description.
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -10,7 +10,10 @@ use crate::places::{PlaceGuess, guess_schema};
 use crate::{BrainError, clip, prompt};
 
 /// Most places besides the meeting point a draft may have.
-const MAX_STOPS: usize = 6;
+const MAX_STOPS: usize = 14;
+
+/// Longest drafted description kept, in characters.
+const LONGEST_DESCRIPTION: usize = 8000;
 
 /// An event form filled in from someone's own words.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -25,8 +28,10 @@ pub struct EventDraft {
     pub time: Option<String>,
     /// Where people gather first, when they said.
     pub meeting_point: Option<PlaceGuess>,
-    /// Other places, in order; at most one venue.
+    /// Other places, in itinerary order; at most one venue.
     pub stops: Vec<DraftStop>,
+    /// The person's tribe the event belongs in, by name, when one fits.
+    pub tribe: Option<String>,
 }
 
 /// One more place in a drafted event.
@@ -40,15 +45,41 @@ pub struct DraftStop {
     pub note: String,
 }
 
+/// A place in the model's draft, with a few words about it.
+#[derive(Deserialize)]
+struct RawPlace {
+    name: String,
+    area: String,
+    note: String,
+}
+
+/// A place on the way in the model's draft; `optional` when only some stop there.
+#[derive(Deserialize)]
+struct RawWayStop {
+    name: String,
+    area: String,
+    note: String,
+    optional: bool,
+}
+
 /// The draft as the model writes it, before checking.
+///
+/// Each kind of place has a field of its own. With one list of places and a
+/// kind on each, the model left the list empty even when the plan named six
+/// towns and a lunch. The places also come before the description, because
+/// the model writes the fields in this order and so plans the places first.
 #[derive(Deserialize)]
 struct RawDraft {
     title: String,
-    description: String,
+    tribe: String,
     date: String,
     time: String,
     meeting_point: PlaceGuess,
-    stops: Vec<DraftStop>,
+    other_meeting_points: Vec<RawPlace>,
+    stops_on_the_way: Vec<RawWayStop>,
+    venue: RawPlace,
+    after: Vec<RawPlace>,
+    description: String,
 }
 
 #[derive(Deserialize)]
@@ -71,7 +102,7 @@ fn tribe_question() -> Question {
     Question {
         instructions: prompt::TRIBE_DRAFT_SYSTEM,
         schema_name: "tribe_draft",
-        max_tokens: 800,
+        max_tokens: 2500,
         schema: json!({
             "type": "object",
             "properties": {
@@ -85,34 +116,70 @@ fn tribe_question() -> Question {
     }
 }
 
-fn draft_question() -> Question {
+/// The schema for the tribe field: one of the person's tribes by name, or
+/// empty; free text when they have no tribes to choose from.
+fn tribe_schema(tribes: &[String]) -> serde_json::Value {
+    if tribes.is_empty() {
+        return json!({ "type": "string" });
+    }
+
+    let mut names: Vec<&str> = tribes.iter().map(String::as_str).collect();
+    names.push("");
+    json!({ "type": "string", "enum": names })
+}
+
+/// A place with a note: a name, the area it is in, and a few words.
+fn noted_place_schema() -> serde_json::Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "name": { "type": "string" },
+            "area": { "type": "string" },
+            "note": { "type": "string" }
+        },
+        "required": ["name", "area", "note"],
+        "additionalProperties": false
+    })
+}
+
+/// A place on the way, which some may skip.
+fn way_stop_schema() -> serde_json::Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "name": { "type": "string" },
+            "area": { "type": "string" },
+            "note": { "type": "string" },
+            "optional": { "type": "boolean" }
+        },
+        "required": ["name", "area", "note", "optional"],
+        "additionalProperties": false
+    })
+}
+
+fn draft_question(tribes: &[String]) -> Question {
     Question {
         instructions: prompt::DRAFT_SYSTEM,
         schema_name: "event_draft",
-        max_tokens: 1200,
+        max_tokens: 4000,
         schema: json!({
             "type": "object",
             "properties": {
                 "title": { "type": "string" },
-                "description": { "type": "string" },
+                "tribe": tribe_schema(tribes),
                 "date": { "type": "string" },
                 "time": { "type": "string" },
                 "meeting_point": guess_schema(),
-                "stops": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "kind": { "type": "string", "enum": ["stop", "optional", "venue"] },
-                            "place": guess_schema(),
-                            "note": { "type": "string" }
-                        },
-                        "required": ["kind", "place", "note"],
-                        "additionalProperties": false
-                    }
-                }
+                "other_meeting_points": { "type": "array", "items": noted_place_schema() },
+                "stops_on_the_way": { "type": "array", "items": way_stop_schema() },
+                "venue": noted_place_schema(),
+                "after": { "type": "array", "items": noted_place_schema() },
+                "description": { "type": "string" }
             },
-            "required": ["title", "description", "date", "time", "meeting_point", "stops"],
+            "required": [
+                "title", "tribe", "date", "time", "meeting_point",
+                "other_meeting_points", "stops_on_the_way", "venue", "after", "description"
+            ],
             "additionalProperties": false
         }),
     }
@@ -122,7 +189,7 @@ fn writing_question() -> Question {
     Question {
         instructions: prompt::WRITE_SYSTEM,
         schema_name: "description",
-        max_tokens: 1200,
+        max_tokens: 3500,
         schema: json!({
             "type": "object",
             "properties": { "text": { "type": "string" } },
@@ -159,7 +226,60 @@ fn clock_time(text: &str) -> Option<String> {
     digits_with_separators(text, 5, &[(2, b':')]).then(|| text.to_string())
 }
 
-/// The stops with a name, in order, at most one venue and at most [`MAX_STOPS`].
+fn draft_stop(kind: StopKind, name: String, area: String, note: String) -> DraftStop {
+    DraftStop {
+        kind,
+        place: PlaceGuess { name, area },
+        note,
+    }
+}
+
+/// Every place besides the meeting point, in itinerary order: other meeting
+/// points, stops on the way, the venue, then where the group goes after.
+fn places_in_order(
+    other_meeting_points: Vec<RawPlace>,
+    stops_on_the_way: Vec<RawWayStop>,
+    venue: RawPlace,
+    after: Vec<RawPlace>,
+) -> Vec<DraftStop> {
+    let mut stops = Vec::new();
+
+    for place in other_meeting_points {
+        stops.push(draft_stop(
+            StopKind::Pickup,
+            place.name,
+            place.area,
+            place.note,
+        ));
+    }
+    for place in stops_on_the_way {
+        let kind = if place.optional {
+            StopKind::Optional
+        } else {
+            StopKind::Stop
+        };
+        stops.push(draft_stop(kind, place.name, place.area, place.note));
+    }
+
+    stops.push(draft_stop(
+        StopKind::Venue,
+        venue.name,
+        venue.area,
+        venue.note,
+    ));
+
+    for place in after {
+        stops.push(draft_stop(
+            StopKind::After,
+            place.name,
+            place.area,
+            place.note,
+        ));
+    }
+    stops
+}
+
+/// The stops with a name, in order, each name once, at most one venue and at most [`MAX_STOPS`].
 fn tidy_stops(raw_stops: Vec<DraftStop>) -> Vec<DraftStop> {
     let mut stops: Vec<DraftStop> = Vec::new();
 
@@ -167,7 +287,13 @@ fn tidy_stops(raw_stops: Vec<DraftStop>) -> Vec<DraftStop> {
         let nameless = stop.place.name.trim().is_empty();
         let second_venue =
             stop.kind == StopKind::Venue && stops.iter().any(|kept| kept.kind == StopKind::Venue);
-        if nameless || second_venue || stops.len() == MAX_STOPS {
+        let repeated = stops.iter().any(|kept| {
+            kept.place
+                .name
+                .trim()
+                .eq_ignore_ascii_case(stop.place.name.trim())
+        });
+        if nameless || second_venue || repeated || stops.len() == MAX_STOPS {
             continue;
         }
 
@@ -181,40 +307,59 @@ fn tidy_stops(raw_stops: Vec<DraftStop>) -> Vec<DraftStop> {
     stops
 }
 
-fn tidy_draft(raw: RawDraft) -> EventDraft {
+fn tidy_draft(raw: RawDraft, tribes: &[String]) -> EventDraft {
     let meeting_point = raw.meeting_point.tidy();
+    let tribe = tribes
+        .iter()
+        .find(|name| name.eq_ignore_ascii_case(raw.tribe.trim()))
+        .cloned();
+    let stops = places_in_order(
+        raw.other_meeting_points,
+        raw.stops_on_the_way,
+        raw.venue,
+        raw.after,
+    );
 
     EventDraft {
         title: clip(&raw.title, 120),
-        description: clip(&raw.description, 6000),
+        description: clip(&raw.description, LONGEST_DESCRIPTION),
         date: calendar_date(&raw.date),
         time: clock_time(&raw.time),
         meeting_point: (!meeting_point.name.is_empty()).then_some(meeting_point),
-        stops: tidy_stops(raw.stops),
+        stops: tidy_stops(stops),
+        tribe,
     }
 }
 
 impl Brain {
     /// Fills in an event form from what someone said or typed. `today` is
     /// their local date and time, such as "Saturday 2026-10-31 13:05";
-    /// `near` names where they are.
+    /// `near` names where they are; `tribes` are the names of their tribes,
+    /// one of which the model picks for the event when one fits.
     pub async fn draft_event(
         &self,
         said: &str,
         today: &str,
         near: Option<&str>,
+        tribes: &[String],
     ) -> Result<EventDraft, BrainError> {
         let mut question = format!("Today is {}.", clip(today, 60));
         if let Some(region) = near {
             question.push_str(&format!(" They are near {}.", clip(region, 120)));
         }
+
+        match tribes {
+            [] => question.push_str("\nThey belong to no tribe yet."),
+            names => question.push_str(&format!("\nTheir tribes: {}.", names.join("; "))),
+        }
+
         question.push_str(&format!(
             "\nWhat they said:\n\"\"\"\n{}\n\"\"\"",
             clip(said, 2000)
         ));
 
-        let raw: RawDraft = self.ask(draft_question(), question).await?;
-        Ok(tidy_draft(raw))
+        let raw: RawDraft = self.ask(draft_question(tribes), question).await?;
+        Ok(tidy_draft(raw, tribes))
     }
 
     /// Fills in a new tribe's form from what someone said or typed.
@@ -252,7 +397,7 @@ impl Brain {
         question.push_str(&format!("Instruction: {}", clip(instruction, 500)));
 
         let written: WrittenText = self.ask(writing_question(), question).await?;
-        Ok(clip(&written.text, 7000))
+        Ok(clip(&written.text, LONGEST_DESCRIPTION))
     }
 }
 
@@ -267,6 +412,14 @@ mod tests {
                 name: name.to_string(),
                 area: String::new(),
             },
+            note: String::new(),
+        }
+    }
+
+    fn noted(name: &str) -> RawPlace {
+        RawPlace {
+            name: name.to_string(),
+            area: String::new(),
             note: String::new(),
         }
     }
@@ -290,6 +443,7 @@ mod tests {
             stop(StopKind::Venue, "Rattlesnake Ledge"),
             stop(StopKind::Optional, " "),
             stop(StopKind::Venue, "Rattlesnake Lake"),
+            stop(StopKind::Stop, "coffee"),
         ];
 
         let names: Vec<String> = tidy_stops(raw)
@@ -300,6 +454,59 @@ mod tests {
         assert_eq!(
             names,
             vec!["Coffee".to_string(), "Rattlesnake Ledge".to_string()]
+        );
+    }
+
+    #[test]
+    fn each_field_becomes_its_kind_in_itinerary_order() {
+        let way = RawWayStop {
+            name: "Snoqualmie Falls".to_string(),
+            area: String::new(),
+            note: String::new(),
+            optional: true,
+        };
+        let stops = places_in_order(
+            vec![noted("Bellevue Transit Center"), noted("Kent Station")],
+            vec![way],
+            noted("Rattlesnake Ledge Trailhead"),
+            vec![noted("Twede's Cafe")],
+        );
+
+        let kinds: Vec<StopKind> = stops.iter().map(|stop| stop.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                StopKind::Pickup,
+                StopKind::Pickup,
+                StopKind::Optional,
+                StopKind::Venue,
+                StopKind::After
+            ]
+        );
+    }
+
+    #[test]
+    fn only_one_of_their_own_tribes_is_kept() {
+        let raw = RawDraft {
+            title: "Hike".to_string(),
+            tribe: "puget sound trail crew".to_string(),
+            date: String::new(),
+            time: String::new(),
+            meeting_point: PlaceGuess {
+                name: String::new(),
+                area: String::new(),
+            },
+            other_meeting_points: Vec::new(),
+            stops_on_the_way: Vec::new(),
+            venue: noted(""),
+            after: Vec::new(),
+            description: String::new(),
+        };
+        let tribes = vec!["Puget Sound Trail Crew".to_string()];
+
+        assert_eq!(
+            tidy_draft(raw, &tribes).tribe.as_deref(),
+            Some("Puget Sound Trail Crew")
         );
     }
 }

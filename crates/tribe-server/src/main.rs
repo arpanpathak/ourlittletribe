@@ -101,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
             base_url: base_url.clone(),
             model: config.llm_model.clone(),
             api_key: config.llm_key.clone(),
-            timeout: Duration::from_secs(120),
+            timeout: Duration::from_secs(180),
         })?)),
         None => None,
     };

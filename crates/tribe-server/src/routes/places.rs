@@ -9,7 +9,7 @@ use tribe_places::address::PlaceMatch;
 use super::bounded;
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ApiResult};
-use crate::place_search;
+use crate::place_search::{self, other_spelling};
 use crate::state::AppState;
 
 /// Plain search results, at most.
@@ -51,42 +51,6 @@ impl PlaceQuery {
 
 /// Two results closer than this, with the same name, are one place, km.
 const SAME_PLACE_KM: f64 = 0.3;
-
-/// Which way to swap "and" and "&".
-#[derive(Clone, Copy)]
-enum Swap {
-    /// "and" becomes "&".
-    AndToAmpersand,
-    /// "&" becomes "and".
-    AmpersandToAnd,
-}
-
-/// One word, swapped if it is the word being replaced.
-fn swap_word(word: &str, swap: Swap) -> &str {
-    match swap {
-        Swap::AndToAmpersand if word.eq_ignore_ascii_case("and") => "&",
-        Swap::AmpersandToAnd if word == "&" => "and",
-        Swap::AndToAmpersand | Swap::AmpersandToAnd => word,
-    }
-}
-
-/// The text with "and" written as "&", or the other way round, when it has
-/// either. Map names use both ("Green Lake Park & Ride"), and a geocoder
-/// needs every word to match.
-fn other_spelling(text: &str) -> Option<String> {
-    let words: Vec<&str> = text.split_whitespace().collect();
-    let has_and = words.iter().any(|word| word.eq_ignore_ascii_case("and"));
-    let has_ampersand = words.contains(&"&");
-
-    let swap = match (has_and, has_ampersand) {
-        (true, _) => Swap::AndToAmpersand,
-        (false, true) => Swap::AmpersandToAnd,
-        (false, false) => return None,
-    };
-
-    let swapped: Vec<&str> = words.iter().map(|word| swap_word(word, swap)).collect();
-    Some(swapped.join(" "))
-}
 
 /// Whether `place` is already in `kept`: the same name, a few hundred metres away at most.
 fn already_kept(kept: &[PlaceMatch], place: &PlaceMatch) -> bool {
@@ -167,23 +131,4 @@ pub async fn nearest(
         .ok_or(ApiError::Invalid("that point is not on the map"))?;
     let found = state.places.place_at(point).await?;
     Ok(Json(found))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn and_and_ampersand_swap() {
-        assert_eq!(
-            other_spelling("green lake park and ride").as_deref(),
-            Some("green lake park & ride")
-        );
-        assert_eq!(
-            other_spelling("Park & Ride Issaquah").as_deref(),
-            Some("Park and Ride Issaquah")
-        );
-        assert_eq!(other_spelling("rattlesnake ledge"), None);
-        assert_eq!(other_spelling("sandy point"), None);
-    }
 }

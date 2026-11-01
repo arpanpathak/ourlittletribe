@@ -103,18 +103,37 @@ impl Brain {
     }
 
     /// Asks `question` with `facts` as the person's message and parses the answer.
+    /// Sends one chat request, one at a time, and returns the answer's text.
+    async fn complete(&self, mut body: serde_json::Value) -> Result<String, BrainError> {
+        let Ok(_turn) = self.one_at_a_time.acquire().await else {
+            return Err(BrainError::Closed);
+        };
+        body["model"] = json!(self.model_name().await?);
+
+        let url = format!("{}/chat/completions", self.config.base_url);
+        let response = self
+            .authorize(self.http.post(url))
+            .json(&body)
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(BrainError::Status(response.status()));
+        }
+
+        let completion: ChatCompletion = response.json().await?;
+        let first = completion.choices.into_iter().next();
+        first
+            .and_then(|choice| choice.message.content)
+            .ok_or(BrainError::EmptyAnswer)
+    }
+
+    /// Asks `question` about `facts`; the answer must match the question's JSON schema.
     pub(crate) async fn ask<Answer: DeserializeOwned>(
         &self,
         question: Question,
         facts: String,
     ) -> Result<Answer, BrainError> {
-        let Ok(_turn) = self.one_at_a_time.acquire().await else {
-            return Err(BrainError::Closed);
-        };
-        let model = self.model_name().await?;
-
         let body = json!({
-            "model": model,
             "temperature": 0.3,
             "max_tokens": question.max_tokens,
             "chat_template_kwargs": { "enable_thinking": false },
@@ -128,25 +147,28 @@ impl Brain {
             ]
         });
 
-        let url = format!("{}/chat/completions", self.config.base_url);
-        let response = self
-            .authorize(self.http.post(url))
-            .json(&body)
-            .send()
-            .await?;
-        if !response.status().is_success() {
-            return Err(BrainError::Status(response.status()));
-        }
-
-        let completion: ChatCompletion = response.json().await?;
-        let Some(content) = completion
-            .choices
-            .into_iter()
-            .next()
-            .and_then(|choice| choice.message.content)
-        else {
-            return Err(BrainError::EmptyAnswer);
-        };
+        let content = self.complete(body).await?;
         Ok(serde_json::from_str(content.trim())?)
+    }
+
+    /// Has the model write free text, such as an SVG drawing, from `instructions` and `request`.
+    pub(crate) async fn write(
+        &self,
+        instructions: &str,
+        request: String,
+        max_tokens: u32,
+        temperature: f64,
+    ) -> Result<String, BrainError> {
+        let body = json!({
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "chat_template_kwargs": { "enable_thinking": false },
+            "messages": [
+                { "role": "system", "content": instructions },
+                { "role": "user", "content": request }
+            ]
+        });
+
+        self.complete(body).await
     }
 }

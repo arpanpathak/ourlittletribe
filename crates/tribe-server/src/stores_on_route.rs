@@ -241,6 +241,40 @@ struct FoundStores {
 }
 
 /// The stores in the area, from OpenStreetMap or, when it is busy, from memory.
+/// Most shop kinds searched one by one through Nominatim, which allows one request a second.
+const MOST_NOMINATIM_KINDS: usize = 4;
+
+/// Shops of each wanted kind in the area, from Nominatim, saved to the shared
+/// cache. Used when Overpass does not answer.
+async fn search_nominatim(
+    state: &AppState,
+    area: &SearchArea,
+    tags: &[String],
+) -> ApiResult<Vec<Store>> {
+    let bounds = area.bounds();
+
+    let mut found = Vec::new();
+    for kind in tags.iter().take(MOST_NOMINATIM_KINDS) {
+        match state.places.shops_by_kind(bounds, kind).await {
+            Ok(shops) => found.extend(shops),
+            Err(error) => tracing::warn!(%error, kind = %kind, "Nominatim shop search failed"),
+        }
+    }
+
+    let rows: Vec<OsmStore> = found.into_iter().map(as_osm_store).collect();
+    let saved = state
+        .db
+        .call(move |connection| stores::upsert(connection, &rows))
+        .await?;
+
+    Ok(saved
+        .into_iter()
+        .filter(|store| area.contains(store))
+        .collect())
+}
+
+/// Shops for `tags` in the area: from Overpass, else from Nominatim, else
+/// from shops earlier searches found, with a note saying so.
 async fn find_stores(
     state: &AppState,
     area: &SearchArea,
@@ -255,8 +289,18 @@ async fn find_stores(
         }
         Err(error) => error,
     };
+    tracing::warn!(%error, "Overpass store search failed; asking Nominatim");
 
-    tracing::warn!(%error, "store search failed; using remembered stores");
+    let from_nominatim = search_nominatim(state, area, &tags)
+        .await
+        .unwrap_or_default();
+    if !from_nominatim.is_empty() {
+        return Ok(FoundStores {
+            stores: from_nominatim,
+            notice: None,
+        });
+    }
+
     let stores = remembered_stores(state, area, tags).await?;
     Ok(FoundStores {
         stores,

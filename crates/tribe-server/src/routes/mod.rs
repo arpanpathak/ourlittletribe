@@ -10,7 +10,7 @@
 //! | items | `POST /api/events/{id}/items`, `POST /api/events/{id}/item-plans`, `GET /api/events/{id}/item-suggestions`, `PUT`/`DELETE /api/items/{id}/marks/me`, `DELETE /api/items/{id}` |
 //! | trip | `GET /api/events/{id}/trip`, `GET /api/events/{id}/briefing` |
 //! | places | `GET /api/places`, `GET /api/places/best-matches`, `GET /api/places/nearest` |
-//! | drafts | `POST /api/event-drafts`, `/api/tribe-drafts`, `/api/description-drafts`, `/api/cover-designs` |
+//! | drafts | `POST /api/event-drafts`, `/api/tribe-drafts`, `/api/description-drafts`, `/api/cover-scenes`, `/api/cover-drawings` |
 //! | feed | `GET /api/feed`, `GET /api/search`, `GET /api/search/related` |
 
 mod access;
@@ -158,7 +158,8 @@ fn discovery_routes() -> Router<AppState> {
         .route("/event-drafts", post(drafts::event_draft))
         .route("/description-drafts", post(drafts::description_draft))
         .route("/tribe-drafts", post(drafts::tribe_draft))
-        .route("/cover-designs", post(drafts::cover_design))
+        .route("/cover-scenes", post(drafts::cover_scene))
+        .route("/cover-drawings", post(drafts::cover_drawing))
 }
 
 /// Every route: the API under `/api`, pictures under `/media`, the health check, and the web app.

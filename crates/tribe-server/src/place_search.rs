@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use tokio::task::JoinSet;
 use tribe_brain::places::PlaceGuess;
-use tribe_core::geo::LatLng;
+use tribe_core::geo::{LatLng, haversine_km};
 use tribe_places::Places;
 use tribe_places::address::PlaceMatch;
 use tribe_places::photon::Area;
@@ -103,6 +103,42 @@ fn push_unique(places: &mut Vec<PlaceMatch>, place: PlaceMatch) {
 
 /// The region around `near`, such as "Seattle, Washington, United States",
 /// to tell the model where the person is. Cached per rough spot for a day.
+/// Which way to swap "and" and "&".
+#[derive(Clone, Copy)]
+enum Swap {
+    /// "and" becomes "&".
+    AndToAmpersand,
+    /// "&" becomes "and".
+    AmpersandToAnd,
+}
+
+/// One word, swapped if it is the word being replaced.
+fn swap_word(word: &str, swap: Swap) -> &str {
+    match swap {
+        Swap::AndToAmpersand if word.eq_ignore_ascii_case("and") => "&",
+        Swap::AmpersandToAnd if word == "&" => "and",
+        Swap::AndToAmpersand | Swap::AmpersandToAnd => word,
+    }
+}
+
+/// The text with "and" written as "&", or the other way round, when it has
+/// either. Map names use both ("Green Lake Park & Ride"), and a geocoder
+/// needs every word to match.
+pub(crate) fn other_spelling(text: &str) -> Option<String> {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let has_and = words.iter().any(|word| word.eq_ignore_ascii_case("and"));
+    let has_ampersand = words.contains(&"&");
+
+    let swap = match (has_and, has_ampersand) {
+        (true, _) => Swap::AndToAmpersand,
+        (false, true) => Swap::AmpersandToAnd,
+        (false, false) => return None,
+    };
+
+    let swapped: Vec<&str> = words.iter().map(|word| swap_word(word, swap)).collect();
+    Some(swapped.join(" "))
+}
+
 pub async fn region_name(state: &AppState, near: LatLng) -> Option<String> {
     let spot = RoughSpot::of(near);
     if let Some(name) = state.caches.regions.get(&spot) {
@@ -235,6 +271,10 @@ async fn look_up(
 }
 
 /// The best real place for a guess, if the map has one; used to place what the model drafted.
+/// Farthest a drafted place may be from the person, km. A name alone can
+/// match a town of the same name on another continent ("Renton" in Scotland).
+const FARTHEST_GUESS_KM: f64 = 250.0;
+
 pub async fn resolve(
     state: &AppState,
     guess: PlaceGuess,
@@ -243,11 +283,59 @@ pub async fn resolve(
     if guess.name.trim().is_empty() {
         return None;
     }
+
     let typed = format!("{} {}", guess.name, guess.area);
-    look_up(state, &guess, &typed, near)
-        .await
-        .into_iter()
-        .next()
+    let mut candidates = look_up(state, &guess, &typed, near).await;
+
+    // The model's area can be wrong ("Sammamish" for Rattlesnake Ledge), so
+    // the name alone is searched near the person too, in both spellings.
+    let name = guess.name.trim().to_string();
+    let texts = [typed.clone(), name];
+    let spellings: Vec<String> = texts
+        .iter()
+        .flat_map(|text| std::iter::once(text.clone()).chain(other_spelling(text)))
+        .collect();
+    for spelling in spellings {
+        let plain = state
+            .places
+            .search_places(&spelling, near, 5)
+            .await
+            .unwrap_or_default();
+        for place in plain {
+            push_unique(&mut candidates, place);
+        }
+    }
+    if let Some(point) = near {
+        candidates.retain(|place| haversine_km(point, place.location) <= FARTHEST_GUESS_KM);
+    }
+    candidates.truncate(MOST_CANDIDATES);
+
+    choose_one(state, &typed, candidates).await
+}
+
+/// The candidate the model says `typed` means. When the model says none of
+/// them is right, nothing: the form then asks the person to pick the place,
+/// which beats a pin in the wrong town. Without a model, or when it fails,
+/// the geocoder's first answer.
+async fn choose_one(
+    state: &AppState,
+    typed: &str,
+    candidates: Vec<PlaceMatch>,
+) -> Option<PlaceMatch> {
+    let (Some(brain), [_, _, ..]) = (state.brain.clone(), candidates.as_slice()) else {
+        return candidates.into_iter().next();
+    };
+
+    let lines: Vec<String> = candidates.iter().map(candidate_line).collect();
+    let chosen = tokio::time::timeout(MODEL_WAIT, brain.choose_places(typed, None, &lines)).await;
+
+    match chosen {
+        Ok(Ok(indexes)) => indexes
+            .into_iter()
+            .next()
+            .and_then(|index| candidates.into_iter().nth(index)),
+        _ => candidates.into_iter().next(),
+    }
 }
 
 /// Looks up the guesses in order, most likely first, until enough places are
@@ -369,6 +457,20 @@ pub async fn best_matches(state: &AppState, typed: &str, near: Option<LatLng>) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn and_and_ampersand_swap() {
+        assert_eq!(
+            other_spelling("green lake park and ride").as_deref(),
+            Some("green lake park & ride")
+        );
+        assert_eq!(
+            other_spelling("Park & Ride Issaquah").as_deref(),
+            Some("Park and Ride Issaquah")
+        );
+        assert_eq!(other_spelling("rattlesnake ledge"), None);
+        assert_eq!(other_spelling("sandy point"), None);
+    }
 
     #[test]
     fn distinctive_words_skip_short_words_and_the_area() {

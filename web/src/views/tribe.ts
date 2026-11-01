@@ -1,10 +1,10 @@
 // One tribe: its cover, what it's planning, what it did, and who's in it.
 
-import { drafts, tribes } from "../api/client.js";
+import { tribes } from "../api/client.js";
 import type { Member, TribeDetail } from "../api/types.js";
 import { eventCard, personTile } from "../components/cards.js";
 import { choosePictures, pictureProblem } from "../components/picture_picker.js";
-import { coverFile } from "../cover_art.js";
+import { openCoverStudio } from "../components/cover_studio.js";
 import { h, mount } from "../dom.js";
 import { count, relativeTime } from "../format.js";
 import { icon } from "../icons.js";
@@ -97,12 +97,13 @@ class TribePage {
 
   /* ── The hero ───────────────────────────────────── */
 
-  /** Has the model choose a scene for the tribe, draws it, and makes it the cover. */
+  /** Opens the cover studio and makes its drawing the tribe's cover. */
   private async drawCover(): Promise<void> {
     const { name, description, home_area: place } = this.detail.tribe;
-    const design = await drafts.cover({ subject: "tribe", title: name, description, place, when: "" });
+    const file = await openCoverStudio({ subject: "tribe", title: name, description, place, when: "" });
+    if (!file) return;
 
-    await tribes.setCover(this.id, await coverFile(design, "tribe-cover"));
+    await tribes.setCover(this.id, file);
     toast("New cover drawn", "success");
     await this.refresh();
   }

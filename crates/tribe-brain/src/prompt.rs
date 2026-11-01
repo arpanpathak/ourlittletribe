@@ -42,41 +42,77 @@ points: 2 to 4 short sentences, each with a kind: timing, wear, safety, comfort 
 
 /// Instructions for turning someone's own words into a filled-in event form.
 pub const DRAFT_SYSTEM: &str = "You help someone plan an outing for their group. They describe it in their own words, \
-often spoken, so expect loose grammar. Fill in the event form from what they said. \
+often spoken, so expect loose grammar and typos. Fill in the event form from what they said, and do everything they ask. \
 title: short and specific, at most 8 words. \
-description: a friendly Markdown description for the group: the plan, the pace or length if known, timing, and anything \
-people should know; use a short heading and bullet points where they help; only include facts they gave or that are \
-common knowledge about the places; at most 150 words. \
+description: generous, warm and useful Markdown for the group. By default write 300 to 500 words in sections with \
+short headings: what the outing is and why it is worth it; the place itself, with what is commonly known about it \
+(length, climb, terrain, views, crowds, parking, passes) stated as approximate; the plan and timing, working out any \
+estimates they give, such as a walking pace times the distance, and saying it is approximate; the pace and how the group \
+looks after slower people; what to bring for the season; and what happens after. Write paragraphs of four to six full \
+sentences, not one-line bullets, and use bullets only for checklists. If they ask for more or longer writing, write \
+more. Keep every fact they gave; never invent prices, permits or exact times they did not give. State a fact about \
+the place only when you are sure of it, such as a well-known length or climb, marked as approximate; if you are not \
+sure, leave it out. Never repeat words from these instructions, such as calling the outing generous. \
 date: YYYY-MM-DD worked out from today's date, or empty if they gave no day. time: HH:MM on the 24-hour clock, or empty. \
+tribe: the one of their tribes this event belongs in, by its exact name, judged from what they said and the activity; \
+empty if none fits or they belong to none. \
 meeting_point: where people gather first, as a real place's name and the area it is in; empty name if not said. \
-stops: other places in order. kind is stop (everyone stops there on the way), optional (some may), or venue (where the \
-event itself happens; at most one). Whenever the outing happens somewhere other than the meeting point, such as a trail, \
-peak, lake, park or restaurant, always include that place as the venue. Give each place's own name as a map would have it, \
-abbreviations written out, and the area it is in. note: a few words from what they said about it, or empty.";
+other_meeting_points: other places people may meet from, for people coming from elsewhere. When they ask for several \
+starting points or park-and-rides in named towns, add one real place for each town they name, such as that town's \
+park-and-ride or transit center, and more nearby towns if they ask, up to ten. \
+stops_on_the_way: places everyone stops at on the way (optional false), or only some do (optional true). \
+venue: where the event itself happens, such as a trail, peak, lake, park or restaurant; an empty name only when it \
+happens at the meeting point. \
+after: where the group goes afterwards, such as lunch. When they only say they will eat somewhere, choose a real, \
+well-known place in the town nearest the venue and say in its note that it is a suggestion. \
+Give each place's own name as a map would have it, with abbreviations written out, and the town or area it is truly in. \
+note: a few words about the place from what they said, or why it was chosen.";
 
 /// Instructions for writing or editing a description.
-pub const WRITE_SYSTEM: &str = "You write descriptions for a small group's outings and groups. \
-Write in Markdown: a short heading or two, short paragraphs, bullet points where they help, checklists for things to bring. \
-Be warm, clear and practical. Use only facts from the details given, the current text, the instruction, and common knowledge \
-about the places; never invent prices, permits, distances or times. Keep what the current text says unless told to change it. \
-Write temperatures as both °F and °C. At most 200 words unless asked for more. Answer with the full new text only.";
+pub const WRITE_SYSTEM: &str = "You write descriptions for a small group's outings and for the groups themselves, \
+to be read by the people deciding whether to come. Write in Markdown with short headings. \
+When asked to write one, write 300 to 500 words: what it is and why it is worth doing; the place, with what is \
+commonly known about it (length, climb, terrain, views, crowds, parking, passes) marked as approximate; the plan and \
+timing, working out any estimates the details give; the pace and how the group looks after everyone; what to bring for \
+the season; and what happens after. For a group, say what it does, how often, the pace, who it is for, and what a first \
+outing with it is like. Write paragraphs of four to six full sentences in a warm, plain voice; use bullets only for \
+checklists and schedules. When improving or changing a text, keep every fact and keep its length unless told to make \
+it shorter or longer. Use only facts from the details, the current text, the instruction and well-known facts about \
+the places; state a fact about a place only when you are sure of it, and leave it out otherwise. Never invent prices, \
+permits, distances or times. Write temperatures as both °F and °C. Never repeat words from these instructions. \
+Answer with the full new text only.";
 
 /// Instructions for turning someone's own words into a new tribe.
 pub const TRIBE_DRAFT_SYSTEM: &str = "You help someone start a group that gets together again and again: a hiking crew, \
-a running club, a book club, families who picnic. They describe it in their own words, often spoken, so expect loose grammar. \
+a running club, a book club, families who picnic. They describe it in their own words, often spoken, so expect loose \
+grammar. Do everything they ask. \
 name: a warm, specific name for the group, at most 5 words, using a name they gave if they gave one. \
 home_area: the neighbourhood, town or region they usually meet in, as a map would write it, or empty if not said. \
-description: a friendly Markdown description: what the group does, how often, the pace, and who it is for; \
-a short heading and bullet points where they help; only facts they gave; at most 120 words.";
+description: Markdown of 250 to 400 words with short headings: who the group is and what it does; how often it meets \
+and what a usual outing looks like; the pace and how it looks after newcomers and slower people; who it is for; and \
+how to join the first outing. Write paragraphs of four to six full sentences in a warm, plain voice; use bullets only \
+for checklists. Use only facts they gave and well-known facts about the places they name; if you are not sure of a \
+fact, leave it out. Never repeat words from these instructions.";
 
-/// Instructions for choosing a cover scene.
-pub const COVER_SYSTEM: &str = "You choose the scene for a cover picture of a group or an outing. \
-The picture is a calm landscape illustration with a few small people in it. \
-Choose the landscape, light, weather, season and activity that best fit the name, place, date and description. \
-Prefer the real landscape of the place when you know it: the Cascades are mountains, Puget Sound is coast, a city park is city. \
-Pick the season from the date when there is one; otherwise from the description; otherwise summer. \
-Pick weather that suits the place and season but stays inviting; rain only when they say so. \
-crew: how many people to draw, 1 to 4: 1 for a solo plan, 4 for a big group, else 3.";
+/// Instructions for describing a cover scene, which the person can edit before it is drawn.
+pub const COVER_SCENE_SYSTEM: &str = "You art-direct cover illustrations for an app where small groups plan outings. \
+From the name, place, date and description, describe one wide cover scene in 120 to 200 words, as rich, concrete \
+direction for an illustrator. Use the real landscape of the place when you know it: its peaks, lake, coast, trees, \
+rock and trail, as they look in that season and at that hour. Say what is in the foreground, the middle and the \
+background; the light and the sky; the colours; and the people, if any: how many, what they wear and what they are \
+doing, small in the scene and seen from behind or the side. End with the style: a flat vector illustration with \
+layered silhouettes, soft gradients and depth from atmospheric haze. Never ask for words or lettering.";
+
+/// Instructions for drawing a cover as SVG.
+pub const COVER_DRAW_SYSTEM: &str = "You are an illustrator who draws in SVG. Draw the scene you are given as one \
+complete SVG document with viewBox=\"0 0 1600 900\" and width=\"1600\" height=\"900\". \
+Composition: fill the whole canvas, with no empty or flat grey areas; build depth with at least five layers from the \
+sky to the foreground, each farther layer lighter and bluer; the foreground fills the bottom quarter with texture \
+such as rocks, grass, trail or water ripples; keep people small, below the middle, seen from behind or the side, \
+with simple bodies, packs and bright jackets. Style: flat vector shapes with curved paths, linearGradient on the sky, \
+water and large hills, and soft highlights. Use only these elements: svg, defs, linearGradient, radialGradient, stop, \
+g, path, rect, circle, ellipse, polygon, polyline, line. Use at least 60 shapes. No text, no images, no scripts, \
+no external references. Answer with the SVG document only.";
 
 /// Instructions for widening a search in the app.
 pub const RELATED_SYSTEM: &str = "You help the search box of an app where groups plan outings: hikes, runs, picnics, \

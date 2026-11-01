@@ -9,15 +9,15 @@ import { places } from "../api/client.js";
 import type { DraftPlace, DraftStop, LatLng, NewStop, Place, Stop, StopKind } from "../api/types.js";
 import { h, mount } from "../dom.js";
 import { icon, type IconName } from "../icons.js";
-import { PLACE_KINDS, pinLabels, type PlaceKind } from "../itinerary.js";
+import { PLACE_KINDS, inStageOrder, pinLabels, stage, type PlaceKind } from "../itinerary.js";
 import { DEFAULT_CENTER, createMap, currentPosition, fitTo, itineraryLine, placePin } from "../map.js";
 import { PlaceSearch, type PickedPlace } from "./place_search.js";
 
 /** Most places besides the meeting point. */
-const MOST_STOPS = 12;
+const MOST_STOPS = 16;
 
 /** The kinds a row other than the meeting point can be. */
-const STOP_KINDS: StopKind[] = ["stop", "optional", "venue"];
+const STOP_KINDS: StopKind[] = ["pickup", "stop", "optional", "venue", "after"];
 
 /** One row of the editor. */
 interface Row {
@@ -123,6 +123,7 @@ export class LocationsEditor {
   /** Replaces every place with a draft from the plan assistant. */
   set(meetingPoint: DraftPlace | null, stops: DraftStop[]): void {
     this.rows = [rowFromDraft("meet", meetingPoint), ...stops.map((stop) => rowFromDraft(stop.kind, stop, stop.note))];
+    this.sortRows();
     this.searches.clear();
     this.activeId = (this.rows.find((row) => !row.place) ?? this.activeRow()).id;
 
@@ -159,12 +160,21 @@ export class LocationsEditor {
 
   /* ── Order and lookups ──────────────────────────── */
 
-  /** The rows in itinerary order: the meeting point, the stops, then the venue. */
+  /** The rows in itinerary order: the meeting point, then the others by stage. */
   private ordered(): Row[] {
     const [meetRow, ...others] = this.rows;
-    const between = others.filter((row) => row.kind !== "venue");
-    const venue = others.filter((row) => row.kind === "venue");
-    return meetRow ? [meetRow, ...between, ...venue] : [];
+    return meetRow ? [meetRow, ...inStageOrder(others)] : [];
+  }
+
+  /** Keeps `rows` in itinerary order after a place is added or changes kind. */
+  private sortRows(): void {
+    this.rows = this.ordered();
+  }
+
+  /** Whether the row at `index` exists and is in the same stage as `row`, so they may swap. */
+  private sameStageAt(index: number, row: Row): boolean {
+    const other = this.rows[index];
+    return index >= 1 && other !== undefined && stage(other.kind) === stage(row.kind);
   }
 
   private labels(): string[] {
@@ -227,12 +237,11 @@ export class LocationsEditor {
     if (row.place && this.map) this.map.panTo([row.place.lat, row.place.lng]);
   }
 
-  /** Moves a stop up (-1) or down (1), never past the meeting point or the venue. */
+  /** Moves a place up (-1) or down (1) among places of its own stage. */
   private move(row: Row, step: -1 | 1): void {
     const index = this.rows.indexOf(row);
     const target = index + step;
-    const blocked = target < 1 || target >= this.rows.length || this.rows[target]?.kind === "venue";
-    if (blocked) return;
+    if (!this.sameStageAt(target, row)) return;
 
     this.rows.splice(index, 1);
     this.rows.splice(target, 0, row);
@@ -254,9 +263,8 @@ export class LocationsEditor {
     if (this.rows.length > MOST_STOPS) return;
 
     const row = newRow(kind);
-    const venueIndex = this.rows.findIndex((existing) => existing.kind === "venue");
-    if (kind === "venue" || venueIndex === -1) this.rows.push(row);
-    else this.rows.splice(venueIndex, 0, row);
+    this.rows.push(row);
+    this.sortRows();
 
     this.activeId = row.id;
     this.drawList();
@@ -266,9 +274,7 @@ export class LocationsEditor {
 
   private changeKind(row: Row, kind: StopKind): void {
     row.kind = kind;
-    if (kind === "venue") {
-      this.rows = [...this.rows.filter((other) => other !== row), row];
-    }
+    this.sortRows();
 
     this.drawList();
     this.drawPins();
@@ -320,8 +326,8 @@ export class LocationsEditor {
 
     const index = this.rows.indexOf(row);
     const movable = row.kind !== "venue";
-    const atTop = index <= 1;
-    const atBottom = index >= this.rows.length - 1 || this.rows[index + 1]?.kind === "venue";
+    const atTop = !this.sameStageAt(index - 1, row);
+    const atBottom = !this.sameStageAt(index + 1, row);
 
     return h("div", { class: "loc-tools" },
       movable ? this.toolButton("chevronUp", "Move up", () => this.move(row, -1), atTop) : null,
@@ -376,9 +382,11 @@ export class LocationsEditor {
 
     mount(this.addBar,
       h("span", { class: "small muted" }, "Add:"),
+      addButton("pickup", full),
       addButton("stop", full),
       addButton("optional", full),
-      addButton("venue", full || hasVenue, hasVenue ? "This event already has a venue" : null));
+      addButton("venue", full || hasVenue, hasVenue ? "This event already has a venue" : null),
+      addButton("after", full));
   }
 
   private drawPin(row: Row, place: PickedPlace, label: string): void {
@@ -404,7 +412,7 @@ export class LocationsEditor {
     const placed: LatLng[] = [];
     this.ordered().forEach((row, index) => {
       if (!row.place) return;
-      placed.push(row.place);
+      if (row.kind !== "pickup") placed.push(row.place);
       this.drawPin(row, row.place, labels[index] ?? "");
     });
 

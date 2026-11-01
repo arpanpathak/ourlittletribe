@@ -31,7 +31,7 @@ const STILL_UPCOMING_SECONDS: i64 = 6 * 3600;
 const START_GRACE_SECONDS: i64 = 3600;
 
 /// Places besides the meeting point, at most.
-const MOST_STOPS: usize = 12;
+const MOST_STOPS: usize = 16;
 
 /// Pairings shown under each item, at most.
 const PAIRINGS_PER_ITEM: usize = 3;
@@ -99,18 +99,20 @@ fn checked_place(place: Place, problem: &'static str) -> ApiResult<Place> {
 
 fn checked_stops(stops: Vec<NewStop>) -> ApiResult<Vec<NewStop>> {
     if stops.len() > MOST_STOPS {
-        return Err(ApiError::Invalid("an event can have at most 12 stops"));
+        return Err(ApiError::Invalid(
+            "an event can have at most 16 places besides the meeting point",
+        ));
     }
-    if stops
+
+    let venues = stops
         .iter()
         .filter(|stop| stop.kind == StopKind::Venue)
-        .count()
-        > 1
-    {
+        .count();
+    if venues > 1 {
         return Err(ApiError::Invalid("an event has one venue at most"));
     }
 
-    stops
+    let mut checked = stops
         .into_iter()
         .map(|stop| {
             Ok(NewStop {
@@ -119,7 +121,10 @@ fn checked_stops(stops: Vec<NewStop>) -> ApiResult<Vec<NewStop>> {
                 note: bounded(&stop.note, 200, "a stop's note is too long")?,
             })
         })
-        .collect()
+        .collect::<ApiResult<Vec<NewStop>>>()?;
+
+    checked.sort_by_key(|stop| stop.kind.stage());
+    Ok(checked)
 }
 
 impl EventFields {

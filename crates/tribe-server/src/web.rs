@@ -10,7 +10,7 @@ use axum::response::{IntoResponse, Response};
 include!(concat!(env!("OUT_DIR"), "/web_files.rs"));
 
 const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
-img-src 'self' data: blob: https://*.tile.opentopomap.org https://tile.openstreetmap.org https://tile.waymarkedtrails.org; \
+img-src 'self' data: blob: https://*.tile.opentopomap.org https://tile.openstreetmap.org https://tile.waymarkedtrails.org https://server.arcgisonline.com; \
 connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
 fn content_type(path: &str) -> &'static str {

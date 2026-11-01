@@ -6,11 +6,14 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
-use tribe_brain::covers::{CoverDesign, CoverFor, CoverSubject};
+use tribe_brain::covers::{CoverFor, CoverSubject};
 use tribe_brain::drafting::TribeDraft;
 use tribe_brain::places::PlaceGuess;
 use tribe_core::geo::LatLng;
 use tribe_core::itinerary::StopKind;
+use tribe_db::ids::TribeId;
+use tribe_db::tribes::{self, Tribe};
+use tribe_media::svg::clean_svg;
 use tribe_places::address::PlaceMatch;
 
 use super::{bounded, model};
@@ -55,6 +58,8 @@ pub struct DraftStop {
 /// The form as the model filled it in.
 #[derive(Serialize)]
 pub struct EventDraft {
+    /// The person's tribe the event belongs in, when the model chose one.
+    tribe_id: Option<TribeId>,
     /// Title.
     title: String,
     /// A Markdown description.
@@ -100,7 +105,7 @@ async fn resolve_all(
 /// is saved; the page puts the draft in the form for the person to check.
 pub async fn event_draft(
     State(state): State<AppState>,
-    CurrentUser(_user): CurrentUser,
+    CurrentUser(user): CurrentUser,
     Json(request): Json<EventDraftRequest>,
 ) -> ApiResult<(StatusCode, Json<EventDraft>)> {
     let brain = model(&state)?;
@@ -121,15 +126,41 @@ pub async fn event_draft(
         Some(point) => place_search::region_name(&state, point).await,
         None => None,
     };
-    let draft = brain.draft_event(&text, &today, region.as_deref()).await?;
+    let viewer_id = user.id.clone();
+    let all_tribes = state
+        .db
+        .call(move |connection| tribes::list(connection, &viewer_id))
+        .await?;
+    let my_tribes: Vec<Tribe> = all_tribes
+        .into_iter()
+        .filter(|tribe| tribe.is_member)
+        .collect();
+    let tribe_names: Vec<String> = my_tribes.iter().map(|tribe| tribe.name.clone()).collect();
 
-    let mut guesses: Vec<PlaceGuess> = draft.meeting_point.iter().cloned().collect();
-    guesses.extend(draft.stops.iter().map(|stop| stop.place.clone()));
-    let mut found = resolve_all(&state, guesses, near).await.into_iter();
+    let draft = brain
+        .draft_event(&text, &today, region.as_deref(), &tribe_names)
+        .await?;
+    let tribe_id = draft
+        .tribe
+        .as_ref()
+        .and_then(|name| my_tribes.iter().find(|tribe| &tribe.name == name))
+        .map(|tribe| tribe.id.clone());
+
+    // The meeting point is found first. Its position then stands for where
+    // the group is, so a stop's name cannot match a town of the same name
+    // far away, even when the browser did not share the person's location.
+    let meeting_place = match draft.meeting_point.clone() {
+        Some(guess) => place_search::resolve(&state, guess, near).await,
+        None => None,
+    };
+    let around = near.or(meeting_place.as_ref().map(|place| place.location));
+
+    let guesses: Vec<PlaceGuess> = draft.stops.iter().map(|stop| stop.place.clone()).collect();
+    let mut found = resolve_all(&state, guesses, around).await.into_iter();
 
     let meeting_point = draft.meeting_point.map(|guess| DraftPlace {
         query: query_of(&guess),
-        place: found.next().flatten(),
+        place: meeting_place,
     });
     let stops = draft
         .stops
@@ -145,6 +176,7 @@ pub async fn event_draft(
         .collect();
 
     let filled = EventDraft {
+        tribe_id,
         title: draft.title,
         description: draft.description,
         date: draft.date,
@@ -231,9 +263,9 @@ pub async fn tribe_draft(
     Ok((StatusCode::CREATED, Json(draft)))
 }
 
-/// Body of `POST /api/cover-designs`.
+/// Body of `POST /api/cover-scenes`.
 #[derive(Deserialize)]
-pub struct CoverDesignRequest {
+pub struct CoverSceneRequest {
     /// A tribe or an event.
     subject: CoverFor,
     /// Its name or title, at most 120 characters.
@@ -249,23 +281,31 @@ pub struct CoverDesignRequest {
     when: String,
 }
 
+/// A scene for a cover, in words, for the person to read and change.
+#[derive(Serialize)]
+pub struct CoverScene {
+    /// The description of the scene.
+    scene: String,
+}
+
 /// Some text, or `None` when it is blank.
 fn given(text: &str) -> Option<&str> {
     Some(text).filter(|text| !text.is_empty())
 }
 
-/// `POST /api/cover-designs`: has the model choose a cover scene. The page
-/// draws the scene and uploads the picture as the cover.
-pub async fn cover_design(
+/// `POST /api/cover-scenes`: has the model describe a cover scene for a
+/// tribe or event. The page shows it to edit, then asks for a drawing.
+pub async fn cover_scene(
     State(state): State<AppState>,
     CurrentUser(_user): CurrentUser,
-    Json(request): Json<CoverDesignRequest>,
-) -> ApiResult<(StatusCode, Json<CoverDesign>)> {
+    Json(request): Json<CoverSceneRequest>,
+) -> ApiResult<(StatusCode, Json<CoverScene>)> {
     let brain = model(&state)?;
     let title = bounded(&request.title, 120, "the name is too long")?;
     if title.is_empty() {
         return Err(ApiError::Invalid("give it a name first"));
     }
+
     let description = bounded(&request.description, 8000, "the description is too long")?;
     let place = bounded(&request.place, 160, "the place is too long")?;
     let when = bounded(&request.when, 60, "the date is too long")?;
@@ -277,6 +317,48 @@ pub async fn cover_design(
         place: given(&place),
         when: given(&when),
     };
-    let design = brain.design_cover(&subject).await?;
-    Ok((StatusCode::CREATED, Json(design)))
+    let scene = brain.describe_cover(&subject).await?;
+    Ok((StatusCode::CREATED, Json(CoverScene { scene })))
+}
+
+/// Body of `POST /api/cover-drawings`.
+#[derive(Deserialize)]
+pub struct CoverDrawingRequest {
+    /// The scene to draw, 20 to 2,500 characters.
+    scene: String,
+}
+
+/// A cover drawing.
+#[derive(Serialize)]
+pub struct CoverDrawing {
+    /// One SVG document, cleaned: plain drawing elements only.
+    svg: String,
+}
+
+/// `POST /api/cover-drawings`: has the model draw a scene as SVG. Takes
+/// about a minute. The SVG is cleaned before it is sent; the page turns it
+/// into a picture and uploads that like any other.
+pub async fn cover_drawing(
+    State(state): State<AppState>,
+    CurrentUser(_user): CurrentUser,
+    Json(request): Json<CoverDrawingRequest>,
+) -> ApiResult<(StatusCode, Json<CoverDrawing>)> {
+    let brain = model(&state)?;
+    let scene = bounded(
+        &request.scene,
+        2500,
+        "the scene is too long; keep it under 2,500 characters",
+    )?;
+    if scene.chars().count() < 20 {
+        return Err(ApiError::Invalid(
+            "describe the scene in a sentence or more",
+        ));
+    }
+
+    let drawn = brain.draw_cover(&scene).await?;
+    let svg = clean_svg(&drawn).map_err(|error| {
+        tracing::warn!(%error, "the model's drawing was not usable");
+        ApiError::Upstream("the model's drawing could not be used; try again".to_string())
+    })?;
+    Ok((StatusCode::CREATED, Json(CoverDrawing { svg })))
 }

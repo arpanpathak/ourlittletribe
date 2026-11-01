@@ -204,6 +204,12 @@ class EventForm {
   fill(draft: EventDraft): string[] {
     const filled: string[] = [];
 
+    const tribeOffered = [...this.tribeSelect.options].some((option) => option.value === draft.tribe_id);
+    if (!this.event && draft.tribe_id && tribeOffered) {
+      this.tribeSelect.value = draft.tribe_id;
+      filled.push("tribe");
+    }
+
     if (draft.title) {
       this.title.value = draft.title;
       this.titleField.setError(null);

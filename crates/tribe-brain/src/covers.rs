@@ -1,120 +1,13 @@
-//! Cover pictures. The model reads what a tribe or event is about and chooses
-//! a scene: the land, the light, the weather, the season, what people are doing
-//! and how many of them. The page draws that scene in the app's own style, so
-//! a cover costs one short answer instead of an image model.
+//! Cover pictures, drawn by the model. First it writes a rich description of
+//! a scene for the tribe or event, which the person can read and change.
+//! Then it draws that description as one SVG document. Nothing is drawn
+//! from a template: every shape comes from the model.
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 
 use crate::client::{Brain, Question};
 use crate::{BrainError, clip, prompt};
-
-/// The land in the picture.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Landscape {
-    /// Snowy peaks behind forest.
-    Mountains,
-    /// Rolling green hills.
-    Hills,
-    /// Deep woods.
-    Forest,
-    /// A lake with hills around it.
-    Lake,
-    /// A shore with the sea behind.
-    Coast,
-    /// Dunes and mesas.
-    Desert,
-    /// A park with a skyline behind.
-    City,
-    /// Open grass and flowers.
-    Meadow,
-}
-
-/// The time of day, which sets the sky's colours.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Light {
-    /// Pink and pale gold, sun low on the left.
-    Dawn,
-    /// Blue sky, sun high.
-    Day,
-    /// Warm orange, sun low on the right.
-    GoldenHour,
-    /// Purple and rose after sunset.
-    Dusk,
-    /// Stars and the moon.
-    Night,
-}
-
-/// What the sky is doing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Weather {
-    /// No clouds.
-    Clear,
-    /// A few drifting clouds.
-    Clouds,
-    /// Low mist between the hills.
-    Mist,
-    /// Rain falling.
-    Rain,
-    /// Snow falling, and snow on the ground.
-    Snow,
-}
-
-/// The season, which colours the trees and grass.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Season {
-    /// Fresh green, blossom.
-    Spring,
-    /// Deep green.
-    Summer,
-    /// Orange and gold.
-    Autumn,
-    /// Bare and white.
-    Winter,
-}
-
-/// What the people in the picture are doing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Activity {
-    /// Walking a trail with packs.
-    Hiking,
-    /// Running.
-    Running,
-    /// Riding bikes.
-    Cycling,
-    /// Sitting on a blanket with a basket.
-    Picnic,
-    /// A tent and a campfire.
-    Camping,
-    /// In a canoe on the water.
-    Paddling,
-    /// On skis.
-    Skiing,
-    /// Standing together, waving.
-    Gathering,
-}
-
-/// The scene for a cover, as the model chose it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CoverDesign {
-    /// The land.
-    pub landscape: Landscape,
-    /// The time of day.
-    pub light: Light,
-    /// The sky.
-    pub weather: Weather,
-    /// The season.
-    pub season: Season,
-    /// What people are doing.
-    pub activity: Activity,
-    /// How many people, 1 to 4.
-    pub crew: u8,
-}
 
 /// What a cover is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -126,7 +19,7 @@ pub enum CoverFor {
     Event,
 }
 
-/// What the model reads before choosing a scene.
+/// What the model reads before describing a cover.
 #[derive(Debug, Clone)]
 pub struct CoverSubject<'a> {
     /// A tribe or an event.
@@ -141,31 +34,36 @@ pub struct CoverSubject<'a> {
     pub when: Option<&'a str>,
 }
 
-/// Fewest and most people in a scene.
-const CREW_RANGE: std::ops::RangeInclusive<u8> = 1..=4;
+/// Longest scene description kept, in characters.
+const LONGEST_SCENE: usize = 2500;
 
-fn cover_question() -> Question {
+/// Most tokens a drawing may take. About 4,000 is usual, and takes about 50 seconds on the Thor.
+const DRAWING_TOKENS: u32 = 9000;
+
+/// How freely the model draws: some variety, so a second drawing differs.
+const DRAWING_TEMPERATURE: f64 = 0.7;
+
+#[derive(Deserialize)]
+struct SceneAnswer {
+    scene: String,
+}
+
+fn scene_question() -> Question {
     Question {
-        instructions: prompt::COVER_SYSTEM,
-        schema_name: "cover_design",
-        max_tokens: 200,
+        instructions: prompt::COVER_SCENE_SYSTEM,
+        schema_name: "cover_scene",
+        max_tokens: 900,
         schema: json!({
             "type": "object",
-            "properties": {
-                "landscape": { "type": "string", "enum": ["mountains", "hills", "forest", "lake", "coast", "desert", "city", "meadow"] },
-                "light": { "type": "string", "enum": ["dawn", "day", "golden_hour", "dusk", "night"] },
-                "weather": { "type": "string", "enum": ["clear", "clouds", "mist", "rain", "snow"] },
-                "season": { "type": "string", "enum": ["spring", "summer", "autumn", "winter"] },
-                "activity": { "type": "string", "enum": ["hiking", "running", "cycling", "picnic", "camping", "paddling", "skiing", "gathering"] },
-                "crew": { "type": "integer", "minimum": 1, "maximum": 4 }
-            },
-            "required": ["landscape", "light", "weather", "season", "activity", "crew"],
+            "properties": { "scene": { "type": "string" } },
+            "required": ["scene"],
             "additionalProperties": false
         }),
     }
 }
 
-fn describe(subject: &CoverSubject) -> String {
+/// What the model reads about the subject, as lines.
+fn subject_lines(subject: &CoverSubject) -> String {
     let kind = match subject.kind {
         CoverFor::Tribe => "A tribe: a group that gets together again and again.",
         CoverFor::Event => "One event.",
@@ -186,21 +84,48 @@ fn describe(subject: &CoverSubject) -> String {
         "" => lines.push("No description.".to_string()),
         text => lines.push(format!(
             "Description:\n\"\"\"\n{}\n\"\"\"",
-            clip(text, 2000)
+            clip(text, 3000)
         )),
     }
     lines.join("\n")
 }
 
+/// The SVG document in the model's answer, from `<svg` to the last `</svg>`,
+/// or `None` when there is none.
+fn svg_in(answer: &str) -> Option<String> {
+    let start = answer.find("<svg")?;
+    let end = answer.rfind("</svg>")? + "</svg>".len();
+
+    (start < end).then(|| answer[start..end].to_string())
+}
+
 impl Brain {
-    /// Chooses a cover scene for a tribe or an event.
-    pub async fn design_cover(
-        &self,
-        subject: &CoverSubject<'_>,
-    ) -> Result<CoverDesign, BrainError> {
-        let design: CoverDesign = self.ask(cover_question(), describe(subject)).await?;
-        let crew = design.crew.clamp(*CREW_RANGE.start(), *CREW_RANGE.end());
-        Ok(CoverDesign { crew, ..design })
+    /// A rich description of a cover scene for a tribe or event: the place,
+    /// the light, the season, the people and what they are doing, and the
+    /// style, for the person to read, change, and then have drawn.
+    pub async fn describe_cover(&self, subject: &CoverSubject<'_>) -> Result<String, BrainError> {
+        let answer: SceneAnswer = self.ask(scene_question(), subject_lines(subject)).await?;
+
+        Ok(clip(answer.scene.trim(), LONGEST_SCENE))
+    }
+
+    /// Draws `scene` as one SVG document, 1600 by 900. The server cleans the
+    /// SVG before anyone sees it; this only finds it in the answer.
+    pub async fn draw_cover(&self, scene: &str) -> Result<String, BrainError> {
+        let request = format!(
+            "Draw this scene:\n\"\"\"\n{}\n\"\"\"",
+            clip(scene, LONGEST_SCENE)
+        );
+        let answer = self
+            .write(
+                prompt::COVER_DRAW_SYSTEM,
+                request,
+                DRAWING_TOKENS,
+                DRAWING_TEMPERATURE,
+            )
+            .await?;
+
+        svg_in(&answer).ok_or(BrainError::EmptyAnswer)
     }
 }
 
@@ -209,27 +134,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_design_reads_from_the_models_json() {
-        let answer = r#"{"landscape":"lake","light":"golden_hour","weather":"mist","season":"autumn","activity":"paddling","crew":2}"#;
-        let design: CoverDesign = serde_json::from_str(answer).unwrap();
+    fn the_svg_is_cut_out_of_the_answer() {
+        let answer = "Here it is:\n```svg\n<svg viewBox=\"0 0 10 10\"><rect/></svg>\n```";
 
-        assert_eq!(design.landscape, Landscape::Lake);
-        assert_eq!(design.light, Light::GoldenHour);
-        assert_eq!(design.activity, Activity::Paddling);
+        assert_eq!(
+            svg_in(answer).as_deref(),
+            Some("<svg viewBox=\"0 0 10 10\"><rect/></svg>")
+        );
+        assert_eq!(svg_in("no drawing"), None);
     }
 
     #[test]
-    fn the_description_names_what_is_known() {
+    fn the_subject_names_what_is_known() {
         let subject = CoverSubject {
             kind: CoverFor::Event,
-            title: "Lake Twenty-Two at first light",
+            title: "Rattlesnake Ledge at sunrise",
             description: "",
-            place: Some("Granite Falls, Washington"),
+            place: Some("Rattlesnake Lake, North Bend"),
             when: None,
         };
-        let text = describe(&subject);
+        let text = subject_lines(&subject);
 
-        assert!(text.contains("Where: Granite Falls"));
+        assert!(text.contains("Where: Rattlesnake Lake"));
         assert!(text.contains("No description."));
         assert!(!text.contains("When:"));
     }

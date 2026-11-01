@@ -2,7 +2,7 @@
 // so the app also works under a sub-path.
 
 import type {
-  Briefing, CoverDesign, CoverRequest, DescriptionDraftRequest, Event, EventDetail, EventDraft, EventFields, Feed, InlinePicture, LatLng,
+  Briefing, CoverRequest, DescriptionDraftRequest, Event, EventDetail, EventDraft, EventFields, Feed, InlinePicture, LatLng,
   MarkState, PlaceMatch, PlanResult, PrepItem, ProfileFields, ProfilePage, Photo, Rsvp, SearchResults, Suggestions,
   Trail, Tribe, TribeDetail, TribeDraft, TribeFields, TripView, Units, User, Vote,
 } from "./types.js";
@@ -162,5 +162,6 @@ export const drafts = {
   event: (text: string, today: string, near: LatLng | null) => send<EventDraft>("POST", "event-drafts", json({ text, today, near })),
   description: (request: DescriptionDraftRequest) => send<{ text: string }>("POST", "description-drafts", json(request)),
   tribe: (text: string) => send<TribeDraft>("POST", "tribe-drafts", json({ text })),
-  cover: (request: CoverRequest) => send<CoverDesign>("POST", "cover-designs", json(request)),
+  coverScene: (request: CoverRequest) => send<{ scene: string }>("POST", "cover-scenes", json(request)),
+  coverDrawing: (scene: string) => send<{ svg: string }>("POST", "cover-drawings", json({ scene })),
 };

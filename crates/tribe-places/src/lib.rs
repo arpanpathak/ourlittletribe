@@ -16,6 +16,7 @@ pub mod nominatim;
 pub mod osrm;
 pub mod overpass;
 pub mod photon;
+pub mod shops;
 pub mod trails;
 mod waymarked;
 pub mod weather;

@@ -6,6 +6,8 @@
 //! kept in two sizes: `{id}.jpg` (at most 1600 px a side) and `{id}_s.jpg`
 //! (at most 560 px) for cards and grids.
 
+pub mod svg;
+
 use std::collections::HashSet;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};

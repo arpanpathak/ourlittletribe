@@ -8,3 +8,4 @@ license.workspace = true
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 thiserror.workspace = true
+quick-xml.workspace = true

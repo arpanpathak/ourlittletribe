@@ -146,7 +146,7 @@ CREATE INDEX IF NOT EXISTS images_by_tribe ON images(tribe_id, purpose, created_
 CREATE TABLE IF NOT EXISTS event_stops (
     id        TEXT PRIMARY KEY,
     event_id  TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    kind      TEXT NOT NULL CHECK (kind IN ('stop', 'optional', 'venue')),
+    kind      TEXT NOT NULL CHECK (kind IN ('pickup', 'stop', 'optional', 'venue', 'after')),
     name      TEXT NOT NULL,
     lat       REAL NOT NULL,
     lng       REAL NOT NULL,
@@ -168,6 +168,44 @@ const ADDED_COLUMNS: [(&str, &str, &str); 2] = [
     ("users", "cover_image", "TEXT"),
 ];
 
+/// The stop kinds a database must allow; older files allowed only the first three.
+const NEWEST_STOP_KIND: &str = "'after'";
+
+/// Rebuilds `event_stops` with the current list of kinds when the file was
+/// made before `pickup` and `after` existed. SQLite cannot change a CHECK
+/// constraint in place, and nothing refers to this table, so it is copied
+/// into a new table in one transaction.
+fn allow_new_stop_kinds(connection: &Connection) -> DbResult<()> {
+    let definition: String = connection.query_row(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'event_stops'",
+        [],
+        |row| row.get(0),
+    )?;
+    if definition.contains(NEWEST_STOP_KIND) {
+        return Ok(());
+    }
+
+    connection.execute_batch(
+        "BEGIN;
+         CREATE TABLE event_stops_rebuilt (
+             id        TEXT PRIMARY KEY,
+             event_id  TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+             kind      TEXT NOT NULL CHECK (kind IN ('pickup', 'stop', 'optional', 'venue', 'after')),
+             name      TEXT NOT NULL,
+             lat       REAL NOT NULL,
+             lng       REAL NOT NULL,
+             note      TEXT NOT NULL DEFAULT '',
+             position  INTEGER NOT NULL
+         );
+         INSERT INTO event_stops_rebuilt SELECT id, event_id, kind, name, lat, lng, note, position FROM event_stops;
+         DROP TABLE event_stops;
+         ALTER TABLE event_stops_rebuilt RENAME TO event_stops;
+         CREATE INDEX IF NOT EXISTS stops_by_event ON event_stops(event_id, position);
+         COMMIT;",
+    )?;
+    Ok(())
+}
+
 /// Turns on foreign keys and write-ahead logging, and creates any missing table.
 pub fn prepare(connection: &Connection) -> DbResult<()> {
     connection.execute_batch(
@@ -187,7 +225,40 @@ pub fn prepare(connection: &Connection) -> DbResult<()> {
         }
     }
 
+    allow_new_stop_kinds(connection)?;
+
     connection.execute_batch(search_index::SCHEMA)?;
     search_index::refill(connection)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    #[test]
+    fn an_old_stops_table_learns_the_new_kinds_and_keeps_its_rows() -> DbResult<()> {
+        let connection = Connection::open_in_memory()?;
+        connection.execute_batch(
+            "CREATE TABLE events (id TEXT PRIMARY KEY);
+             INSERT INTO events VALUES ('e1');
+             CREATE TABLE event_stops (
+                 id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                 kind TEXT NOT NULL CHECK (kind IN ('stop', 'optional', 'venue')),
+                 name TEXT NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, note TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL
+             );
+             INSERT INTO event_stops VALUES ('s1', 'e1', 'venue', 'Rattlesnake Ledge', 47.43, -121.77, '', 0);",
+        )?;
+
+        allow_new_stop_kinds(&connection)?;
+        connection.execute(
+            "INSERT INTO event_stops VALUES ('s2', 'e1', 'pickup', 'Bellevue Transit Center', 47.61, -122.19, '', 1)",
+            [],
+        )?;
+
+        let kept: i64 =
+            connection.query_row("SELECT COUNT(*) FROM event_stops", [], |row| row.get(0))?;
+        assert_eq!(kept, 2);
+        Ok(())
+    }
 }

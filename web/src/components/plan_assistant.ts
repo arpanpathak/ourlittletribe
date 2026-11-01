@@ -34,7 +34,7 @@ export function planAssistant(fill: FillForm): HTMLElement {
     intro: "Type or speak the plan in your own words: what, when, where to meet, stops on the way. You can change anything after.",
     example: EXAMPLE,
     speakLabel: "Speak the plan",
-    busyText: "Reading your plan and finding the places on the map. This takes a few seconds.",
+    busyText: "Reading your plan, writing the description and finding every place on the map. With many places this takes up to a minute or two.",
     fill: async (words) => {
       const near = await currentPosition(3000).catch(() => null);
       const draft = await drafts.event(words, todayForModel(), near);

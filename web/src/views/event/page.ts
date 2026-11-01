@@ -1,10 +1,10 @@
 // One event: the hero with its cover and buttons, and four tabs: overview,
 // packing list, getting there, and photos. Each tab lives in its own module.
 
-import { drafts, events } from "../../api/client.js";
+import { events } from "../../api/client.js";
 import type { EventDetail } from "../../api/types.js";
 import { choosePictures, pictureProblem } from "../../components/picture_picker.js";
-import { coverFile } from "../../cover_art.js";
+import { openCoverStudio } from "../../components/cover_studio.js";
 import { h, mount } from "../../dom.js";
 import { count, formatLongDay, formatTime } from "../../format.js";
 import { icon } from "../../icons.js";
@@ -91,8 +91,10 @@ class EventPage implements EventScreen {
     const venue = stops.find((stop) => stop.kind === "venue");
     const when = new Date(event.starts_at * 1000).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-    const design = await drafts.cover({ subject: "event", title: event.title, description: event.description, place: venue?.name ?? event.meeting_point.name, when });
-    await events.setCover(this.id, await coverFile(design, "event-cover"));
+    const file = await openCoverStudio({ subject: "event", title: event.title, description: event.description, place: venue?.name ?? event.meeting_point.name, when });
+    if (!file) return;
+
+    await events.setCover(this.id, file);
     toast("New cover drawn", "success");
     await this.reload();
   }

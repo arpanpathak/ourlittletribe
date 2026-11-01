@@ -8,9 +8,10 @@ import { icon } from "../../icons.js";
 import { PLACE_KINDS, itinerary, pinLabels, type PlanPlace } from "../../itinerary.js";
 import { directionsUrl, itineraryLine, itineraryUrl, placePin } from "../../map.js";
 
-/** Directions through the meeting point, the stops everyone makes, and the venue. */
+/** Directions through the meeting point, the stops everyone makes, the venue and what comes after; other meeting points and optional stops are left out. */
 export function tripDirections(detail: EventDetail): string {
-  const places = itinerary(detail.event, detail.stops).filter((place) => place.kind !== "optional");
+  const skipped = (kind: string) => kind === "optional" || kind === "pickup";
+  const places = itinerary(detail.event, detail.stops).filter((place) => !skipped(place.kind));
   return itineraryUrl(places);
 }
 
@@ -39,7 +40,7 @@ export function drawItineraryPins(map: LeafletMap, detail: EventDetail): PlanPla
   const labels = pinLabels(places.map((place) => place.kind));
   const layer = L.layerGroup().addTo(map);
 
-  itineraryLine(layer, places);
+  itineraryLine(layer, places.filter((place) => place.kind !== "pickup"));
   places.forEach((place, index) => {
     L.marker([place.lat, place.lng], { icon: placePin(place.kind, labels[index] ?? "") })
       .bindTooltip(`${PLACE_KINDS[place.kind].label}: ${place.name}`, { direction: "top", offset: [0, -30] })

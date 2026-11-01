@@ -103,7 +103,7 @@ fn read_element(element: Element) -> Option<FoundStore> {
 }
 
 /// How long to wait for one Overpass server before trying the next.
-const OVERPASS_ATTEMPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+const OVERPASS_ATTEMPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
 
 impl Places {
     /// Sends `query` to each configured Overpass server in turn and returns

@@ -129,7 +129,7 @@ export interface Attendee {
 }
 
 /** What a place on an event's plan is for, besides the meeting point. */
-export type StopKind = "stop" | "optional" | "venue";
+export type StopKind = "pickup" | "stop" | "optional" | "venue" | "after";
 
 /** A stop to save. */
 export interface NewStop extends Place {
@@ -506,6 +506,8 @@ export interface DraftStop extends DraftPlace {
 
 /** An event form filled in by the model. */
 export interface EventDraft {
+  /** The person's tribe the model chose for the event, when one fits. */
+  tribe_id: string | null;
   /** Title. */
   title: string;
   /** A Markdown description. */

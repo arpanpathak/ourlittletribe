@@ -123,7 +123,7 @@ impl NominatimPlace {
 }
 
 /// A box as Nominatim's `viewbox` parameter: west, north, east, south.
-fn viewbox_parameter(view: Bounds) -> String {
+pub(crate) fn viewbox_parameter(view: Bounds) -> String {
     format!("{},{},{},{}", view.west, view.north, view.east, view.south)
 }
 
@@ -136,7 +136,7 @@ fn found_of(places: Vec<NominatimPlace>) -> Vec<Found> {
 
 impl Places {
     /// Waits for Nominatim's turn, a second after the last request, then asks.
-    async fn nominatim_json<T: serde::de::DeserializeOwned>(
+    pub(crate) async fn nominatim_json<T: serde::de::DeserializeOwned>(
         &self,
         path: &str,
         parameters: &[(&str, String)],
