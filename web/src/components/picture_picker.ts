@@ -42,6 +42,8 @@ export interface PicturePicker {
   change: () => CoverChange;
   /** Shows a picture made elsewhere, such as a generated cover, as the new cover. */
   use: (file: File) => void;
+  /** The address of the picture showing now, or null when there is none. */
+  shown: () => string | null;
 }
 
 /** A drop area for one cover picture; `existingUrl` is the current cover. */
@@ -101,6 +103,7 @@ export function picturePicker(existingUrl: string | null, hint = "A wide landsca
 
   function draw(): void {
     const url = shownUrl();
+    zone.dispatchEvent(new Event("picturechange"));
     if (!url) {
       const prompt = h("div", { class: "dz-text" },
         icon("image"),
@@ -133,5 +136,5 @@ export function picturePicker(existingUrl: string | null, hint = "A wide landsca
   });
 
   draw();
-  return { element: zone, change: () => change, use: accept };
+  return { element: zone, change: () => change, use: accept, shown: shownUrl };
 }

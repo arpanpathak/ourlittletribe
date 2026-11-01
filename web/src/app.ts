@@ -63,7 +63,7 @@ async function route(): Promise<void> {
   chrome.closeDrawer();
   chrome.draw();
   void chrome.refreshTribes();
-  view.classList.remove("narrow", "medium");
+  view.classList.remove("narrow", "medium", "wide");
   view.classList.add("page");
 
   if (!currentUser()) {
