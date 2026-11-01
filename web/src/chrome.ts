@@ -6,7 +6,7 @@ import type { Tribe, User } from "./api/types.js";
 import { h, mount } from "./dom.js";
 import { icon, iconMarkup, type IconName } from "./icons.js";
 import { currentUser, go, setUser } from "./session.js";
-import { segmented } from "./ui/controls.js";
+import { openThemePicker, themeButton as sidebarThemeButton } from "./themes.js";
 import { dropdown, menuItem } from "./ui/menu.js";
 import { avatar, tribeCover } from "./ui/pictures.js";
 
@@ -64,25 +64,15 @@ function parentOf(path: string): string {
   return `/${parts[0] ?? ""}`;
 }
 
-/** Light, dark, or following the device: three labelled buttons. */
+/** The sidebar's appearance row: the current theme, which opens the picker. */
 function themeSwitch(): HTMLElement {
-  type Choice = "light" | "dark" | "auto";
-  const current: Choice = window.oltThemeChoice() ?? "auto";
-  const choices = [
-    { value: "light" as const, label: "Light", icon: "sun" as const },
-    { value: "dark" as const, label: "Dark", icon: "moon" as const },
-    { value: "auto" as const, label: "Auto", icon: "monitor" as const },
-  ];
-
-  const onChange = (value: Choice) => window.oltSetTheme(value === "auto" ? null : value);
-  return h("div", { class: "theme-switch" }, h("span", { class: "theme-label" }, "Appearance"), segmented<Choice>(choices, current, onChange, "Appearance"));
+  return h("div", { class: "theme-switch" }, h("span", { class: "theme-label" }, "Appearance"), sidebarThemeButton());
 }
 
-/** A one-press theme toggle for the header on small screens. */
+/** The header's theme button on small screens; opens the picker. */
 function themeButton(): HTMLElement {
   const dark = document.documentElement.dataset.theme === "dark";
-  const label = dark ? "Switch to light mode" : "Switch to dark mode";
-  return h("button", { type: "button", class: "btn btn-ghost btn-icon", title: label, "aria-label": label, onclick: () => window.oltSetTheme(dark ? "light" : "dark"), html: iconMarkup(dark ? "sun" : "moon") });
+  return h("button", { type: "button", class: "btn btn-ghost btn-icon", title: "Change the theme", "aria-label": "Change the theme", onclick: openThemePicker, html: iconMarkup(dark ? "moon" : "sun") });
 }
 
 function logo(): HTMLElement {

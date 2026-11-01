@@ -2,7 +2,7 @@
 
 import type { LayerGroup, Map as LeafletMap, Marker } from "leaflet";
 
-import { events as eventsApi, tribes as tribesApi } from "../api/client.js";
+import { discovery, events as eventsApi, tribes as tribesApi } from "../api/client.js";
 import type { Event } from "../api/types.js";
 import { eventRow } from "../components/cards.js";
 import { h, mount } from "../dom.js";
@@ -73,6 +73,10 @@ class Explore {
   private readonly markerLayer: LayerGroup;
   /** Each shown event's pin, by event id. */
   private readonly markers = new Map<string, Marker>();
+  /** The ids the search matched, or null when nothing is typed. */
+  private matchingIds: Set<string> | null = null;
+  /** Counts searches, so a slow answer to an old one is ignored. */
+  private searchNumber = 0;
   /** Each shown event's row, by event id. */
   private readonly rows = new Map<string, HTMLElement>();
 
@@ -84,6 +88,8 @@ class Explore {
     this.map = createMap(mapElement);
     this.markerLayer = L.layerGroup().addTo(this.map);
     this.draw();
+
+    if (this.needle) void this.searchText();
   }
 
   private head(): HTMLElement {
@@ -93,12 +99,12 @@ class Explore {
   }
 
   private toolbar(): HTMLElement {
-    const search = h("input", { type: "search", placeholder: "Filter by name, place or tribe", value: this.needle, "aria-label": "Filter events" });
+    const search = h("input", { type: "search", placeholder: "Search events: any word, any spelling", value: this.needle, "aria-label": "Search events" });
     search.addEventListener("input", debounce(() => {
       this.needle = search.value.trim();
       this.syncUrl();
-      this.draw();
-    }, 150));
+      void this.searchText();
+    }, 200));
 
     const which = segmented<Show>([{ value: "all", label: "All" }, { value: "mine", label: "My tribes" }, { value: "going", label: "Going" }], this.show, (show) => {
       this.show = show;
@@ -126,15 +132,31 @@ class Explore {
     replaceRoute(`/events${query ? `?${query}` : ""}`);
   }
 
+  /** Asks the server's index which events match the text, so any word in any form counts. */
+  private async searchText(): Promise<void> {
+    this.searchNumber += 1;
+    const number = this.searchNumber;
+
+    if (this.needle.length < 2) {
+      this.matchingIds = null;
+      this.draw();
+      return;
+    }
+
+    const found = await discovery.search(this.needle).catch(() => null);
+    if (number !== this.searchNumber) return;
+
+    this.matchingIds = new Set((found?.events ?? []).map((event) => event.id));
+    this.draw();
+  }
+
   private matches(event: Event): boolean {
     const inScope = this.show === "all"
       || (this.show === "mine" && this.myTribes.has(event.tribe_id))
       || (this.show === "going" && event.my_rsvp === "going");
     if (!inScope) return false;
 
-    const needle = this.needle.toLowerCase();
-    if (!needle) return true;
-    return [event.title, event.meeting_point.name, event.tribe_name, event.description].some((value) => value.toLowerCase().includes(needle));
+    return this.matchingIds === null || this.matchingIds.has(event.id);
   }
 
   /** Lights up an event's pin and row together. */

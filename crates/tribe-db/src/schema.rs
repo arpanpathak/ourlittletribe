@@ -5,6 +5,7 @@
 use rusqlite::Connection;
 
 use crate::DbResult;
+use crate::search_index;
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS users (
@@ -185,5 +186,8 @@ pub fn prepare(connection: &Connection) -> DbResult<()> {
             ))?;
         }
     }
+
+    connection.execute_batch(search_index::SCHEMA)?;
+    search_index::refill(connection)?;
     Ok(())
 }

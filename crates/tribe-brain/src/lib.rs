@@ -14,6 +14,7 @@
 //! | [`places`] | reading a map search, and choosing among real places |
 //! | [`drafting`] | an event or a tribe from someone's words, and descriptions |
 //! | [`covers`] | the scene for a tribe or event cover |
+//! | `related` | related words that widen a search |
 
 pub mod briefing;
 mod client;
@@ -22,6 +23,7 @@ pub mod drafting;
 pub mod items;
 pub mod places;
 mod prompt;
+mod related;
 
 use std::time::Duration;
 

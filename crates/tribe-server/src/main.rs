@@ -12,6 +12,7 @@ mod place_search;
 mod routes;
 mod state;
 mod stores_on_route;
+mod trails;
 mod web;
 
 use std::sync::Arc;

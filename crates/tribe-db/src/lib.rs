@@ -14,6 +14,7 @@ pub mod maintenance;
 pub mod prep;
 pub mod schema;
 pub mod search;
+pub mod search_index;
 pub mod sessions;
 pub mod stops;
 pub mod stores;

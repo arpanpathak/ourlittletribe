@@ -28,6 +28,19 @@ fn where_it_happens(event: &Event, event_stops: Vec<Stop>) -> Place {
     }
 }
 
+/// Where an event happens: its venue, else its meeting point. If the stops
+/// cannot be read, the meeting point.
+pub(crate) async fn place_of(state: &AppState, event: &Event) -> Place {
+    let event_id = event.id.clone();
+    let event_stops = state
+        .db
+        .call(move |connection| stops::for_event(connection, &event_id))
+        .await
+        .unwrap_or_default();
+
+    where_it_happens(event, event_stops)
+}
+
 /// The conditions for an event, from a 30-minute cache or from Open-Meteo.
 /// A failed lookup leaves that part empty; the page says so.
 pub async fn for_event(state: &AppState, event: &Event) -> Conditions {
@@ -35,13 +48,7 @@ pub async fn for_event(state: &AppState, event: &Event) -> Conditions {
         return cached;
     }
 
-    let event_id = event.id.clone();
-    let event_stops = state
-        .db
-        .call(move |connection| stops::for_event(connection, &event_id))
-        .await
-        .unwrap_or_default();
-    let place = where_it_happens(event, event_stops);
+    let place = place_of(state, event).await;
 
     let (elevation, forecast) = tokio::join!(
         state.places.elevation_m(place.point),

@@ -53,6 +53,17 @@ function placesSection(places: PlaceMatch[]): HTMLElement {
     h("div", { class: "split-wide" }, h("div", { class: "card card-tight" }, mapElement), h("div", { class: "card card-tight" }, places.map(placeRow))));
 }
 
+/** The results in `extra` that `found` does not already have. */
+function unseen(extra: SearchResults, found: SearchResults): SearchResults {
+  const has = (list: Array<{ id: string }>, id: string) => list.some((item) => item.id === id);
+
+  return {
+    events: extra.events.filter((event) => !has(found.events, event.id)),
+    tribes: extra.tribes.filter((tribe) => !has(found.tribes, tribe.id)),
+    people: extra.people.filter((person) => !has(found.people, person.id)),
+  };
+}
+
 function section(title: string, body: HTMLElement): HTMLElement {
   return h("section", { class: "section" }, h("h2", {}, title), body);
 }
@@ -64,6 +75,10 @@ class SearchPage {
   private readonly results = h("div", { class: "search-results" });
 
   private found: SearchResults = NOTHING;
+  /** More results for words the model said the search also means. */
+  private related: SearchResults = NOTHING;
+  /** Whether the model is still looking for related words. */
+  private askingModel = false;
   private places: PlaceMatch[] = [];
   private tab: Tab = "all";
   /** Counts searches, so a slow answer to an old one is ignored. */
@@ -86,8 +101,9 @@ class SearchPage {
     return this.tab === "all" || this.tab === tab;
   }
 
-  private sections(): HTMLElement[] {
-    const { events, tribes, people } = this.found;
+  /** The sections for one set of results, each only if the tab wants it. */
+  private resultSections(results: SearchResults): HTMLElement[] {
+    const { events, tribes, people } = results;
     const shown: HTMLElement[] = [];
 
     if (this.wants("events") && events.length) {
@@ -100,9 +116,28 @@ class SearchPage {
       const tiles = people.map((person) => personTile({ id: person.id, name: person.name, avatar: person.avatar, line: person.home_area }, 36));
       shown.push(section("People", h("div", { class: "card card-pad" }, h("div", { class: "people-grid" }, tiles))));
     }
-    if (this.wants("places") && this.places.length) {
-      shown.push(placesSection(this.places));
+    return shown;
+  }
+
+  /** The model's extra results, under their own heading, or a note that it is still looking. */
+  private relatedSection(): HTMLElement | null {
+    if (this.askingModel) {
+      return h("div", { class: "thinking" }, h("span", { class: "spinner" }), "Looking for related tribes and events…");
     }
+
+    const extra = this.resultSections(this.related);
+    if (!extra.length) return null;
+
+    const head = h("div", { class: "related-head" }, icon("sparkles", "sm"), h("span", {}, "Related: found with other words for what you searched"));
+    return h("div", { class: "related stack-lg" }, head, extra);
+  }
+
+  private sections(): HTMLElement[] {
+    const shown = this.resultSections(this.found);
+    const related = this.relatedSection();
+
+    if (related) shown.push(related);
+    if (this.wants("places") && this.places.length) shown.push(placesSection(this.places));
     return shown;
   }
 
@@ -141,12 +176,28 @@ class SearchPage {
     mount(this.results, h("div", { class: "stack-lg" }, shown));
   }
 
+  /** Asks the model for related results, then draws them under the direct ones. */
+  private async askForRelated(text: string, number: number): Promise<void> {
+    this.askingModel = true;
+    this.draw();
+
+    const extra = await discovery.related(text).catch(() => NOTHING);
+    if (number !== this.searchNumber) return;
+
+    this.related = unseen(extra, this.found);
+    this.askingModel = false;
+    this.draw();
+  }
+
   private async run(): Promise<void> {
     const text = this.text();
     replaceRoute(`/search${text ? `?q=${encodeURIComponent(text)}` : ""}`);
 
     this.searchNumber += 1;
     const number = this.searchNumber;
+    this.related = NOTHING;
+    this.askingModel = false;
+
     if (text.length < SHORTEST) {
       this.found = NOTHING;
       this.places = [];
@@ -164,6 +215,8 @@ class SearchPage {
     this.found = found;
     this.places = places;
     this.draw();
+
+    if (text.length >= 3) await this.askForRelated(text, number);
   }
 }
 

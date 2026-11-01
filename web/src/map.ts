@@ -21,14 +21,20 @@ function terrainLayer(): TileLayer {
   return L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 17, attribution });
 }
 
-/** Makes a map inside `element`, with a switch between streets and terrain. */
+/** Marked hiking routes drawn over the map, from Waymarked Trails. */
+function trailsOverlay(): TileLayer {
+  const attribution = '<a href="https://hiking.waymarkedtrails.org">Waymarked Trails</a>';
+  return L.tileLayer("https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png", { maxZoom: 18, opacity: 0.85, attribution });
+}
+
+/** Makes a map inside `element`, with a switch between streets and terrain and a trails layer to turn on. */
 export function createMap(element: HTMLElement, center: LatLng = DEFAULT_CENTER, zoom = 11): LeafletMap {
   const map = L.map(element, { zoomControl: true, scrollWheelZoom: true, attributionControl: true });
   map.setView([center.lat, center.lng], zoom);
 
   const streets = streetLayer();
   streets.addTo(map);
-  L.control.layers({ Streets: streets, Terrain: terrainLayer() }, {}, { position: "topright" }).addTo(map);
+  L.control.layers({ Streets: streets, Terrain: terrainLayer() }, { "Hiking trails": trailsOverlay() }, { position: "topright" }).addTo(map);
   map.attributionControl.setPrefix(false);
 
   // The map's box may still be settling when it is made.

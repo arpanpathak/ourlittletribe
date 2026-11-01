@@ -16,6 +16,8 @@ pub mod nominatim;
 pub mod osrm;
 pub mod overpass;
 pub mod photon;
+pub mod trails;
+mod waymarked;
 pub mod weather;
 
 use std::sync::Arc;
@@ -60,6 +62,8 @@ pub struct Endpoints {
     pub photon: String,
     /// Nominatim geocoder, without a trailing slash; used when Photon fails.
     pub nominatim: String,
+    /// Waymarked Trails' hiking API, without a trailing slash: marked routes in walking order.
+    pub waymarked: String,
 }
 
 impl Default for Endpoints {
@@ -74,6 +78,7 @@ impl Default for Endpoints {
             ],
             photon: "https://photon.komoot.io".to_string(),
             nominatim: "https://nominatim.openstreetmap.org".to_string(),
+            waymarked: "https://hiking.waymarkedtrails.org/api/v1".to_string(),
         }
     }
 }

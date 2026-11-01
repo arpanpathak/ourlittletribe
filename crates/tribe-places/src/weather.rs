@@ -191,6 +191,9 @@ struct DailyColumns {
     sunset: Vec<Option<i64>>,
 }
 
+/// Most points Open-Meteo answers for in one elevation request.
+pub const MOST_ELEVATION_POINTS: usize = 100;
+
 #[derive(Deserialize)]
 struct ElevationResponse {
     elevation: Vec<f64>,
@@ -265,6 +268,31 @@ impl Places {
         ]);
         let response: ElevationResponse = self.get_json("Open-Meteo elevation", request).await?;
         Ok(response.elevation.first().copied())
+    }
+
+    /// Ground elevation in metres at each of `points`, in order; at most
+    /// [`MOST_ELEVATION_POINTS`] in one request.
+    pub async fn elevations_m(&self, points: &[LatLng]) -> Result<Vec<f64>, PlacesError> {
+        let asked = &points[..points.len().min(MOST_ELEVATION_POINTS)];
+        if asked.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let latitudes: Vec<String> = asked
+            .iter()
+            .map(|point| format!("{:.5}", point.lat))
+            .collect();
+        let longitudes: Vec<String> = asked
+            .iter()
+            .map(|point| format!("{:.5}", point.lng))
+            .collect();
+        let request = self.http.get(&self.endpoints.open_meteo_elevation).query(&[
+            ("latitude", latitudes.join(",")),
+            ("longitude", longitudes.join(",")),
+        ]);
+
+        let response: ElevationResponse = self.get_json("Open-Meteo elevation", request).await?;
+        Ok(response.elevation)
     }
 }
 

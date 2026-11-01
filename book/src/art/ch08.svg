@@ -1,83 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" class="art art-spot" width="480" height="320" viewBox="0 0 240 160" aria-hidden="true" focusable="false"><style>svg { --surface: #ffffff; --surface-2: #f3f3f0; --surface-3: #ebebe7; --border: #e4e4df; --border-strong: #d2d2cc; --text: #191c1a; --text-2: #4a514d; --text-3: #737a76; --accent: #1f6f4e; --info: #2563a8; }
-/* ── Illustrations ──────────────────────────────────── */
-svg {
-  --art-sky-1: #cfe6f1; --art-sky-2: #f4efe1; --art-sun: #f6c25a; --art-cloud: #ffffff;
-  --art-far: #9db9c6; --art-snow: #ffffff; --art-mid: #73a08a; --art-tree-far: #5b8873;
-  --art-near: #4d7c63; --art-tree: #2c5a45; --art-tree-2: #3b6c53; --art-trail: #dcc79d;
-  --art-ground: #3c6a52; --art-trunk: #6b4a35; --art-ink: #10362a; --art-ink-soft: #3d5a50; --art-blob: #e4efe8;
-}
-
-.art { display: block; }
-.art .a-night { display: none; }
-
-
-.art .a-shadow { fill: #000; opacity: 0.12; }
-.art * { transform-box: fill-box; }
-.a-leg, .a-arm { transform-origin: 50% 0; }
-.a-walk .a-leg-a { animation: a-step 0.9s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
-.a-walk .a-leg-b { animation: a-step 0.9s ease-in-out infinite alternate-reverse; animation-delay: var(--d, 0s); }
-.a-walk .a-arm { animation: a-swing 0.9s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
-.a-walk .a-upper { animation: a-bob 0.45s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
-.a-wave .a-arm { animation: a-wave 1.3s ease-in-out infinite; animation-delay: var(--d, 0s); }
-.a-wave .a-upper, .a-stand .a-upper { animation: a-breathe 3s ease-in-out infinite; animation-delay: var(--d, 0s); }
-.a-eye { transform-origin: center; animation: a-blink 4.5s infinite; animation-delay: var(--d, 0s); }
-.a-sway { transform-origin: 50% 100%; animation: a-sway 6s ease-in-out infinite alternate; }
-.a-drift { animation: a-drift 38s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
-.a-spin { animation: spin 70s linear infinite; }
-.a-twinkle { transform-origin: center; animation: a-twinkle 3s ease-in-out infinite; animation-delay: var(--d, 0s); }
-.a-fly { animation: a-fly 14s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
-.a-flap { transform-origin: center; animation: a-flap 0.5s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
-.a-float { animation: a-float 4s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
-.a-bob { animation: a-float 1.6s ease-in-out infinite alternate; }
-.a-flag { transform-origin: 0 50%; animation: a-flag 1.4s ease-in-out infinite alternate; }
-.a-flash { transform-origin: 0% 100%; animation: a-flash 2.4s ease-out infinite; }
-.a-needle { transform-origin: center; animation: a-needle 3.2s ease-in-out infinite; }
-.a-scan { animation: a-scan 4s ease-in-out infinite alternate; }
-.a-route { animation: a-route 1.2s linear infinite; }
-.a-drop { transform-origin: 50% 100%; animation: a-drop 1.6s ease-in-out infinite; }
-.a-flame { transform-origin: 50% 100%; animation: a-flame 0.7s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
-.a-draw { stroke-dasharray: 20; stroke-dashoffset: 20; animation: a-draw 3s ease-in-out infinite; }
-.a-tick { stroke-dasharray: 22; stroke-dashoffset: 22; animation: a-tick 3.6s ease-in-out infinite; animation-delay: var(--d, 0s); }
-@keyframes a-step { from { transform: rotate(-17deg); } to { transform: rotate(17deg); } }
-@keyframes a-swing { from { transform: rotate(-22deg); } to { transform: rotate(22deg); } }
-@keyframes a-bob { from { transform: translateY(0); } to { transform: translateY(-2.5px); } }
-@keyframes a-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
-@keyframes a-wave { 0%, 100% { transform: rotate(-145deg); } 50% { transform: rotate(-178deg); } }
-@keyframes a-blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-@keyframes a-sway { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
-@keyframes a-drift { from { transform: translateX(-30px); } to { transform: translateX(40px); } }
-@keyframes a-twinkle { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.6); } }
-@keyframes a-fly { from { transform: translate(0, 0); } to { transform: translate(120px, -24px); } }
-@keyframes a-flap { from { transform: scaleY(1); } to { transform: scaleY(-0.4); } }
-@keyframes a-float { from { transform: translateY(0); } to { transform: translateY(-5px); } }
-@keyframes a-flag { from { transform: skewY(-4deg) scaleX(1); } to { transform: skewY(4deg) scaleX(0.92); } }
-@keyframes a-flash { 0%, 70%, 100% { opacity: 0; transform: scale(0.6); } 78% { opacity: 1; transform: scale(1); } }
-@keyframes a-needle { 0%, 100% { transform: rotate(-30deg); } 40% { transform: rotate(40deg); } 70% { transform: rotate(10deg); } }
-@keyframes a-scan { from { transform: translate(-46px, 6px); } to { transform: translate(46px, -4px); } }
-@keyframes a-route { to { stroke-dashoffset: -14; } }
-@keyframes a-drop { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-9px); } 60% { transform: translateY(0) scaleY(0.9); } }
-@keyframes a-flame { from { transform: scale(1, 1); } to { transform: scale(0.9, 1.12); } }
-@keyframes a-draw { 0%, 25% { stroke-dashoffset: 20; } 50%, 100% { stroke-dashoffset: 0; } }
-@keyframes a-tick { 0%, 15% { stroke-dashoffset: 22; } 35%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 22; } }
-.art-spot { width: 210px; height: 140px; margin-bottom: 2px; }
-.empty .art-spot + h3 { margin-top: 2px; }
-
-.banner { position: relative; overflow: hidden; border-radius: 18px; min-height: 230px; display: flex; align-items: flex-start; border: 1px solid var(--border); }
-.banner .art-hero { position: absolute; inset: 0; width: 100%; height: 100%; }
-.banner-text { position: relative; padding: 28px 30px; max-width: 520px; display: flex; flex-direction: column; gap: 8px; }
-.banner-text h1 { color: var(--art-ink); }
-.banner-text p { color: var(--art-ink); opacity: 0.82; font-size: 15px; }
-.banner-text .row { margin-top: 8px; }
-@media (max-width: 600px) { .banner { min-height: 250px; border-radius: 14px; } .banner-text { padding: 20px; } }
-
-
-@keyframes spin { to { transform: rotate(360deg); } }</style><ellipse cx="120" cy="88" rx="96" ry="66" style="fill:var(--art-blob)"/>
-<g class="a-float"><rect x="46" y="34" width="96" height="94" rx="12" style="fill:var(--surface);stroke:var(--border-strong)" stroke-width="1.5"/>
-<path d="M46 46 a12 12 0 0 1 12 -12 h72 a12 12 0 0 1 12 12 v10 h-96z" fill="#d9622b"/>
-<rect x="66" y="26" width="6" height="16" rx="3" style="fill:var(--text-3)"/><rect x="116" y="26" width="6" height="16" rx="3" style="fill:var(--text-3)"/>
-<rect x="60" y="66" width="17" height="13" rx="3.5" style="fill:var(--surface-3)"/><rect x="85" y="66" width="17" height="13" rx="3.5" style="fill:var(--surface-3)"/><rect x="110" y="66" width="17" height="13" rx="3.5" style="fill:var(--surface-3)"/><rect x="60" y="85" width="17" height="13" rx="3.5" style="fill:var(--surface-3)"/><rect x="85" y="85" width="17" height="13" rx="3.5" style="fill:var(--accent)"/><rect x="110" y="85" width="17" height="13" rx="3.5" style="fill:var(--surface-3)"/><rect x="60" y="104" width="17" height="13" rx="3.5" style="fill:var(--surface-3)"/><rect x="85" y="104" width="17" height="13" rx="3.5" style="fill:var(--surface-3)"/><rect x="110" y="104" width="17" height="13" rx="3.5" style="fill:var(--surface-3)"/>
-<path class="a-draw" d="M89.5 91.5 l3.5 3.5 l6 -7" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
-<g transform="translate(182 146) scale(0.8 0.8)">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img">
+<clipPath id="frame"><rect width="800" height="450" rx="16"/></clipPath>
+<g clip-path="url(#frame)"><svg x="0" y="0" width="800" height="450" viewBox="0 0 800 450">
+<style>
+.a-shadow { fill: #000; opacity: .16; }
+.a-leg, .a-arm { transform-box: fill-box; transform-origin: 50% 0; }
+.a-walk .a-leg-a { transform: rotate(-17deg); }
+.a-walk .a-leg-b { transform: rotate(17deg); }
+.a-walk .a-arm { transform: rotate(22deg); }
+.a-wave .a-arm { transform: rotate(-150deg); }</style><defs></defs>
+<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fb8e6"/><stop offset="1" stop-color="#d6ecf7"/></linearGradient></defs><rect width="800" height="450" fill="url(#sky)"/><circle cx="660" cy="70" r="70" fill="#ffd65c" opacity=".18"/><circle cx="660" cy="70" r="40" fill="#ffd65c"/>
+<g transform="translate(150 110) scale(1)" fill="#ffffff"><ellipse rx="50" ry="16"/><circle cx="-16" cy="-10" r="18"/><circle cx="14" cy="-15" r="23"/></g><g transform="translate(430 70) scale(0.75)" fill="#ffffff"><ellipse rx="50" ry="16"/><circle cx="-16" cy="-10" r="18"/><circle cx="14" cy="-15" r="23"/></g>
+<g transform="translate(0 -100)"><path d="M0 290 C120 230 240 250 340 280 C450 312 560 220 800 260 V450 H0Z" fill="#8ea7c2" opacity=".7"/>
+<path d="M0 330 C140 280 280 300 400 322 C520 344 640 290 800 310 V450 H0Z" fill="#8cc074"/><path d="M0 380 C160 360 320 366 480 372 C620 378 720 364 800 368 V550 H0Z" fill="#6aa85a"/><path d="M0 410 C200 396 600 400 800 406 V550 H0Z" fill="#5b9a4c"/><circle cx="60" cy="430" r="3" fill="#f4a6c4"/><circle cx="140" cy="436" r="3" fill="#f4a6c4"/><circle cx="230" cy="442" r="3" fill="#f4a6c4"/><circle cx="520" cy="430" r="3" fill="#f4a6c4"/><circle cx="610" cy="436" r="3" fill="#f4a6c4"/><circle cx="700" cy="442" r="3" fill="#f4a6c4"/><circle cx="760" cy="430" r="3" fill="#f4a6c4"/><g transform="translate(50 440)"><g class="">
+  <rect x="-5.250000000000001" y="-18" width="10.500000000000002" height="19.5" style="fill:var(--art-trunk)"/>
+  <path d="M0 -150 L34.650000000000006 -96 H18.9 L50.400000000000006 -51.00000000000001 H31.5 L63 -15 H-63 L-31.5 -51.00000000000001 H-50.400000000000006 L-18.9 -96 H-34.650000000000006 Z" style="fill:#2f7a4a"/>
+</g></g><g transform="translate(750 444)"><g class="">
+  <rect x="-5.95" y="-20.4" width="11.9" height="22.1" style="fill:var(--art-trunk)"/>
+  <path d="M0 -170 L39.269999999999996 -108.8 H21.419999999999998 L57.12 -57.800000000000004 H35.699999999999996 L71.39999999999999 -17 H-71.39999999999999 L-35.699999999999996 -57.800000000000004 H-57.12 L-21.419999999999998 -108.8 H-39.269999999999996 Z" style="fill:#2f7a4a"/>
+</g></g><g transform="translate(705 430)"><g class="">
+  <rect x="-3.8500000000000005" y="-13.2" width="7.700000000000001" height="14.3" style="fill:var(--art-trunk)"/>
+  <path d="M0 -110 L25.41 -70.4 H13.859999999999998 L36.96 -37.400000000000006 H23.099999999999998 L46.199999999999996 -11 H-46.199999999999996 L-23.099999999999998 -37.400000000000006 H-36.96 L-13.859999999999998 -70.4 H-25.41 Z" style="fill:#4f9a5e"/>
+</g></g><g transform="translate(304 418) scale(0.82 0.82)">
   <ellipse cx="0" cy="1" rx="20" ry="4" class="a-shadow"/>
   <g class="a-person a-wave" style="--d:0s">
     <g class="a-leg a-leg-b"><rect x="-6" y="-44" width="9" height="42" rx="4.5" fill="#2c3746"/><path d="M-6 -5 h10 a5 5 0 0 1 5 5 h-15z" fill="#2a2724"/></g>
@@ -96,4 +39,70 @@ svg {
       <g class="a-arm"><rect x="-3.5" y="-76" width="8" height="30" rx="4" fill="#24614a"/><circle cx="0.5" cy="-46" r="4.2" fill="#f1c7a5"/></g>
     </g>
   </g>
-</g></svg>
+</g><g transform="translate(368 418) scale(0.82 0.82)">
+  <ellipse cx="0" cy="1" rx="20" ry="4" class="a-shadow"/>
+  <g class="a-person a-stand" style="--d:-0.3s">
+    <g class="a-leg a-leg-b"><rect x="-6" y="-44" width="9" height="42" rx="4.5" fill="#2a3542"/><path d="M-6 -5 h10 a5 5 0 0 1 5 5 h-15z" fill="#2a2724"/></g>
+    <g class="a-leg a-leg-a"><rect x="-4" y="-44" width="9" height="42" rx="4.5" fill="#384656"/><path d="M-4 -5 h10 a5 5 0 0 1 5 5 h-15z" fill="#3a3430"/></g>
+    <g class="a-upper">
+      <rect x="-22" y="-80" width="16" height="34" rx="7" fill="#3f6fb0"/><rect x="-21" y="-85" width="13" height="8" rx="4" fill="#30578c"/>
+      <rect x="-12" y="-80" width="23" height="40" rx="10" fill="#e0b13a"/>
+      <path d="M-7 -78 L-1 -50" stroke="#30578c" stroke-width="3" stroke-linecap="round"/>
+      <rect x="-3" y="-87" width="7" height="9" rx="3" fill="#8d5a3b"/>
+      <circle cx="-1" cy="-97" r="12.5" fill="#1d1512"/>
+      <circle cx="2" cy="-95" r="11" fill="#8d5a3b"/>
+      <path d="M-13 -99 a14 13 0 0 1 28 0 z" fill="#c94f3d"/><rect x="-14" y="-102" width="30" height="6" rx="3" fill="#a63e2f"/><circle cx="1" cy="-114" r="4" fill="#c94f3d"/>
+      <g class="a-eye"><circle cx="8" cy="-96" r="1.6" fill="#1d1a18"/></g>
+      <circle cx="6.5" cy="-91" r="2.4" fill="#e8846b" opacity=".35"/>
+      <path d="M8 -90.5 q2.2 1.8 4.4 0" stroke="#1d1a18" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+      <g class="a-arm"><rect x="-3.5" y="-76" width="8" height="30" rx="4" fill="#bf9327"/><circle cx="0.5" cy="-46" r="4.2" fill="#8d5a3b"/></g>
+    </g>
+  </g>
+</g><g transform="translate(432 418) scale(0.82 0.82)">
+  <ellipse cx="0" cy="1" rx="20" ry="4" class="a-shadow"/>
+  <g class="a-person a-wave" style="--d:-0.6s">
+    <g class="a-leg a-leg-b"><rect x="-6" y="-44" width="9" height="42" rx="4.5" fill="#45382f"/><path d="M-6 -5 h10 a5 5 0 0 1 5 5 h-15z" fill="#2a2724"/></g>
+    <g class="a-leg a-leg-a"><rect x="-4" y="-44" width="9" height="42" rx="4.5" fill="#5a4a3f"/><path d="M-4 -5 h10 a5 5 0 0 1 5 5 h-15z" fill="#3a3430"/></g>
+    <g class="a-upper">
+      
+      <rect x="-12" y="-80" width="23" height="40" rx="10" fill="#4c79b8"/>
+      
+      <rect x="-3" y="-87" width="7" height="9" rx="3" fill="#f5d3b8"/>
+      <circle cx="-1" cy="-97" r="12.5" fill="#d8a64a"/>
+      <circle cx="2" cy="-95" r="11" fill="#f5d3b8"/>
+      <path d="M-13 -99 a14 13 0 0 1 28 0 z" fill="#2f3b4a"/><rect x="-14" y="-102" width="30" height="6" rx="3" fill="#222b36"/><circle cx="1" cy="-114" r="4" fill="#2f3b4a"/>
+      <g class="a-eye"><circle cx="8" cy="-96" r="1.6" fill="#1d1a18"/></g>
+      <circle cx="6.5" cy="-91" r="2.4" fill="#e8846b" opacity=".35"/>
+      <path d="M8 -90.5 q2.2 1.8 4.4 0" stroke="#1d1a18" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+      <g class="a-arm"><rect x="-3.5" y="-76" width="8" height="30" rx="4" fill="#3b6196"/><circle cx="0.5" cy="-46" r="4.2" fill="#f5d3b8"/></g>
+    </g>
+  </g>
+</g><g transform="translate(496 418) scale(0.82 0.82)">
+  <ellipse cx="0" cy="1" rx="20" ry="4" class="a-shadow"/>
+  <g class="a-person a-stand" style="--d:-0.8999999999999999s">
+    <g class="a-leg a-leg-b"><rect x="-6" y="-44" width="9" height="42" rx="4.5" fill="#384536"/><path d="M-6 -5 h10 a5 5 0 0 1 5 5 h-15z" fill="#2a2724"/></g>
+    <g class="a-leg a-leg-a"><rect x="-4" y="-44" width="9" height="42" rx="4.5" fill="#4b5b48"/><path d="M-4 -5 h10 a5 5 0 0 1 5 5 h-15z" fill="#3a3430"/></g>
+    <g class="a-upper">
+      <rect x="-22" y="-80" width="16" height="34" rx="7" fill="#5c6f3a"/><rect x="-21" y="-85" width="13" height="8" rx="4" fill="#46552b"/>
+      <rect x="-12" y="-80" width="23" height="40" rx="10" fill="#c95c4a"/>
+      <path d="M-7 -78 L-1 -50" stroke="#46552b" stroke-width="3" stroke-linecap="round"/>
+      <rect x="-3" y="-87" width="7" height="9" rx="3" fill="#d9a27c"/>
+      <circle cx="-1" cy="-97" r="12.5" fill="#6b3b22"/>
+      <circle cx="2" cy="-95" r="11" fill="#d9a27c"/>
+      <path d="M-10 -101 a12 12 0 0 1 22 -3 q-9 5 -22 3z" fill="#6b3b22"/>
+      <g class="a-eye"><circle cx="8" cy="-96" r="1.6" fill="#1d1a18"/></g>
+      <circle cx="6.5" cy="-91" r="2.4" fill="#e8846b" opacity=".35"/>
+      <path d="M8 -90.5 q2.2 1.8 4.4 0" stroke="#1d1a18" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+      <g class="a-arm"><rect x="-3.5" y="-76" width="8" height="30" rx="4" fill="#a9483a"/><circle cx="0.5" cy="-46" r="4.2" fill="#d9a27c"/></g>
+    </g>
+  </g>
+</g></g>
+
+</svg></g>
+<rect x="20" y="20" width="200" height="32" rx="16" fill="#ffffff" fill-opacity=".92"/>
+<text x="120" y="41" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="15" font-weight="700" fill="#14231c" text-anchor="middle">many hands, one page</text>
+<rect x="20" y="386" width="760" height="44" rx="10" fill="#14231c" fill-opacity=".88"/>
+<rect x="20" y="386" width="58" height="44" rx="10" fill="#c8571f"/>
+<text x="49" y="416" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="800" fill="#ffffff" text-anchor="middle">8</text>
+<text x="96" y="415" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="750" letter-spacing="1.2" fill="#ffffff">THE WEB APP</text>
+</svg>

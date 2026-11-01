@@ -1,63 +1,43 @@
-<img class="plate" src="art/ch02.svg" alt="A clipboard with three checklist rows being ticked one after another">
+<img class="plate" src="art/ch02.svg" alt="Chapter 2 opener: four friends stand and wave around a red picnic blanket in a spring meadow under drifting clouds, with a basket beside them. Caption: everything on one blanket.">
 
 # The data
+
+Everything the app knows lives in one SQLite file: people, tribes, events, lists, marks, and a record of every picture. This chapter shows the tables, follows Ada's event into them, and explains how the schema changes between versions without a migration tool, what is deleted and when, and how a few counts become the "groups often also got" suggestions.
 
 <div class="covers" markdown="1">
 
 This chapter covers
 
-- The tables, and what refers to what
-- How the schema changes without a migration tool
-- What is deleted, and when
+- the fifteen tables, and what refers to what
+- how one event is stored, from meeting point to ticked items
+- adding columns to an existing database on start
+- what is deleted, and when
+- support, confidence and lift, the counts behind learned pairings
 
 </div>
 
-## 2.1 Tables
+## 2.1 The tables
 
 <figure>
-<img src="figures/tables.svg" alt="The tables and how they refer to each other: people belong to tribes, tribes hold events, events have stops, RSVPs, list items with marks, pictures and starting points.">
-<figcaption><b>Figure 2.1</b> The tables. An arrow points from a row to the row it belongs to.</figcaption>
+<img src="figures/ch02-tables.svg" alt="Fifteen table cards in four columns. People and tribes: users, sessions, tribes, tribe_members. Events: events, event_stops, event_rsvps, event_votes. Lists: prep_items, item_marks, trip_origins. Pictures and shared data: images, inline_images, stores, activity_log. Each card lists its key columns, with arrows marking foreign keys.">
+<figcaption><b>Figure 2.1</b> The tables. An arrow inside a card is a foreign key.</figcaption>
 </figure>
 
-Ids are random UUID strings and times are Unix seconds. Every reference
-carries `ON DELETE CASCADE` or `ON DELETE SET NULL`, with foreign keys turned
-on for each connection, so deleting an event removes its stops, list, marks,
-photos and starting points in one statement.
+Every id is a random UUID stored as text, and every time is a count of Unix seconds. Every foreign key carries `ON DELETE CASCADE` or `ON DELETE SET NULL`, and each connection turns foreign keys on, so deleting a row deletes or clears everything that refers to it. When Ada deletes an event, one `DELETE` removes its stops, RSVPs, votes, list, marks, photos and starting points.
 
-| Table | One row is | Notes |
-|---|---|---|
-| `users` | a person | email unique ignoring case; Argon2id password hash; profile picture and banner ids |
-| `sessions` | a signed-in browser | only the SHA-256 of the token is stored |
-| `tribes`, `tribe_members` | a group, and who is in it | role is `organizer` or `member` |
-| `events` | an outing | the meeting point is on the event itself: name, latitude, longitude |
-| `event_stops` | another place on the plan | kind `stop`, `optional` or `venue`, kept in the planner's order |
-| `event_rsvps`, `event_votes` | going or not; a thumbs up or down | |
-| `prep_items` | a thing to bring | `personal` (one each) or `shared` (one for the group); `model` or `person` added it; the OpenStreetMap shop kinds that sell it |
-| `item_marks` | one person's mark on an item | `bringing` or `got` |
-| `trip_origins` | where one person starts from | shared by choice, for store search |
-| `stores` | a shop seen in OpenStreetMap | a cache shared by every route |
-| `images` | an event cover, event photo or tribe cover | the file itself is on disk |
-| `inline_images` | a picture placed in a description | |
-| `activity_log` | one line of the feed | |
+## 2.2 One event, stored
 
-## 2.2 Two decisions in the schema
+When Ada saves the Skyline Trail event, the server writes one row to `events`. The meeting point is part of that row, as `place_name`, `lat` and `lng`, because every event has exactly one meeting point and most have nothing else. Reading the common event then needs no join.
 
-**The meeting point is part of the event; the other places are rows.** Every
-event has exactly one meeting point, and most have nothing else, so the
-common case is one row with no join. `event_stops` holds the rest in order.
-The itinerary the page shows is always: the meeting point, then the stops in
-order, then the venue, which the editor keeps last.
+If she adds a coffee stop and the trail as the venue, each becomes a row in `event_stops` with a `kind` (`stop`, `optional` or `venue`) and a `position` that keeps her order. The page always shows the meeting point first, then the stops in order, then the venue.
 
-**A "cover" is the newest image row of its kind.** Setting a cover inserts a
-row and, in the same transaction, deletes the previous cover's row and
-returns its id so the server can delete the files. There is no `cover_id`
-column to keep in step with the images table.
+When Bo presses "I'm going", the server writes a row to `event_rsvps`. When the model plans the list, each item becomes a row in `prep_items` with `source = 'model'`; items people add get `source = 'person'`. An item's `scope` says whether everyone brings their own (`personal`) or one person brings it for the group (`shared`). When Bo ticks "microspikes", the server writes his row to `item_marks` with `state = 'got'`. Each person has at most one mark per item, because the pair `(item_id, user_id)` is the primary key.
+
+A picture is a row in `images` plus two files on disk (chapter 7). The row says what the picture belongs to: an event's cover, an event photo, or a tribe's cover. A cover is simply the newest image of that kind. Setting a new cover inserts its row and, in the same transaction, deletes the old cover's row and returns its id, so the server can delete the old files. There is no `cover_id` column to keep in step.
 
 ## 2.3 Changing the schema
 
-`schema::prepare` runs on every start. It creates any missing table with
-`CREATE TABLE IF NOT EXISTS`, then checks a short list of columns added since
-the first release:
+`schema::prepare` runs every time the server starts. It turns on foreign keys and write-ahead logging, creates any missing table with `CREATE TABLE IF NOT EXISTS`, and then checks a short list of columns added since the first release:
 
 ```rust
 const ADDED_COLUMNS: [(&str, &str, &str); 2] = [
@@ -66,39 +46,32 @@ const ADDED_COLUMNS: [(&str, &str, &str); 2] = [
 ];
 ```
 
-For each one it asks `pragma_table_info` whether the column exists and runs
-`ALTER TABLE … ADD COLUMN` if not. An old database file is brought up to date
-by starting the new binary; nothing else is needed. This only handles added
-tables and nullable columns. A rename or a changed constraint would need a
-real migration step, which the app has not needed yet.
+For each one, it asks `pragma_table_info` whether the column exists, and runs `ALTER TABLE … ADD COLUMN` if it does not. You upgrade an old database by starting the new binary. This handles new tables and new nullable columns only. Renaming a column or changing a constraint would need a real migration step, which the app has not needed yet.
 
 ## 2.4 What is deleted, and when
 
-An hourly task, `maintenance::purge`, deletes:
+Once an hour, `maintenance::purge` deletes:
 
-| What | When |
-|---|---|
-| Starting points | a day after their event |
-| Expired sessions | at expiry, 30 days after sign-in |
-| Shops in the `stores` cache | 90 days after they were last seen |
-| Events, with everything attached | a year after they happened |
+- each person's starting point, a day after the event;
+- expired sessions, 30 days after sign-in;
+- shops in the `stores` cache that no search has seen for 90 days;
+- events, with everything attached, a year after they happened.
 
-The same task then sweeps the pictures folder: any file whose id is no longer
-in `images`, `inline_images` or a person's profile columns is deleted
-(chapter 7).
+The same task then sweeps the pictures folder and deletes every file whose id no row mentions any more (chapter 7). A replaced cover or a deleted photo leaves nothing behind on disk.
 
 ## 2.5 Learned pairings
 
-"Groups often also got" is computed from `item_marks`, not written by hand.
-Each finished list where people marked items as got is one basket. For an
-item A and another item B, `tribe-core::basket` computes:
+<figure>
+<img src="figures/ch02-pairings.svg" alt="Bars for 20 baskets: 8 with microspikes, 6 with hand warmers, 5 with both. Below, support is 5 over 20, 0.25; confidence is 5 over 8, 0.63; lift is 0.63 over 0.30, 2.08.">
+<figcaption><b>Figure 2.2</b> Support, confidence and lift for one pair of items, with made-up numbers.</figcaption>
+</figure>
 
-- **support**: the share of baskets that hold both;
-- **confidence**: the share of baskets with A that also hold B;
-- **lift**: confidence divided by B's share of all baskets. Above 1, B shows up
-  with A more often than chance.
+When you look at an item on a list, the app may say "groups who bought this also got hand warmers". Nobody wrote that rule. `tribe-core::basket` counts it from `item_marks`. Each finished list where people marked items as got is one **basket**. For an item A and another item B, it computes three numbers:
 
-A pair is shown only with at least 10 baskets in total, 3 baskets holding
-both, and a lift of at least 1.1. Until then the app shows nothing, rather
-than a pattern from three trips. The same pairings are also given to the
-model as facts when it plans a list (chapter 4).
+- **support** is the share of all baskets that hold both A and B;
+- **confidence** is the share of baskets with A that also hold B;
+- **lift** is confidence divided by B's share of all baskets. A lift above 1 means B turns up with A more often than it would by chance.
+
+In figure 2.2, 8 of 20 baskets have microspikes, 6 have hand warmers, and 5 have both. Of the baskets with microspikes, 5 of 8, or 0.63, also have hand warmers, while hand warmers appear in 6 of 20 baskets overall, or 0.30. The lift is 0.63 / 0.30 = 2.08: a group that buys microspikes is about twice as likely as an average group to buy hand warmers.
+
+The app shows a pair only when there are at least 10 baskets in total, at least 3 of them hold both items, and the lift is at least 1.1. Below those thresholds a "pattern" is three trips that happened to look alike, so the app shows nothing. The same pairings are given to the model as facts when it plans a list (chapter 4).

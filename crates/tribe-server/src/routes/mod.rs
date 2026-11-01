@@ -11,7 +11,7 @@
 //! | trip | `GET /api/events/{id}/trip`, `GET /api/events/{id}/briefing` |
 //! | places | `GET /api/places`, `GET /api/places/best-matches`, `GET /api/places/nearest` |
 //! | drafts | `POST /api/event-drafts`, `/api/tribe-drafts`, `/api/description-drafts`, `/api/cover-designs` |
-//! | feed | `GET /api/feed`, `GET /api/search` |
+//! | feed | `GET /api/feed`, `GET /api/search`, `GET /api/search/related` |
 
 mod access;
 mod drafts;
@@ -124,6 +124,7 @@ fn event_routes() -> Router<AppState> {
         )
         .route("/events/{event_id}/trip", get(trip::trip))
         .route("/events/{event_id}/briefing", get(trip::briefing))
+        .route("/events/{event_id}/trails", get(trip::trails))
         .route("/photos/{image_id}", delete(pictures::remove_photo))
         .route(
             "/pictures",
@@ -150,6 +151,7 @@ fn discovery_routes() -> Router<AppState> {
     Router::new()
         .route("/feed", get(feed::feed))
         .route("/search", get(feed::search))
+        .route("/search/related", get(feed::related))
         .route("/places", get(places::search))
         .route("/places/best-matches", get(places::best_matches))
         .route("/places/nearest", get(places::nearest))

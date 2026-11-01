@@ -123,6 +123,25 @@ export function distance(km: number): string {
   return imperial ? `${Math.round(km * 0.621)} mi` : `${Math.round(km)} km`;
 }
 
+/** A trail's length to a tenth, both units, the reader's own first: "5.6 mi (9.0 km)". */
+export function trailLength(km: number): string {
+  const miles = `${(km * 0.621).toFixed(1)} mi`;
+  const kilometres = `${km.toFixed(1)} km`;
+
+  return imperial ? `${miles} (${kilometres})` : `${kilometres} (${miles})`;
+}
+
+/** A short distance to a tenth, in the reader's units only: "0.3 mi" or "0.5 km". */
+export function shortDistance(km: number): string {
+  return imperial ? `${(km * 0.621).toFixed(1)} mi` : `${km.toFixed(1)} km`;
+}
+
+/** A climb in the reader's units only, rounded: "2,170 ft" or "662 m". */
+export function climbHeight(metres: number): string {
+  const amount = imperial ? Math.round(metres * 3.281) : Math.round(metres);
+  return `${amount.toLocaleString()} ${imperial ? "ft" : "m"}`;
+}
+
 /** "1 h 20 min" or "35 min". */
 export function duration(totalMinutes: number): string {
   const hours = Math.floor(totalMinutes / 60);

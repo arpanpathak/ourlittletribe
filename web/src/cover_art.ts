@@ -4,7 +4,7 @@
 // uploaded like any other cover.
 
 import type { Activity, CoverDesign, Landscape, Light, Season, Weather } from "./api/types.js";
-import { person, tree, type CrewMember, type Pose } from "./art.js";
+import { EVERYONE, person, tree, type CrewMember, type Pose } from "./art.js";
 
 /** The drawing's size in its own units; the PNG is twice this. */
 const WIDTH = 800;
@@ -88,8 +88,38 @@ const LANDS: Record<Season, LandColours> = {
   winter: { far: "#a9b8c9", mid: "#e4ebf0", near: "#d5dfe6", ground: "#eef3f6", trail: "#c9d3dc", tree: "#2c5545", tree2: "#3f6a58", treeFar: "#6d8a80", trunk: "#4e3b2e", speck: null },
 };
 
-/** The order friends join a scene. */
-const CREW: CrewMember[] = ["ada", "bo", "dee", "cy"];
+/** A source of random numbers from 0 to 1; the same seed always gives the same picture. */
+type Random = () => number;
+
+/** A small, fast seeded generator (mulberry32). */
+function seeded(seed: number): Random {
+  let state = seed >>> 0;
+
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** A number from `low` to `high`. */
+function between(random: Random, low: number, high: number): number {
+  return low + random() * (high - low);
+}
+
+/** The list in a random order. */
+function shuffled<Item>(items: Item[], random: Random): Item[] {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(random() * (index + 1));
+    [copy[index], copy[other]] = [copy[other]!, copy[index]!];
+  }
+  return copy;
+}
+
+/** Fur colours for the dog that sometimes comes along. */
+const DOG_COATS = ["#8a5a32", "#2b2522", "#d9b27a", "#efe6d6", "#a0522d"];
 
 /** One person to draw: who, where and how. */
 interface Figure {
@@ -99,6 +129,10 @@ interface Figure {
   x: number;
   /** How they stand. */
   pose: Pose;
+  /** Facing left, towards the others. */
+  flip: boolean;
+  /** Their size; 1 is about 115 units tall. */
+  scale: number;
 }
 
 function colour(design: CoverDesign): LandColours {
@@ -137,18 +171,29 @@ function cloud(x: number, y: number, scale: number, fill: string): string {
   return `<g transform="translate(${x} ${y}) scale(${scale})" fill="${fill}"><ellipse rx="50" ry="16"/><circle cx="-16" cy="-10" r="18"/><circle cx="14" cy="-15" r="23"/></g>`;
 }
 
-function cloudLayer(weather: Weather, light: Light): string {
+/** Clouds at random places across the sky; more and heavier for rain and snow. */
+function cloudLayer(weather: Weather, light: Light, random: Random): string {
   const fill = light === "night" ? "#4a5a80" : weather === "rain" ? "#9aa6b2" : "#ffffff";
-  switch (weather) {
-    case "clear":
-      return "";
-    case "clouds":
-    case "mist":
-      return cloud(150, 110, 1, fill) + cloud(430, 70, 0.75, fill);
-    case "rain":
-    case "snow":
-      return cloud(120, 80, 1.3, fill) + cloud(360, 60, 1.1, fill) + cloud(610, 90, 1.25, fill);
+  const count = weather === "clear" ? 0 : weather === "rain" || weather === "snow" ? 3 : Math.round(between(random, 1, 3));
+
+  const clouds: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const x = (index + 0.5) * (WIDTH / count) + between(random, -60, 60);
+    clouds.push(cloud(x, between(random, 50, 120), between(random, 0.6, 1.3), fill));
   }
+  return clouds.join("");
+}
+
+/** A few birds in a daytime sky. */
+function birds(light: Light, weather: Weather, random: Random): string {
+  const daytime = light === "day" || light === "dawn" || light === "golden_hour";
+  const calm = weather === "clear" || weather === "clouds";
+  if (!daytime || !calm || random() < 0.4) return "";
+
+  const x = between(random, 120, 560);
+  const y = between(random, 90, 150);
+  const flock = [0, 1, 2].map((index) => `<path d="M${x + index * 24} ${y + (index % 2) * 10} q5 -6 10 0 q5 -6 10 0" fill="none" stroke="#3a3f45" stroke-width="2" stroke-linecap="round"/>`);
+  return flock.join("");
 }
 
 /* ── Land ─────────────────────────────────────────── */
@@ -191,7 +236,22 @@ ${pineRow([40, 90, 720, 770], 304, 50, land.treeFar)}`;
   }
 }
 
-function groundLayer(land: LandColours, design: CoverDesign): string {
+/** Tall trees at both edges, a different number in different places each time. */
+function sideForest(land: LandColours, random: Random): string {
+  const left = Math.round(between(random, 1, 2));
+  const right = Math.round(between(random, 1, 3));
+
+  const trees: string[] = [];
+  for (let index = 0; index < left; index += 1) {
+    trees.push(tree(between(random, 20, 150), between(random, 430, 448), between(random, 110, 175), index % 2 ? land.tree2 : land.tree));
+  }
+  for (let index = 0; index < right; index += 1) {
+    trees.push(tree(between(random, 640, 785), between(random, 428, 448), between(random, 100, 180), index % 2 ? land.tree2 : land.tree));
+  }
+  return trees.join("");
+}
+
+function groundLayer(land: LandColours, design: CoverDesign, random: Random): string {
   const water = design.activity === "paddling";
   const ground = water
     ? `<rect y="372" width="${WIDTH}" height="${LIFTED_BOTTOM - 372}" fill="#4f86b8"/><path d="M60 400 h120 M330 430 h160 M600 410 h120" stroke="#fff" stroke-width="2.5" opacity=".45"/>`
@@ -201,33 +261,68 @@ function groundLayer(land: LandColours, design: CoverDesign): string {
     : "";
 
   const specks = land.speck && !water ? [60, 140, 230, 520, 610, 700, 760].map((x, index) => `<circle cx="${x}" cy="${430 + (index % 3) * 6}" r="3" fill="${land.speck}"/>`).join("") : "";
-  const sideTrees = water ? "" : tree(50, 440, 150, land.tree) + tree(750, 444, 170, land.tree) + tree(705, 430, 110, land.tree2);
+  const sideTrees = water ? "" : sideForest(land, random);
   return ground + trail + specks + sideTrees;
 }
 
 /* ── People and what they are doing ───────────────── */
 
-function figures(activity: Activity, crew: number): Figure[] {
-  const who = CREW.slice(0, Math.min(Math.max(crew, 1), 4));
-  const spacing = activity === "picnic" || activity === "camping" ? 80 : 64;
-  const start = 400 - ((who.length - 1) * spacing) / 2;
+/** How a person stands for an activity; groups that wave do not all wave. */
+function poseFor(activity: Activity, random: Random): Pose {
+  switch (activity) {
+    case "hiking":
+    case "running":
+      return "walk";
+    case "gathering":
+    case "picnic":
+      return random() < 0.5 ? "wave" : "stand";
+    case "cycling":
+    case "camping":
+    case "paddling":
+    case "skiing":
+      return "stand";
+  }
+}
+
+/** Who is in the picture, where, and how: a different group each time. */
+function figures(activity: Activity, crew: number, random: Random): Figure[] {
+  const count = Math.min(Math.max(crew, 1), 4);
+  const who = shuffled(EVERYONE, random).slice(0, count);
+
+  const roomy = activity === "picnic" || activity === "camping";
+  const spacing = between(random, roomy ? 72 : 56, roomy ? 92 : 74);
+  const middle = 400 + between(random, -70, 70);
+  const start = middle - ((count - 1) * spacing) / 2;
 
   return who.map((member, index) => {
-    const x = start + index * spacing;
-    switch (activity) {
-      case "hiking":
-      case "running":
-        return { who: member, x, pose: "walk" };
-      case "gathering":
-      case "picnic":
-        return { who: member, x, pose: index % 2 === 0 ? "wave" : "stand" };
-      case "cycling":
-      case "camping":
-      case "paddling":
-      case "skiing":
-        return { who: member, x, pose: "stand" };
-    }
+    const x = start + index * spacing + between(random, -6, 6);
+    const facesGroup = activity === "gathering" && index === count - 1 && count > 1 && random() < 0.5;
+    return { who: member, x, pose: poseFor(activity, random), flip: facesGroup, scale: between(random, 0.76, 0.88) };
   });
+}
+
+/** A dog standing at (x, feet), facing right. */
+function dog(x: number, feet: number, coat: string): string {
+  return `<g transform="translate(${x} ${feet})">
+<ellipse cx="0" cy="1" rx="20" ry="3.5" fill="#000" opacity=".14"/>
+<rect x="-14" y="-16" width="5" height="16" rx="2.5" fill="${coat}"/><rect x="8" y="-16" width="5" height="16" rx="2.5" fill="${coat}"/>
+<ellipse cx="0" cy="-20" rx="17" ry="9" fill="${coat}"/>
+<path d="M-16 -22 q-10 -6 -8 -16" stroke="${coat}" stroke-width="4" fill="none" stroke-linecap="round"/>
+<circle cx="16" cy="-30" r="8" fill="${coat}"/><ellipse cx="23" cy="-28" rx="5" ry="3.5" fill="${coat}"/>
+<path d="M12 -36 l-4 -8 l7 4z" fill="#3a2a20"/><circle cx="18" cy="-32" r="1.4" fill="#111"/><circle cx="27" cy="-28.5" r="1.6" fill="#111"/>
+</g>`;
+}
+
+/** Sometimes a dog comes along on walks, runs and picnics. */
+function maybeDog(activity: Activity, people: Figure[], random: Random): string {
+  const outdoors = activity === "hiking" || activity === "running" || activity === "gathering" || activity === "picnic";
+  if (!outdoors || random() < 0.5) return "";
+
+  const last = people[people.length - 1];
+  if (!last) return "";
+
+  const coat = DOG_COATS[Math.floor(random() * DOG_COATS.length)] ?? "#8a5a32";
+  return dog(last.x + between(random, 40, 56), FEET_Y, coat);
 }
 
 function bike(x: number): string {
@@ -259,13 +354,15 @@ function props(activity: Activity, people: Figure[]): { behind: string; front: s
   }
 }
 
-function peopleLayer(design: CoverDesign): string {
-  const people = figures(design.activity, design.crew);
+function peopleLayer(design: CoverDesign, random: Random): string {
+  const people = figures(design.activity, design.crew, random);
   const { behind, front } = props(design.activity, people);
-  const scale = design.activity === "paddling" ? 0.6 : 0.82;
-  const drawn = people.map((figure, index) => person(figure.who, { x: figure.x, y: FEET_Y - (design.activity === "paddling" ? 14 : 0), scale, pose: figure.pose, delay: -index * 0.3 })).join("");
 
-  return behind + drawn + front;
+  const paddling = design.activity === "paddling";
+  const feet = FEET_Y - (paddling ? 14 : 0);
+  const drawn = people.map((figure, index) => person(figure.who, { x: figure.x, y: feet, scale: paddling ? 0.6 : figure.scale, pose: figure.pose, flip: figure.flip, delay: -index * 0.3 }));
+
+  return behind + drawn.join("") + front + maybeDog(design.activity, people, random);
 }
 
 /* ── Weather in front ─────────────────────────────── */
@@ -276,7 +373,8 @@ function weatherLayer(weather: Weather): string {
     case "clouds":
       return "";
     case "mist":
-      return `<g fill="#fff" opacity=".35"><rect y="${300 - LIFT}" width="${WIDTH}" height="26" rx="13"/><rect x="-40" y="${342 - LIFT}" width="${WIDTH * 0.7}" height="18" rx="9"/></g>`;
+      return `<defs><filter id="haze" x="-10%" y="-200%" width="120%" height="500%"><feGaussianBlur stdDeviation="9"/></filter></defs>`
+        + `<g fill="#fff" opacity=".55" filter="url(#haze)"><ellipse cx="300" cy="${306 - LIFT}" rx="420" ry="14"/><ellipse cx="560" cy="${336 - LIFT}" rx="360" ry="10"/><ellipse cx="120" cy="${352 - LIFT}" rx="260" ry="8"/></g>`;
     case "rain":
       return `<g stroke="#c9d6e2" stroke-width="2" opacity=".6">${Array.from({ length: 40 }, (_, index) => `<path d="M${(index * 41) % WIDTH} ${(index * 67) % 380} l-8 18"/>`).join("")}</g>`;
     case "snow":
@@ -286,8 +384,13 @@ function weatherLayer(weather: Weather): string {
 
 /* ── The whole picture ────────────────────────────── */
 
-/** The cover as standalone SVG markup, with every colour written in. */
-export function coverSvg(design: CoverDesign): string {
+/**
+ * The cover as standalone SVG markup, with every colour written in. The
+ * seed picks who is in it, where they stand, and where the trees, clouds
+ * and birds go; the same design and seed always give the same picture.
+ */
+export function coverSvg(design: CoverDesign, seed = 1): string {
+  const random = seeded(seed);
   const sky = SKIES[design.light];
   const land = colour(design);
 
@@ -298,15 +401,16 @@ export function coverSvg(design: CoverDesign): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH * 2}" height="${HEIGHT * 2}" style="--art-trunk:${land.trunk}">
 ${styles}<defs>${tint}</defs>
 ${skyLayer(sky, design.light, design.weather)}
-${cloudLayer(design.weather, design.light)}
-<g${tinted} transform="translate(0 -${LIFT})">${landLayer(design.landscape, land)}${groundLayer(land, design)}${peopleLayer(design)}</g>
+${cloudLayer(design.weather, design.light, random)}${birds(design.light, design.weather, random)}
+<g${tinted} transform="translate(0 -${LIFT})">${landLayer(design.landscape, land)}${groundLayer(land, design, random)}${peopleLayer(design, random)}</g>
 ${weatherLayer(design.weather)}
 </svg>`;
 }
 
 /** Draws the cover onto a canvas and returns it as a PNG file, ready to upload. */
 export async function coverFile(design: CoverDesign, name = "cover"): Promise<File> {
-  const url = URL.createObjectURL(new Blob([coverSvg(design)], { type: "image/svg+xml" }));
+  const seed = Math.floor(Math.random() * 2 ** 31);
+  const url = URL.createObjectURL(new Blob([coverSvg(design, seed)], { type: "image/svg+xml" }));
   try {
     const image = new Image();
     image.src = url;

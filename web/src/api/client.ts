@@ -4,7 +4,7 @@
 import type {
   Briefing, CoverDesign, CoverRequest, DescriptionDraftRequest, Event, EventDetail, EventDraft, EventFields, Feed, InlinePicture, LatLng,
   MarkState, PlaceMatch, PlanResult, PrepItem, ProfileFields, ProfilePage, Photo, Rsvp, SearchResults, Suggestions,
-  Tribe, TribeDetail, TribeDraft, TribeFields, TripView, Units, User, Vote,
+  Trail, Tribe, TribeDetail, TribeDraft, TribeFields, TripView, Units, User, Vote,
 } from "./types.js";
 
 /** A failed request: its HTTP status and the server's message. */
@@ -119,6 +119,7 @@ export const events = {
   removeCover: (eventId: string) => send<Event>("DELETE", `events/${encode(eventId)}/cover`),
   trip: (eventId: string) => send<TripView>("GET", `events/${encode(eventId)}/trip`),
   briefing: (eventId: string, units: Units) => send<Briefing>("GET", `events/${encode(eventId)}/briefing?units=${units}`),
+  trails: (eventId: string) => send<Trail[]>("GET", `events/${encode(eventId)}/trails`),
 };
 
 /** Photos and pictures. */
@@ -153,6 +154,7 @@ export const places = {
 export const discovery = {
   feed: () => send<Feed>("GET", "feed"),
   search: (text: string) => send<SearchResults>("GET", `search?q=${encode(text)}`),
+  related: (text: string) => send<SearchResults>("GET", `search/related?q=${encode(text)}`),
 };
 
 /** Drafts the model writes. */

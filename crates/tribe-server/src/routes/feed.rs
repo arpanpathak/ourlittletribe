@@ -9,7 +9,7 @@ use tribe_db::search::{self, SearchResults};
 use tribe_db::tribes::{self, Tribe};
 use tribe_db::unix_now;
 
-use super::bounded;
+use super::{bounded, model};
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -55,20 +55,53 @@ pub struct SearchQuery {
     q: String,
 }
 
-/// `GET /api/search?q=…`: events, tribes and people whose words contain the text.
+impl SearchQuery {
+    /// The text, checked: 2 to 100 characters.
+    fn text(&self) -> ApiResult<String> {
+        let text = bounded(&self.q, 100, "search is too long")?;
+        if text.chars().count() < 2 {
+            return Err(ApiError::Invalid("type at least two letters"));
+        }
+        Ok(text)
+    }
+}
+
+/// `GET /api/search?q=…`: events, tribes and people matching any word of the
+/// text, in any form ("replacing" finds "replace"), and near spellings.
 pub async fn search(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Query(query): Query<SearchQuery>,
 ) -> ApiResult<Json<SearchResults>> {
-    let text = bounded(&query.q, 100, "search is too long")?;
-    if text.chars().count() < 2 {
-        return Err(ApiError::Invalid("type at least two letters"));
-    }
+    let text = query.text()?;
 
     let results = state
         .db
         .call(move |connection| search::search(connection, &user.id, &text, unix_now()))
+        .await?;
+    Ok(Json(results))
+}
+
+/// `GET /api/search/related?q=…`: more results, for words the model says the
+/// search also means, such as "trail" and "trek" for "hiking". Slower than
+/// `/api/search`; the page asks both and shows these under "Related".
+pub async fn related(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Query(query): Query<SearchQuery>,
+) -> ApiResult<Json<SearchResults>> {
+    let text = query.text()?;
+    let brain = model(&state)?;
+
+    let words = brain.related_words(&text).await?;
+    if words.is_empty() {
+        return Ok(Json(SearchResults::default()));
+    }
+
+    let wider = words.join(" ");
+    let results = state
+        .db
+        .call(move |connection| search::search(connection, &user.id, &wider, unix_now()))
         .await?;
     Ok(Json(results))
 }

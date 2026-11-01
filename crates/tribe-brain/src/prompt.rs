@@ -78,6 +78,12 @@ Pick the season from the date when there is one; otherwise from the description;
 Pick weather that suits the place and season but stays inviting; rain only when they say so. \
 crew: how many people to draw, 1 to 4: 1 for a solo plan, 4 for a big group, else 3.";
 
+/// Instructions for widening a search in the app.
+pub const RELATED_SYSTEM: &str = "You help the search box of an app where groups plan outings: hikes, runs, picnics, \
+book clubs, camping. Given what someone typed, list up to 8 other single words or short names they probably also mean: \
+other forms of the words, synonyms, the activity it implies, and well-known places it names. \
+Lower case, no words they already typed, no sentences.";
+
 /// Instructions for answering one search.
 pub const SEARCH_SYSTEM: &str = "You help one person on a group trip find what they are searching for. \
 Turn the search into concrete things to buy, using the trip's facts. \

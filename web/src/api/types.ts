@@ -633,3 +633,40 @@ export interface CoverRequest {
   /** When it happens, in words. */
   when: string;
 }
+
+/** How hard a trail is, from OpenStreetMap's grades. */
+export type Difficulty = "easy" | "moderate" | "hard" | "alpine";
+
+/** How much a trail goes up and down, metres. */
+export interface Climb {
+  /** Total height gained along the profile. */
+  gain_m: number;
+  /** Total height lost along the profile. */
+  loss_m: number;
+  /** Its lowest point. */
+  lowest_m: number;
+  /** Its highest point. */
+  highest_m: number;
+}
+
+/** A trail near where an event happens. */
+export interface Trail {
+  /** `relation/123` or `way/456` on OpenStreetMap. */
+  osm_ref: string;
+  /** Its name. */
+  name: string;
+  /** How hard it is, when the map says. */
+  difficulty: Difficulty | null;
+  /** Whether it is a marked hiking route. */
+  is_route: boolean;
+  /** Its length, km. */
+  length_km: number;
+  /** Its climb, when the elevation lookup worked. */
+  climb: Climb | null;
+  /** Heights along it, metres, in order. */
+  profile: number[];
+  /** Its line, in pieces. */
+  segments: LatLng[][];
+  /** How far its nearest point is from where the event happens, km. */
+  distance_km: number;
+}

@@ -1,6 +1,7 @@
 //! Stores near a route, from OpenStreetMap through Overpass.
 
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use tribe_core::geo::{LatLng, thin_route};
 use tribe_core::osm::is_plain_tag;
 
@@ -105,10 +106,35 @@ fn read_element(element: Element) -> Option<FoundStore> {
 const OVERPASS_ATTEMPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 
 impl Places {
+    /// Sends `query` to each configured Overpass server in turn and returns
+    /// the first answer, or the last server's error.
+    pub(crate) async fn ask_overpass<Answer: DeserializeOwned>(
+        &self,
+        query: &str,
+    ) -> Result<Answer, PlacesError> {
+        let mut last_error = PlacesError::Refused {
+            service: "Overpass",
+            reason: "no Overpass server is configured".to_string(),
+        };
+
+        for interpreter in &self.endpoints.overpass {
+            let request = self
+                .http
+                .post(interpreter)
+                .timeout(OVERPASS_ATTEMPT_TIMEOUT)
+                .form(&[("data", query)]);
+
+            match self.get_json::<Answer>("Overpass", request).await {
+                Ok(answer) => return Ok(answer),
+                Err(error) => last_error = error,
+            }
+        }
+        Err(last_error)
+    }
+
     /// Named shops whose `shop` value is one of `shop_tags`, within `radius_m` metres of `route`.
     ///
     /// Tags that are not plain lower-case words are dropped before querying.
-    /// Each configured Overpass server is tried in turn.
     pub async fn stores_along(
         &self,
         route: &[LatLng],
@@ -124,34 +150,15 @@ impl Places {
         if safe_tags.is_empty() || route.is_empty() {
             return Ok(Vec::new());
         }
+
         let query = build_query(&thin_route(route, 60), radius_m, &safe_tags, 300);
-        let mut last_error = PlacesError::Refused {
-            service: "Overpass",
-            reason: "no Overpass server is configured".to_string(),
-        };
-        let mut answer = None;
-        for interpreter in &self.endpoints.overpass {
-            let request = self
-                .http
-                .post(interpreter)
-                .timeout(OVERPASS_ATTEMPT_TIMEOUT)
-                .form(&[("data", query.as_str())]);
-            match self.get_json::<OverpassResponse>("Overpass", request).await {
-                Ok(response) => {
-                    answer = Some(response);
-                    break;
-                }
-                Err(error) => last_error = error,
-            }
-        }
-        let response = answer.ok_or(last_error)?;
-        let mut stores = Vec::new();
-        for element in response.elements {
-            if let Some(store) = read_element(element) {
-                stores.push(store);
-            }
-        }
-        Ok(stores)
+        let response: OverpassResponse = self.ask_overpass(&query).await?;
+
+        Ok(response
+            .elements
+            .into_iter()
+            .filter_map(read_element)
+            .collect())
     }
 }
 

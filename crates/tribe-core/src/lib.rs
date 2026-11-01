@@ -11,3 +11,4 @@ pub mod geo;
 pub mod itinerary;
 pub mod osm;
 pub mod recommend;
+pub mod trails;

@@ -29,10 +29,12 @@ interface Outfit {
   hat?: string;
   /** Hat band. */
   hatDark?: string;
+  /** Long hair tied back, drawn behind the head. */
+  ponytail?: boolean;
 }
 
-/** The four friends who appear in the scenes. */
-export type CrewMember = "ada" | "bo" | "cy" | "dee";
+/** The friends who appear in the scenes: the first four everywhere, the rest on covers. */
+export type CrewMember = "ada" | "bo" | "cy" | "dee" | "eli" | "fay" | "gus" | "ivy" | "jo" | "kai";
 
 /** How a person stands in a scene. */
 export type Pose = "walk" | "wave" | "stand";
@@ -59,7 +61,16 @@ const CREW: Record<CrewMember, Outfit> = {
   bo: { skin: "#8d5a3b", hair: "#1d1512", top: "#e0b13a", topDark: "#bf9327", bottom: "#384656", bottomDark: "#2a3542", pack: "#3f6fb0", packDark: "#30578c", hat: "#c94f3d", hatDark: "#a63e2f" },
   cy: { skin: "#d9a27c", hair: "#6b3b22", top: "#c95c4a", topDark: "#a9483a", bottom: "#4b5b48", bottomDark: "#384536", pack: "#5c6f3a", packDark: "#46552b" },
   dee: { skin: "#f5d3b8", hair: "#d8a64a", top: "#4c79b8", topDark: "#3b6196", bottom: "#5a4a3f", bottomDark: "#45382f", hat: "#2f3b4a", hatDark: "#222b36" },
+  eli: { skin: "#6b4430", hair: "#120d0b", top: "#7a4fb0", topDark: "#5f3d8c", bottom: "#2f3a45", bottomDark: "#222b33", pack: "#d6a23a", packDark: "#b0832a", ponytail: true },
+  fay: { skin: "#f3d0b4", hair: "#a2421f", top: "#2a8c8c", topDark: "#1f6c6c", bottom: "#46423d", bottomDark: "#35322e", ponytail: true },
+  gus: { skin: "#c48a62", hair: "#2a1c14", top: "#d45d2a", topDark: "#ae4a20", bottom: "#3d4b3a", bottomDark: "#2d382b", pack: "#4b5d73", packDark: "#394859", hat: "#e7c24e", hatDark: "#c49f32" },
+  ivy: { skin: "#a26a48", hair: "#1a1210", top: "#e05a7a", topDark: "#bd4762", bottom: "#36405a", bottomDark: "#283047", pack: "#2f7d5b", packDark: "#24614a", ponytail: true },
+  jo: { skin: "#e8b796", hair: "#5a5a5a", top: "#5b6b2f", topDark: "#475424", bottom: "#4a3b30", bottomDark: "#382c24", hat: "#7a4a2a", hatDark: "#5e381f" },
+  kai: { skin: "#7c5236", hair: "#0f0b09", top: "#2f5fa8", topDark: "#244b86", bottom: "#c9b48a", bottomDark: "#a8956f", pack: "#c94f3d", packDark: "#a63e2f" },
 };
+
+/** Everyone who can appear on a cover. */
+export const EVERYONE = Object.keys(CREW) as CrewMember[];
 
 /**
  * A person facing right with their feet at (0, 0), about 115 units tall.
@@ -71,6 +82,7 @@ export function person(who: CrewMember, { x, y, scale = 1, pose = "walk", delay 
     ? `<rect x="-22" y="-80" width="16" height="34" rx="7" fill="${c.pack}"/><rect x="-21" y="-85" width="13" height="8" rx="4" fill="${c.packDark}"/>`
     : "";
   const strap = c.pack ? `<path d="M-7 -78 L-1 -50" stroke="${c.packDark}" stroke-width="3" stroke-linecap="round"/>` : "";
+  const ponytail = c.ponytail ? `<path d="M-11 -101 q-12 4 -10 22 q4 -3 6 -12 q2 -6 4 -10z" fill="${c.hair}"/>` : "";
   const head = c.hat && c.hatDark
     ? `<path d="M-13 -99 a14 13 0 0 1 28 0 z" fill="${c.hat}"/><rect x="-14" y="-102" width="30" height="6" rx="3" fill="${c.hatDark}"/><circle cx="1" cy="-114" r="4" fill="${c.hat}"/>`
     : `<path d="M-10 -101 a12 12 0 0 1 22 -3 q-9 5 -22 3z" fill="${c.hair}"/>`;
@@ -84,7 +96,7 @@ export function person(who: CrewMember, { x, y, scale = 1, pose = "walk", delay 
       <rect x="-12" y="-80" width="23" height="40" rx="10" fill="${c.top}"/>
       ${strap}
       <rect x="-3" y="-87" width="7" height="9" rx="3" fill="${c.skin}"/>
-      <circle cx="-1" cy="-97" r="12.5" fill="${c.hair}"/>
+      ${ponytail}<circle cx="-1" cy="-97" r="12.5" fill="${c.hair}"/>
       <circle cx="2" cy="-95" r="11" fill="${c.skin}"/>
       ${head}
       <g class="a-eye"><circle cx="8" cy="-96" r="1.6" fill="#1d1a18"/></g>

@@ -4,11 +4,19 @@ import type * as Leaflet from "leaflet";
 declare global {
   const L: typeof Leaflet;
 
+  /** A theme: its palette's name and whether it is light or dark. */
+  interface OltTheme {
+    /** The palette's name, such as "nord". */
+    palette: string;
+    /** Whether its background is light or dark. */
+    mode: "light" | "dark";
+  }
+
   interface Window {
-    /** Sets the theme: "light", "dark", or null to follow the system. Defined by theme.ts. */
-    oltSetTheme: (theme: "light" | "dark" | null) => void;
-    /** The saved theme choice, or null when following the system. Defined by theme.ts. */
-    oltThemeChoice: () => "light" | "dark" | null;
+    /** Sets the theme, or null to follow the system with Evergreen. Defined by theme.ts. */
+    oltSetTheme: (theme: OltTheme | null) => void;
+    /** The saved theme, or null when following the system. Defined by theme.ts. */
+    oltThemeChoice: () => OltTheme | null;
   }
 }
 

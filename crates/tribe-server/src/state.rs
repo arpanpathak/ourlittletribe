@@ -21,6 +21,7 @@ use tribe_places::address::PlaceMatch;
 use tribe_places::photon::Area;
 
 use crate::conditions::Conditions;
+use crate::trails::TrailView;
 
 /// Settings, from `OLT_*` environment variables.
 #[derive(Debug, Clone)]
@@ -261,6 +262,8 @@ pub struct Caches {
     pub areas: TimedCache<String, Option<Area>>,
     /// The region around a rough spot, such as "Seattle, Washington", a day.
     pub regions: TimedCache<RoughSpot, String>,
+    /// Trails near each event, six hours.
+    pub trails: TimedCache<EventId, Vec<TrailView>>,
 }
 
 impl Caches {
@@ -269,6 +272,7 @@ impl Caches {
         let minutes = |count: u64| Duration::from_secs(count * 60);
         Caches {
             conditions: TimedCache::new(minutes(30)),
+            trails: TimedCache::new(minutes(6 * 60)),
             briefings: TimedCache::new(minutes(60)),
             store_lookups: TimedCache::new(minutes(30)),
             store_search_cooldown: Cooldown::new(minutes(3)),
@@ -281,6 +285,7 @@ impl Caches {
     /// Forgets everything worked out for an event, after it changes.
     pub fn forget_event(&self, event_id: &EventId) {
         self.conditions.forget(event_id);
+        self.trails.forget(event_id);
         for units in [Units::Imperial, Units::Metric] {
             self.briefings.forget(&BriefingKey {
                 event_id: event_id.clone(),

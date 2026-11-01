@@ -989,3 +989,153 @@ input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) { 
   .tabs button { flex: 1 1 0; min-width: 0; justify-content: center; text-align: center; white-space: normal; line-height: 1.2; padding: 10px 4px; font-size: 13px; gap: 5px; }
   .tabs button .count { flex: none; }
 }
+
+/* ── Fields that must never be wider than their column ─ */
+/* iOS Safari gives date and time inputs a width of their own, wider than a
+   phone's column, and works out a box's width backwards from a minimum
+   height and an aspect ratio. Both push boxes out of their cards. */
+input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-date-and-time-value { text-align: left; }
+.field-row > .field { min-width: 0; }
+.dropzone { width: 100%; max-width: 100%; min-width: 0; min-height: 0; }
+@media (max-width: 600px) { .dropzone { aspect-ratio: 16 / 9; } }
+
+/* The search page's "Related" section: results for words the model added. */
+.related { padding-top: 8px; border-top: 1px dashed var(--border-strong); }
+.related-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 650; color: var(--text-3); }
+
+/* ── Themes ─────────────────────────────────────────── */
+/* data-theme is light or dark, which the illustrations and the map follow;
+   data-palette names the exact colours. Dark palettes come from the editor
+   themes they are named after. */
+:root[data-palette="rose-pine-dawn"] {
+  --bg: #faf4ed; --surface: #fffaf3; --surface-2: #f4ede8; --surface-3: #f2e9e1;
+  --border: #e6dfd8; --border-strong: #d7cfc7;
+  --text: #575279; --text-2: #6e6a86; --text-3: #9893a5;
+  --accent: #286983; --accent-hover: #1f5568; --accent-soft: #e3eef1; --accent-text: #286983; --on-accent: #ffffff;
+  --info: #56949f; --danger: #b4637a; --danger-soft: #f6e4e8;
+}
+:root[data-palette="deep-ocean"] {
+  --bg: #090b10; --surface: #0f111a; --surface-2: #151826; --surface-3: #1b1e2c;
+  --border: #1f2233; --border-strong: #2b2f43;
+  --text: #eeffff; --text-2: #a6accd; --text-3: #717cb4;
+  --accent: #82aaff; --accent-hover: #9dbcff; --accent-soft: #18213a; --accent-text: #9ec1ff; --on-accent: #0b1020;
+  --info: #89ddff; --danger: #f07178; --danger-soft: #3a1820;
+}
+:root[data-palette="night-owl"] {
+  --bg: #010e1a; --surface: #011627; --surface-2: #0b2942; --surface-3: #13344f;
+  --border: #1d3b53; --border-strong: #2a4c66;
+  --text: #d6deeb; --text-2: #a8b7c9; --text-3: #6d8a8a;
+  --accent: #7fdbca; --accent-hover: #9ce9dc; --accent-soft: #0f3a42; --accent-text: #7fdbca; --on-accent: #011627;
+  --info: #82aaff; --danger: #ef5350; --danger-soft: #3b1418;
+}
+:root[data-palette="oceanic-next"] {
+  --bg: #16232b; --surface: #1b2b34; --surface-2: #22343e; --surface-3: #2b3d47;
+  --border: #343d46; --border-strong: #4f5b66;
+  --text: #d8dee9; --text-2: #a7adba; --text-3: #7a8691;
+  --accent: #5fb3b3; --accent-hover: #74c4c4; --accent-soft: #1e3d42; --accent-text: #6fc4c4; --on-accent: #10202a;
+  --info: #6699cc; --danger: #ec5f67; --danger-soft: #3d1d22;
+}
+:root[data-palette="nord"] {
+  --bg: #242933; --surface: #2e3440; --surface-2: #3b4252; --surface-3: #434c5e;
+  --border: #3b4252; --border-strong: #4c566a;
+  --text: #eceff4; --text-2: #d8dee9; --text-3: #8b95a7;
+  --accent: #88c0d0; --accent-hover: #8fbcbb; --accent-soft: #33414f; --accent-text: #88c0d0; --on-accent: #2e3440;
+  --info: #81a1c1; --danger: #bf616a; --danger-soft: #45303a;
+}
+:root[data-palette="catppuccin"] {
+  --bg: #11111b; --surface: #1e1e2e; --surface-2: #26263a; --surface-3: #313244;
+  --border: #313244; --border-strong: #45475a;
+  --text: #cdd6f4; --text-2: #bac2de; --text-3: #7f849c;
+  --accent: #cba6f7; --accent-hover: #d8bdfb; --accent-soft: #33294a; --accent-text: #cba6f7; --on-accent: #1e1e2e;
+  --info: #89b4fa; --danger: #f38ba8; --danger-soft: #3e2433;
+}
+:root[data-palette="tokyo-night"] {
+  --bg: #16161e; --surface: #1a1b26; --surface-2: #1f2335; --surface-3: #292e42;
+  --border: #292e42; --border-strong: #3b4261;
+  --text: #c0caf5; --text-2: #a9b1d6; --text-3: #6b75a3;
+  --accent: #7aa2f7; --accent-hover: #8db0ff; --accent-soft: #1f2a4a; --accent-text: #7aa2f7; --on-accent: #16161e;
+  --info: #7dcfff; --danger: #f7768e; --danger-soft: #3b1f2a;
+}
+:root[data-palette="kanagawa"] {
+  --bg: #16161d; --surface: #1f1f28; --surface-2: #2a2a37; --surface-3: #363646;
+  --border: #2a2a37; --border-strong: #54546d;
+  --text: #dcd7ba; --text-2: #c8c093; --text-3: #8a8980;
+  --accent: #7fb4ca; --accent-hover: #97c6d9; --accent-soft: #22323b; --accent-text: #7fb4ca; --on-accent: #1f1f28;
+  --info: #7e9cd8; --danger: #ff5d62; --danger-soft: #3d1f22;
+}
+:root[data-palette="rose-pine"] {
+  --bg: #13111e; --surface: #191724; --surface-2: #1f1d2e; --surface-3: #26233a;
+  --border: #26233a; --border-strong: #403d52;
+  --text: #e0def4; --text-2: #908caa; --text-3: #6e6a86;
+  --accent: #ebbcba; --accent-hover: #f2cdcb; --accent-soft: #3a2a35; --accent-text: #ebbcba; --on-accent: #191724;
+  --info: #9ccfd8; --danger: #eb6f92; --danger-soft: #3d1f2c;
+}
+:root[data-palette="everforest"] {
+  --bg: #232a2e; --surface: #2d353b; --surface-2: #343f44; --surface-3: #3d484d;
+  --border: #3d484d; --border-strong: #475258;
+  --text: #d3c6aa; --text-2: #9da9a0; --text-3: #859289;
+  --accent: #a7c080; --accent-hover: #b5cc90; --accent-soft: #3c4a3e; --accent-text: #a7c080; --on-accent: #2d353b;
+  --info: #7fbbb3; --danger: #e67e80; --danger-soft: #4c3743;
+}
+
+/* The theme picker: a grid of small previews of each theme. */
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.theme-option { display: flex; flex-direction: column; gap: 8px; padding: 8px; border-radius: 12px; border: 2px solid transparent; background: none; cursor: pointer; text-align: left; color: var(--text); font: inherit; }
+.theme-option:hover { background: var(--surface-2); }
+.theme-option[aria-pressed="true"] { border-color: var(--accent); }
+.theme-preview { height: 64px; border-radius: 9px; padding: 9px; display: flex; flex-direction: column; gap: 6px; border: 1px solid rgba(127, 127, 127, 0.25); }
+.theme-preview span { display: block; height: 7px; border-radius: 4px; }
+.theme-name { font-size: 13px; font-weight: 600; }
+.theme-mode { font-size: 11.5px; color: var(--text-3); }
+.theme-button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+.theme-button:hover { border-color: var(--border-strong); }
+.theme-dots { display: inline-flex; gap: 3px; margin-left: auto; }
+.theme-dots span { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(127, 127, 127, 0.3); }
+
+/* ── Buttons with depth ─────────────────────────────── */
+.btn {
+  height: 40px; padding: 0 16px; border-radius: 10px; font-weight: 600; letter-spacing: -0.005em;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 100%, #ffffff 4%), var(--surface-2));
+  border-color: var(--border-strong);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease, color 0.15s ease;
+}
+.btn:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--text-3) 45%, var(--border-strong)); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 3px 10px rgba(0, 0, 0, 0.1); }
+.btn:active { transform: translateY(1px); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1) inset; }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.btn-primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff 12%), var(--accent));
+  border-color: color-mix(in srgb, var(--accent) 80%, #000000 20%);
+  color: var(--on-accent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.btn-primary:hover { background: linear-gradient(180deg, color-mix(in srgb, var(--accent-hover) 88%, #ffffff 12%), var(--accent-hover)); border-color: color-mix(in srgb, var(--accent-hover) 80%, #000000 20%); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 6px 16px color-mix(in srgb, var(--accent) 40%, transparent); }
+.btn-ghost, .btn-ghost:hover { background: transparent; border-color: transparent; box-shadow: none; }
+.btn-ghost:hover { background: var(--surface-2); }
+.btn-soft { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: none; }
+.btn-soft:hover { background: color-mix(in srgb, var(--accent-soft) 75%, var(--accent) 14%); box-shadow: none; }
+.btn-overlay, .btn-overlay:hover { background: rgba(12, 16, 14, 0.62); border-color: rgba(255, 255, 255, 0.16); color: #ffffff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); }
+.btn-overlay:hover { background: rgba(12, 16, 14, 0.8); }
+.btn-sm { height: 34px; padding: 0 12px; border-radius: 9px; }
+.btn-lg { height: 46px; padding: 0 22px; border-radius: 12px; font-size: 15px; }
+.btn-icon { width: 40px; padding: 0; }
+.btn-icon.btn-sm { width: 34px; }
+
+/* ── Trails nearby ──────────────────────────────────── */
+.trails { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.trail { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.trail.chosen { border-color: color-mix(in srgb, #c8571f 55%, var(--border)); box-shadow: var(--shadow-sm); }
+.trail-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: none; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.trail-head:hover { background: var(--surface-2); }
+.trail-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; background: color-mix(in srgb, #c8571f 14%, transparent); color: #c8571f; }
+.trail-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.trail-grade { flex: none; }
+.trail-easy { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent-text); }
+.trail-moderate { background: var(--warning-soft); color: var(--warning-text); }
+.trail-hard, .trail-alpine { background: var(--danger-soft); color: var(--danger); }
+.trail-details { display: flex; flex-direction: column; gap: 10px; padding: 0 12px 12px 56px; }
+@media (max-width: 600px) { .trail-details { padding-left: 12px; } }
+.trail-profile svg { display: block; width: 100%; height: 96px; }
+.trail-profile .profile-fill { fill: color-mix(in srgb, #c8571f 16%, transparent); }
+.trail-profile .profile-line { fill: none; stroke: #c8571f; stroke-width: 2.5; vector-effect: non-scaling-stroke; }

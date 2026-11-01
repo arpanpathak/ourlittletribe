@@ -19,6 +19,7 @@ use crate::error::ApiResult;
 use crate::facts;
 use crate::state::{AppState, BriefingKey};
 use crate::stores_on_route::{self, TripView};
+use crate::trails::{self, TrailView};
 
 /// Where the viewer said they start from, if they did.
 pub(super) async fn origin_of(
@@ -101,4 +102,17 @@ pub async fn briefing(
 
     state.caches.briefings.put(key, written.clone());
     Ok(Json(written))
+}
+
+/// `GET /api/events/{id}/trails`: named hiking routes and paths near where
+/// the event happens, nearest first, with length, climb and an elevation profile.
+pub async fn trails(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(event_id): Path<EventId>,
+) -> ApiResult<Json<Vec<TrailView>>> {
+    let event = event_for(&state, &event_id, &user).await?;
+    let found = trails::near_event(&state, &event).await?;
+
+    Ok(Json(found))
 }

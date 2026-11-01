@@ -1,9 +1,12 @@
 // The overview tab: what the event is, the conditions, who's going, where it
 // goes, and how the packing list is coming along.
 
-import type { Attendee } from "../../api/types.js";
+import type { LatLngTuple, LayerGroup, Map as LeafletMap } from "leaflet";
+
+import type { Attendee, Trail } from "../../api/types.js";
 import { personTile } from "../../components/cards.js";
 import { conditionsCard } from "../../components/conditions.js";
+import { TrailsCard } from "../../components/trails.js";
 import { h } from "../../dom.js";
 import { count, formatLongDay, formatTime, relativeTime } from "../../format.js";
 import { icon } from "../../icons.js";
@@ -59,18 +62,50 @@ function packingSummary(screen: EventScreen): HTMLElement {
     h("button", { type: "button", class: "btn btn-sm", onclick: () => screen.openTab("list") }, "Open the list", icon("arrowRight", "sm"))));
 }
 
+/** Draws the chosen trail on the event's map, or clears it. */
+class TrailOnMap {
+  private map: LeafletMap | null = null;
+  private layer: LayerGroup | null = null;
+
+  /** Starts drawing on `map`, once it exists. */
+  attach(map: LeafletMap): void {
+    this.map = map;
+    this.layer = L.layerGroup().addTo(map);
+  }
+
+  show(trail: Trail | null): void {
+    if (!this.map || !this.layer) return;
+    this.layer.clearLayers();
+    if (!trail) return;
+
+    for (const segment of trail.segments) {
+      const line: LatLngTuple[] = segment.map((point) => [point.lat, point.lng]);
+      L.polyline(line, { color: "#ffffff", weight: 7, opacity: 0.9 }).addTo(this.layer);
+      L.polyline(line, { color: "#c8571f", weight: 4 }).addTo(this.layer);
+    }
+    fitTo(this.map, trail.segments.flat(), 30);
+  }
+}
+
 /** The overview tab. */
 export function overviewTab(screen: EventScreen): TabView {
   const { detail } = screen;
   const mapElement = h("div", { class: detail.stops.length ? "map map-md" : "map map-sm" });
+  const trailOnMap = new TrailOnMap();
+  const trails = new TrailsCard(detail.event.id, (trail) => {
+    trailOnMap.show(trail);
+    if (trail) mapElement.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 
-  const main = h("div", { class: "stack-lg" }, aboutCard(screen), conditionsCard(detail), goingCard(screen));
+  const main = h("div", { class: "stack-lg" }, aboutCard(screen), conditionsCard(detail), trails.element, goingCard(screen));
   const side = h("aside", { class: "sticky-col" }, whenAndWhereCard(screen, mapElement), packingSummary(screen));
 
   const start = () => {
     const map = createMap(mapElement, detail.event.meeting_point, 13);
     const places = drawItineraryPins(map, detail);
     if (places.length > 1) fitTo(map, places, 30);
+
+    trailOnMap.attach(map);
   };
   return { element: h("div", { class: "split tab-body" }, main, side), start };
 }
