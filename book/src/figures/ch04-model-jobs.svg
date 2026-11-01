@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 540" width="1040" height="540" role="img">
-<rect x="0.5" y="0.5" width="1039" height="539" rx="18" fill="#faf7f0" stroke="#ddd6c6"/>
-<text x="32" y="46" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="700" fill="#1d2722" text-anchor="start">Ten jobs, one model</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 622" width="1040" height="622" role="img">
+<rect x="0.5" y="0.5" width="1039" height="621" rx="18" fill="#faf7f0" stroke="#ddd6c6"/>
+<text x="32" y="46" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="700" fill="#1d2722" text-anchor="start">Eleven jobs, one model</text>
 <text x="32" y="70" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="13.5" font-weight="400" fill="#5d6a63" text-anchor="start">Each is a method on Brain with its own prompt and schema. Times measured on the Thor, 2026-10-31.</text>
 <g>
 <rect x="32" y="110" width="470" height="63" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
@@ -37,10 +37,14 @@
 </g><g>
 <rect x="32" y="438" width="470" height="63" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
 <rect x="32" y="448" width="4" height="43" rx="2" fill="#6b4fa0"/>
-<rect x="48" y="453.5" width="32" height="32" rx="8" fill="#ece6f6"/><g transform="translate(54 459.5) scale(0.8333333333333334)" fill="none" stroke="#6b4fa0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="18" height="17" rx="2.5"/><circle cx="8.5" cy="9" r="1.8"/><path d="m21 15.5-5-5L5 20.5"/></g><text x="92" y="465" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14.5" font-weight="650" fill="#1d2722" text-anchor="start">design_cover</text><text x="92" y="484" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">a cover scene · 0.8 s</text>
+<rect x="48" y="453.5" width="32" height="32" rx="8" fill="#ece6f6"/><g transform="translate(54 459.5) scale(0.8333333333333334)" fill="none" stroke="#6b4fa0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M8.5 13h7M8.5 16.5h5"/></g><text x="92" y="465" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14.5" font-weight="650" fill="#1d2722" text-anchor="start">describe_cover</text><text x="92" y="484" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">a cover scene in words · ~3 s</text>
 </g><g>
 <rect x="520" y="438" width="470" height="63" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
 <rect x="520" y="448" width="4" height="43" rx="2" fill="#6b4fa0"/>
-<rect x="536" y="453.5" width="32" height="32" rx="8" fill="#ece6f6"/><g transform="translate(542 459.5) scale(0.8333333333333334)" fill="none" stroke="#6b4fa0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 11.8 8.2 16.5 10l-4.7 1.8L10 16.5l-1.8-4.7L3.5 10l4.7-1.8z"/><path d="M18 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></g><text x="580" y="465" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14.5" font-weight="650" fill="#1d2722" text-anchor="start">related_words</text><text x="580" y="484" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">widen a search · 0.9 s</text>
+<rect x="536" y="453.5" width="32" height="32" rx="8" fill="#ece6f6"/><g transform="translate(542 459.5) scale(0.8333333333333334)" fill="none" stroke="#6b4fa0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="18" height="17" rx="2.5"/><circle cx="8.5" cy="9" r="1.8"/><path d="m21 15.5-5-5L5 20.5"/></g><text x="580" y="465" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14.5" font-weight="650" fill="#1d2722" text-anchor="start">draw_cover</text><text x="580" y="484" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">the scene as SVG · ~60 s</text>
+</g><g>
+<rect x="32" y="520" width="470" height="63" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="32" y="530" width="4" height="43" rx="2" fill="#6b4fa0"/>
+<rect x="48" y="535.5" width="32" height="32" rx="8" fill="#ece6f6"/><g transform="translate(54 541.5) scale(0.8333333333333334)" fill="none" stroke="#6b4fa0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 11.8 8.2 16.5 10l-4.7 1.8L10 16.5l-1.8-4.7L3.5 10l4.7-1.8z"/><path d="M18 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></g><text x="92" y="547" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14.5" font-weight="650" fill="#1d2722" text-anchor="start">related_words</text><text x="92" y="566" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">widen a search · 0.9 s</text>
 </g>
 </svg>

@@ -46,7 +46,7 @@ FIGURES["ch01-system.svg"] = () => {
   const width = 1000;
   const middle = width / 2;
 
-  const [browser] = row(middle, TOP + 10, 0, [{ title: "Your browser", lines: ["The web app: 49 TypeScript modules", "Map tiles straight from OpenStreetMap"], hue: "orange", icon: "monitor" }]);
+  const [browser] = row(middle, TOP + 10, 0, [{ title: "Your browser", lines: ["The web app: 51 TypeScript modules", "Map tiles straight from OpenStreetMap"], hue: "orange", icon: "monitor" }]);
 
   const thorTop = TOP + 150;
   const [server] = row(middle, thorTop + 70, 0, [{ title: "ourlittletribe", lines: ["One Rust binary on 127.0.0.1:8090", "JSON under /api, pictures under /media"], hue: "green", icon: "logoPeak", w: 320 }]);
@@ -83,14 +83,14 @@ FIGURES["ch01-crates.svg"] = () => {
   const width = 1060;
   const middle = width / 2;
 
-  const [server] = row(middle, TOP + 10, 0, [{ title: "tribe-server", lines: ["routes, sessions, caches, search, trips, trails · 4,710 lines"], hue: "green", icon: "logoPeak" }]);
+  const [server] = row(middle, TOP + 10, 0, [{ title: "tribe-server", lines: ["routes, sessions, caches, search, trips, trails · 4,889 lines"], hue: "green", icon: "logoPeak" }]);
   const middleRow = row(middle, TOP + 150, 18, [
-    { title: "tribe-db", lines: ["schema, queries, search", "3,493 lines"], hue: "gold", icon: "list", w: 226 },
-    { title: "tribe-places", lines: ["map services, trails", "2,196 lines"], hue: "blue", icon: "map", w: 226 },
-    { title: "tribe-brain", lines: ["prompts, schemas, checks", "1,693 lines"], hue: "purple", icon: "sparkles", w: 236 },
-    { title: "tribe-media", lines: ["decode, resize, store", "367 lines"], hue: "slate", icon: "image", w: 226 },
+    { title: "tribe-db", lines: ["schema, queries, search", "3,564 lines"], hue: "gold", icon: "list", w: 226 },
+    { title: "tribe-places", lines: ["map services, trails, shops", "2,347 lines"], hue: "blue", icon: "map", w: 226 },
+    { title: "tribe-brain", lines: ["prompts, schemas, checks", "1,884 lines"], hue: "purple", icon: "sparkles", w: 236 },
+    { title: "tribe-media", lines: ["decode, resize, clean SVG", "613 lines"], hue: "slate", icon: "image", w: 226 },
   ]);
-  const [core] = row(middle - 115, TOP + 300, 0, [{ title: "tribe-core", lines: ["geometry, ranking, baskets, trails · no I/O · 969 lines"], hue: "green", icon: "gauge" }]);
+  const [core] = row(middle - 115, TOP + 300, 0, [{ title: "tribe-core", lines: ["geometry, ranking, baskets, trails · no I/O · 1,020 lines"], hue: "green", icon: "gauge" }]);
 
   const fromServer = middleRow.map((crate) => down(server.box, crate.box, { hue: "green" })).join("");
   const toCore = middleRow.slice(0, 3).map((crate) => down(crate.box, core.box, { hue: "slate" })).join("");
@@ -258,34 +258,38 @@ FIGURES["ch03-place-search.svg"] = () => {
 };
 
 FIGURES["ch03-itinerary.svg"] = () => {
-  const width = 1000;
-  const y = TOP + 70;
+  const width = 1080;
+  const y = TOP + 150;
   const places = [
-    { label: "M", name: "Issaquah park-and-ride", kind: "meeting point", hue: "green" },
-    { label: "1", name: "Coffee in Snoqualmie", kind: "stop on the way", hue: "blue" },
+    { label: "M", name: "Green Lake Park & Ride", kind: "meeting point", hue: "green" },
+    { label: "1", name: "Coffee in Issaquah", kind: "stop on the way", hue: "blue" },
     { label: "2", name: "Snoqualmie Falls", kind: "optional stop", hue: "slate" },
-    { label: "V", name: "Rattlesnake Ledge trailhead", kind: "event venue", hue: "orange" },
+    { label: "V", name: "Rattlesnake Lake Trailhead", kind: "event venue", hue: "orange" },
+    { label: "A", name: "Lunch in North Bend", kind: "after the event", hue: "gold" },
   ];
   const step = (width - 300) / (places.length - 1);
   const xs = places.map((_, index) => 150 + index * step);
 
   const lines = xs.slice(1).map((x, index) => {
-    const dashed = places[index + 1].hue === "slate" || places[index].hue === "slate";
-    return `<path d="M${xs[index] + 22} ${y} H${x - 22}" stroke="${FAINT}" stroke-width="2.5" stroke-dasharray="${dashed ? "3 6" : "8 6"}"/>`;
+    const optional = places[index + 1].hue === "slate" || places[index].hue === "slate";
+    return `<path d="M${xs[index] + 22} ${y} H${x - 22}" stroke="${FAINT}" stroke-width="2.5" stroke-dasharray="${optional ? "3 6" : "8 6"}"/>`;
   }).join("");
 
-  const pins = places.map((place, index) => {
-    const x = xs[index];
-    const colour = HUE[place.hue];
-    return `<circle cx="${x}" cy="${y}" r="20" fill="${colour.strong}"/>`
-      + text(x, y + 6, place.label, { size: 16, weight: 750, fill: "#ffffff", anchor: "middle" })
-      + text(x, y + 50, place.name, { size: 13, weight: 650, anchor: "middle" })
-      + text(x, y + 68, place.kind, { size: 12, fill: MUTED, anchor: "middle" });
+  const pin = (x, pinY, label, hue) => `<circle cx="${x}" cy="${pinY}" r="20" fill="${HUE[hue].strong}"/>` + text(x, pinY + 6, label, { size: 16, weight: 750, fill: "#ffffff", anchor: "middle" });
+  const pins = places.map((place, index) => pin(xs[index], y, place.label, place.hue)
+    + text(xs[index], y + 50, place.name, { size: 13, weight: 650, anchor: "middle" })
+    + text(xs[index], y + 68, place.kind, { size: 12, fill: MUTED, anchor: "middle" })).join("");
+
+  const pickups = ["Bellevue", "Kent", "Tacoma"].map((town, index) => {
+    const x = xs[0] - 90 + index * 90;
+    return pin(x, y - 100, "P", "purple") + text(x, y - 60, town, { size: 12, weight: 600, anchor: "middle" })
+      + `<path d="M${x} ${y - 52} L${xs[0]} ${y - 22}" stroke="${HUE.purple.strong}" stroke-opacity=".45" stroke-width="2" stroke-dasharray="2 5"/>`;
   }).join("");
+  const pickupNote = text(xs[0] + 150, y - 96, "also meeting at: other places to join from", { size: 12.5, fill: HUE.purple.ink, weight: 600 });
 
-  const legend = text(width / 2, y + 120, "Trip directions pass through M, every stop that is not optional, and V. The forecast is taken at V.", { size: 12.5, fill: MUTED, anchor: "middle", italic: true });
+  const legend = text(width / 2, y + 120, "Directions pass through M, the stops everyone makes, V and A. Pickups are alternatives, so the line skips them.", { size: 12.5, fill: MUTED, anchor: "middle", italic: true });
 
-  return figure({ width, height: y + 150, title: "An event can go to more than one place", subtitle: "The editor keeps this order: the meeting point first, the stops as planned, the venue last." }, lines + pins + legend);
+  return figure({ width, height: y + 150, title: "An event can go to many places", subtitle: "The meeting point first, then other meeting points, stops on the way, the venue, and where the group goes after." }, lines + pickups + pickupNote + pins + legend);
 };
 
 /* ── Chapter 4 ────────────────────────────────────── */
@@ -323,14 +327,15 @@ FIGURES["ch04-model-jobs.svg"] = () => {
     { title: "draft_event", lines: ["an event from your words"], icon: "calendar" },
     { title: "draft_tribe", lines: ["a tribe from your words · 1.7 s"], icon: "users" },
     { title: "write_description", lines: ["Write with AI"], icon: "wand" },
-    { title: "design_cover", lines: ["a cover scene · 0.8 s"], icon: "image" },
+    { title: "describe_cover", lines: ["a cover scene in words · ~3 s"], icon: "fileText" },
+    { title: "draw_cover", lines: ["the scene as SVG · ~60 s"], icon: "image" },
     { title: "related_words", lines: ["widen a search · 0.9 s"], icon: "sparkles" },
   ];
   const columns = 2;
   const cellWidth = (width - 64 - 2 * 18) / columns;
   const drawn = jobs.map((job, index) => card({ ...job, x: 32 + (index % columns) * (cellWidth + 18), y: TOP + 10 + Math.floor(index / columns) * 82, w: cellWidth, hue: "purple", mono: false }));
 
-  return figure({ width, height: TOP + 10 + 5 * 82 + 20, title: "Ten jobs, one model", subtitle: "Each is a method on Brain with its own prompt and schema. Times measured on the Thor, 2026-10-31." }, svgOf(drawn));
+  return figure({ width, height: TOP + 10 + 6 * 82 + 20, title: "Eleven jobs, one model", subtitle: "Each is a method on Brain with its own prompt and schema. Times measured on the Thor, 2026-10-31." }, svgOf(drawn));
 };
 
 /* ── Chapter 5 ────────────────────────────────────── */
@@ -510,29 +515,37 @@ FIGURES["ch07-pictures.svg"] = () => {
 };
 
 FIGURES["ch07-ai-cover.svg"] = () => {
-  const width = 1060;
-  const design = { landscape: "lake", light: "dawn", weather: "clear", season: "autumn", activity: "paddling", crew: 3 };
+  const width = 1080;
+  const drawingSource = readFileSync(join(here, "data", "model-cover.svg"), "utf8");
 
-  const [model] = row(250, TOP + 16, 0, [{ title: "design_cover", lines: ["reads the name, place, date", "and description; 0.8 s"], hue: "purple", icon: "sparkles", w: 300 }]);
-  const choices = Object.entries(design).map(([key, value], index) => pill(52 + (index % 2) * 210, model.box.y + model.box.h + 34 + Math.floor(index / 2) * 32, `${key}: ${value}`, { hue: "purple", mono: true, size: 11.5 }).svg).join("");
-
-  const drawY = model.box.y + model.box.h + 150;
+  let top = TOP + 10;
   const steps = [
-    card({ x: 32, y: drawY, w: 420, title: "The browser draws it", lines: ["cover_art.ts: the app's own people and trees, as SVG"], hue: "green", icon: "image" }),
-  ];
-  steps.push(card({ x: 32, y: steps[0].box.y + steps[0].box.h + 26, w: 420, title: "Canvas → PNG, 1,600 × 900", lines: ["then the same upload path as any picture"], hue: "green", icon: "upload" }));
-  const links = down(model.box, { top: { x: model.box.bottom.x, y: drawY } }, { hue: "purple" }).replace(/<path d="M[^"]*"[^>]*\/>/, (match) => match) + down(steps[0].box, steps[1].box, { hue: "green" });
+    { title: "describe_cover", lines: ["writes the scene from the name, place,", "date and description · about 3 s"], hue: "purple", icon: "fileText" },
+    { title: "You edit it", lines: ["change the light, the season,", "who is there, the style"], hue: "orange", icon: "edit" },
+    { title: "draw_cover", lines: ["writes one SVG, shape by shape", "about 4,000 tokens · about 60 s"], hue: "purple", icon: "sparkles" },
+    { title: "clean_svg", lines: ["keeps plain drawing elements only;", "no scripts, links or text"], hue: "green", icon: "check" },
+    { title: "PNG, then upload", lines: ["a canvas makes 1,600 × 900; the", "picture pipeline re-encodes it"], hue: "green", icon: "upload" },
+  ].map((step) => {
+    const drawn = card({ ...step, x: 32, y: top, w: 360 });
+    top += drawn.box.h + 22;
+    return drawn;
+  });
+  const links = steps.slice(1).map((drawn, index) => down(steps[index].box, drawn.box, { hue: "slate" })).join("");
 
-  const pictureX = 490;
+  const pictureX = 430;
   const pictureW = width - 32 - pictureX;
-  const pictureH = Math.round(pictureW * 9 / 16);
-  const drawing = coverSvg(design).replace(/<svg [^>]*>/, `<svg x="${pictureX}" y="${TOP + 16}" width="${pictureW}" height="${pictureH}" viewBox="0 0 800 450">`);
-  const frame = `<rect x="${pictureX}" y="${TOP + 16}" width="${pictureW}" height="${pictureH}" rx="2" fill="none" stroke="${LINE}"/>`;
-  const caption = text(pictureX, TOP + 16 + pictureH + 26, "The scene above, drawn from that answer.", { size: 12.5, fill: MUTED, italic: true });
+  const pictureH = Math.round((pictureW * 9) / 16);
+  const drawing = drawingSource.replace(/<svg [^>]*>/, `<svg x="${pictureX}" y="${TOP + 10}" width="${pictureW}" height="${pictureH}" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">`);
+  const frame = `<rect x="${pictureX}" y="${TOP + 10}" width="${pictureW}" height="${pictureH}" rx="2" fill="none" stroke="${LINE}"/>`;
+  const caption = [
+    "The model's own drawing for \"Rattlesnake Ledge slow hike and lunch\",",
+    "from its scene: an early November morning, Rattlesnake Lake below,",
+    "snow-dusted Cascade peaks in haze, four hikers in rust, olive and charcoal.",
+  ].map((line, index) => text(pictureX, TOP + 10 + pictureH + 28 + index * 19, line, { size: 12.5, fill: MUTED, italic: index === 0 })).join("");
 
-  const height = Math.max(steps[1].box.y + steps[1].box.h, TOP + 16 + pictureH + 30) + 34;
-  return figure({ width, height, title: "A cover in one short answer", subtitle: "The model picks six words; the page draws the picture. No image model, nothing new to host." },
-    svgOf([model, ...steps]) + choices + links + drawing + frame + caption);
+  const height = Math.max(top, TOP + 10 + pictureH + 90) + 20;
+  return figure({ width, height, title: "The model draws the cover", subtitle: "Two answers from the model that already runs the app: a scene in words, then the scene in SVG." },
+    links + svgOf(steps) + drawing + frame + caption);
 };
 
 /* ── Chapter 8 ────────────────────────────────────── */
@@ -556,7 +569,7 @@ FIGURES["ch08-web-app.svg"] = () => {
   const links = drawn.slice(1).map((layer, index) => down(drawn[index].box, layer.box, { hue: "slate" })).join("");
   const rest = pill(width / 2, top + 6, "calls /api on the same server", { hue: "purple", anchor: "middle" }).svg;
 
-  return figure({ width, height: top + 44, title: "The web app, top to bottom", subtitle: "49 TypeScript modules, strict mode. Each layer only imports from the layers below it." }, svgOf(drawn) + links + rest);
+  return figure({ width, height: top + 44, title: "The web app, top to bottom", subtitle: "51 TypeScript modules, strict mode. Each layer only imports from the layers below it." }, svgOf(drawn) + links + rest);
 };
 
 FIGURES["ch08-build.svg"] = () => {
@@ -566,7 +579,7 @@ FIGURES["ch08-build.svg"] = () => {
     { title: "tsc", lines: ["strict, no unchecked", "index access"], hue: "blue", icon: "check", w: 190 },
     { title: "web/dist", lines: ["ES modules"], hue: "slate", icon: "fileText", w: 160 },
     { title: "build.rs", lines: ["lists every file", "the page loads"], hue: "green", icon: "list", w: 180 },
-    { title: "one binary", lines: ["include_bytes!", "10.7 MB"], hue: "green", icon: "logoPeak", w: 180 },
+    { title: "one binary", lines: ["include_bytes!", "10.8 MB"], hue: "green", icon: "logoPeak", w: 180 },
   ]);
   const links = steps.slice(1).map((drawn, index) => across(steps[index].box, drawn.box, { hue: "slate" })).join("");
   const note = text(width / 2, steps[0].box.y + steps[0].box.h + 40, "cargo build does all of it; the web app can never be a different version from the API.", { size: 12.5, fill: MUTED, anchor: "middle", italic: true });

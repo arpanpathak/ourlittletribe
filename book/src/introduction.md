@@ -34,10 +34,10 @@ The four hikers are also the app's illustrations. They walk across the sign-in p
 
 | | |
 |---|---|
-| Server | one Rust binary, 10.7 MB, built for aarch64 |
-| Rust | 13,706 lines in six crates |
-| Web app | 8,540 lines of TypeScript in 49 modules, and 1,141 lines of CSS |
-| Tests | 104, none of which touch the network |
+| Server | one Rust binary, 10.8 MB, built for aarch64 |
+| Rust | 14,595 lines in six crates |
+| Web app | 8,822 lines of TypeScript in 51 modules, and 1,165 lines of CSS |
+| Tests | 112, none of which touch the network |
 | Storage | one SQLite file and one folder of pictures |
 | Model | Qwen3.6 35B-A3B, quantised to NVFP4, on TensorRT Edge-LLM, on the same Jetson AGX Thor |
 | Address | `https://ourlittletribe.taildb9a39.ts.net`, through Tailscale Funnel |

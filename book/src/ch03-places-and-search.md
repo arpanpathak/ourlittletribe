@@ -62,10 +62,19 @@ The fallback is correct but slow, which is why the table above shows 5 to 10 sec
 ## 3.4 More than one place
 
 <figure>
-<img src="figures/ch03-itinerary.svg" alt="Four pins joined by dashed lines: M, Issaquah park-and-ride, the meeting point; 1, coffee in Snoqualmie, a stop on the way; 2, Snoqualmie Falls, an optional stop; V, Rattlesnake Ledge trailhead, the event venue.">
-<figcaption><b>Figure 3.2</b> An itinerary. The optional stop's line is dotted.</figcaption>
+<img src="figures/ch03-itinerary.svg" alt="Pins joined by lines: M, Green Lake Park and Ride, the meeting point; 1, coffee in Issaquah, a stop on the way; 2, Snoqualmie Falls, an optional stop on a dotted line; V, Rattlesnake Lake Trailhead, the venue; A, lunch in North Bend, after the event. Above the meeting point, three purple P pins for Bellevue, Kent and Tacoma, other places to join from, joined to M by faint dotted lines.">
+<figcaption><b>Figure 3.2</b> An itinerary with every kind of place.</figcaption>
 </figure>
 
-An event has a **meeting point**, where everyone gathers first. It may also have **stops on the way** that everyone makes, **optional stops** for whoever wants them, and one **venue** where the event itself happens. The places editor, `components/locations_editor.ts`, shows each as a row with its own search box, and one map shows them all as pins labelled M, 1, 2 and so on, and V, joined by a dashed line in order. You can select a row and click the map to place it, or drag a pin; the server then names the point from the nearest address.
+An event has one **meeting point**, where the group gathers first. It may also have:
 
-The event page lists the same itinerary. "Trip directions" opens Google Maps with the meeting point, every stop that is not optional, and the venue as waypoints. The forecast and the elevation are taken at the venue when there is one, because the weather that matters for a hike is at the trail, not in the car park where people meet (chapter 5).
+- **other meeting points** ("Also meeting at"), such as a park-and-ride in another town, for people who would rather join from there;
+- **stops on the way** that everyone makes, and **optional stops** for whoever wants them;
+- one **venue**, where the event itself happens;
+- places to go **after the event**, such as lunch.
+
+The places editor, `components/locations_editor.ts`, shows each as a row with its own search box, and one map shows them all as pins labelled M, P, 1, 2 and so on, V and A. The rows always stay in that order: other meeting points first, then the stops, the venue and what comes after, and the up and down buttons move a place only among places of its own kind. The server sorts the places the same way when it saves them, by `StopKind::stage`, so no client can store them in another order.
+
+The dashed line joins the places the whole group goes through. Other meeting points are alternatives, so they are drawn as pins without the line, and "Trip directions" in Google Maps leaves them out, along with optional stops. The forecast, the elevation and the trails are taken at the venue when there is one, because the weather that matters for a hike is at the trail, not in the car park where people meet (chapter 5).
+
+When the assistant fills in a plan (chapter 4), every place it names is looked up the way the search box looks one up: candidates from the area it gave, from the name alone and from the "and" and "&" spellings, and then the model picks the one it meant. The meeting point is found first, and its position stands for where the group is, so a candidate more than 250 km away is never offered: without that rule, "Renton" once matched a street in Scotland. When the model picks none of the candidates, the place is left empty with its name in the search box, for you to pick, instead of being guessed.

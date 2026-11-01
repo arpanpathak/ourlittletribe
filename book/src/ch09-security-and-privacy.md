@@ -55,15 +55,15 @@ Every file of the web app is served with these headers:
 ```text
 Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob: https://*.tile.opentopomap.org https://tile.openstreetmap.org
-          https://tile.waymarkedtrails.org;
+          https://tile.waymarkedtrails.org https://server.arcgisonline.com;
   connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 ```
 
-Scripts can come only from the app itself. Even if some text did reach the page as markup, the browser would not run code from it. Pictures can come only from the app, its uploads, and the three map tile servers. No other site can put the app in a frame. Inline styles are allowed because the page sets `style` attributes on elements it builds, such as a cover's gradient; inline scripts are not.
+Scripts can come only from the app itself. Even if some text did reach the page as markup, the browser would not run code from it. Pictures can come only from the app, its uploads, and the four map tile servers. No other site can put the app in a frame. Inline styles are allowed because the page sets `style` attributes on elements it builds, such as a cover's gradient; inline scripts are not.
 
-Inside the app, people's text never becomes markup in the first place. Views add it as text nodes, and the Markdown renderer builds elements instead of HTML strings (chapter 8). Uploaded pictures are decoded and written again before they are stored (chapter 7).
+Inside the app, people's text never becomes markup in the first place. Views add it as text nodes, and the Markdown renderer builds elements instead of HTML strings (chapter 8). Uploaded pictures are decoded and written again before they are stored, and the model's SVG drawings are cut down to plain drawing elements before anyone sees them (chapter 7).
 
 ## 9.4 What is kept, and what leaves
 

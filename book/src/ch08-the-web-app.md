@@ -2,7 +2,7 @@
 
 # The web app
 
-The web app is 49 TypeScript modules and one stylesheet, with no framework. It is compiled by the server's own build, embedded in the binary, and served from the same address as the API. This chapter shows how the modules are layered, how the build works, and how a few parts that people touch most are put together: the search page, the editors and assistants, the themes, and the layout on phones.
+The web app is 51 TypeScript modules and one stylesheet, with no framework. It is compiled by the server's own build, embedded in the binary, and served from the same address as the API. This chapter shows how the modules are layered, how the build works, and how a few parts that people touch most are put together: the search page, the editors and assistants, the themes, and the layout on phones.
 
 <div class="covers" markdown="1">
 
@@ -12,6 +12,7 @@ This chapter covers
 - how the TypeScript becomes part of the binary
 - building pages without a framework, safely
 - search, places, writing and voice
+- maps: three views and a trails layer
 - twelve themes, and a layout that fits a phone
 
 </div>
@@ -32,7 +33,7 @@ The compiler runs in strict mode with `noUncheckedIndexedAccess`, so `list[0]` h
 ## 8.2 From TypeScript to the binary
 
 <figure>
-<img src="figures/ch08-build.svg" alt="web/src, TypeScript, goes through tsc in strict mode to web/dist, ES modules; build.rs lists every file the page loads; include_bytes puts them in one 10.7 MB binary.">
+<img src="figures/ch08-build.svg" alt="web/src, TypeScript, goes through tsc in strict mode to web/dist, ES modules; build.rs lists every file the page loads; include_bytes puts them in one 10.8 MB binary.">
 <figcaption><b>Figure 8.2</b> One <code>cargo build</code> compiles the web app and embeds it.</figcaption>
 </figure>
 
@@ -54,13 +55,19 @@ Markdown descriptions are rendered by `markdown.ts`, which reads the text line b
 
 **The assistants** on the event and tribe forms take your plan in your own words, typed or spoken, and fill in the form. Voice uses the browser's speech recognition, which works only on HTTPS pages. In Chrome, that recognition runs on Google's servers, which is why moving speech onto the Thor is on the roadmap.
 
-## 8.5 Themes
+## 8.5 Maps
+
+Every map is Leaflet with a switcher of its own in the top corner: **Map**, OpenStreetMap's streets; **Terrain**, OpenTopoMap's contours and hill shading; and **Satellite**, Esri's aerial photographs with roads and place names laid over them, which shows a car park or a trailhead the way it looks from above. A **Trails** button lays OpenStreetMap's marked hiking routes over any of the three, from Waymarked Trails. The buttons are at least 32 pixels tall, for a finger.
+
+The switcher replaced Leaflet's own layer menu, which opened only on hover, an unreliable gesture on a phone, and whose radio buttons a global style for text boxes had once stretched to 96 × 44 pixels. Text-box styles now name the input types they apply to, so radio buttons and checkboxes keep their own shape.
+
+## 8.6 Themes
 
 The app has twelve themes: two light and ten dark. The dark ones include the themes of the editor this project is written in: Material Deep Ocean, Night Owl, Oceanic Next, Nord, Catppuccin Mocha, Tokyo Night, Kanagawa, Rosé Pine and Everforest. You choose one from a picker that shows a small preview of each, or let the app follow your device between Evergreen's light and dark versions.
 
 Every colour in the stylesheet is a variable, such as `--surface`, `--text` or `--accent`. A theme is a block that sets those variables under `:root[data-palette="nord"]`, so adding a theme changes no other rule. A second attribute, `data-theme`, says whether the theme is light or dark; the illustrations switch to night skies and the map dims its tiles from that one attribute. `theme.ts` saves your choice and applies it before the page draws, so it never flashes the wrong colours.
 
-## 8.6 On a phone
+## 8.7 On a phone
 
 On a narrow screen the sidebar becomes a drawer, a tab bar appears at the bottom, and every two-column layout becomes one column. Three rules keep that one column from becoming wider than the phone.
 

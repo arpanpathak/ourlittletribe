@@ -47,7 +47,7 @@ A picture upload sends the file itself as the request body, with its `Content-Ty
 | Method and path | Does |
 |---|---|
 | `GET /events` | upcoming events across every tribe |
-| `POST /events` | plan an event: `{tribe_id, title, description, meeting_point: {name, lat, lng}, starts_at, tz_offset_minutes, stops: [{kind, name, lat, lng, note}]}` |
+| `POST /events` | plan an event: `{tribe_id, title, description, meeting_point: {name, lat, lng}, starts_at, tz_offset_minutes, stops: [{kind, name, lat, lng, note}]}`; `kind` is `pickup`, `stop`, `optional`, `venue` or `after`, at most 16 places and one venue |
 | `GET /events/{id}` | everything the event page shows: the event, stops, people going, list, conditions, photos, your starting point |
 | `PATCH /events/{id}` | change an event (its managers); the body is the same as for creating, without `tribe_id` |
 | `DELETE /events/{id}` | delete it and everything attached (its managers) |
@@ -81,10 +81,11 @@ A picture upload sends the file itself as the request body, with its `Content-Ty
 | `GET /places?q=&lat=&lng=` | OpenStreetMap places for the text, nearest first; tries "and" and "&" both |
 | `GET /places/best-matches?q=&lat=&lng=` | the places the model works out the text means, each one real |
 | `GET /places/nearest?lat=&lng=` | the named place or address at a point |
-| `POST /event-drafts` | an event filled in from your words: `{text, today, near?}` |
+| `POST /event-drafts` | an event filled in from your words: `{text, today, near?}`; answers the form, every place found or left for you to pick, and `tribe_id` |
 | `POST /tribe-drafts` | a tribe filled in from your words: `{text}` |
 | `POST /description-drafts` | write or rewrite a description: `{details, current, instruction}` |
-| `POST /cover-designs` | a cover scene: `{subject, title, description, place, when}`, where `subject` is `tribe` or `event` |
+| `POST /cover-scenes` | a cover scene in words: `{subject, title, description, place, when}`, where `subject` is `tribe` or `event`; answers `{scene}` |
+| `POST /cover-drawings` | the model draws a scene: `{scene}`; answers `{svg}`, cleaned; takes about a minute |
 | `POST /pictures` | upload a picture to place in a description |
 
 ## Outside `/api`

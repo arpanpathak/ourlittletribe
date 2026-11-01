@@ -34,7 +34,7 @@ You reach the server through Tailscale Funnel, which gives it a public HTTPS add
 
 <figure>
 <img src="figures/ch01-crates.svg" alt="tribe-server depends on tribe-db, tribe-places, tribe-brain and tribe-media. tribe-db, tribe-places and tribe-brain depend on tribe-core. tribe-media uses nothing else.">
-<figcaption><b>Figure 1.2</b> The six crates. An arrow means "depends on". Line counts are from the commit this book describes: 13,706 lines in all.</figcaption>
+<figcaption><b>Figure 1.2</b> The six crates. An arrow means "depends on". Line counts are from the commit this book describes: 14,595 lines in all.</figcaption>
 </figure>
 
 The Rust code is split into six crates, and one rule decides where code goes: code that makes a decision lives apart from code that talks to the outside world.
