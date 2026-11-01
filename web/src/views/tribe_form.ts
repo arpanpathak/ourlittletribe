@@ -100,7 +100,7 @@ class TribeForm {
   }
 
   private identity(): HTMLElement {
-    const where = h("div", { class: "fact-row" }, icon("pin"), this.area);
+    const where = h("div", { class: "studio-where" }, icon("pin"), this.area);
     return h("div", { class: "studio-identity" }, this.monogram, h("div", { class: "studio-title" }, this.name, this.nameError, where));
   }
 

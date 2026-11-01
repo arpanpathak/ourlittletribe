@@ -680,7 +680,7 @@ dialog.lightbox { max-width: min(1100px, calc(100vw - 24px)); }
 .art-spot { width: 210px; height: 140px; margin-bottom: 2px; }
 .empty .art-spot + h3 { margin-top: 2px; }
 
-.banner { position: relative; overflow: hidden; border-radius: 18px; min-height: 230px; display: flex; align-items: flex-start; border: 1px solid var(--border); }
+.banner { position: relative; overflow: hidden; border-radius: 18px; min-height: clamp(250px, 22vw, 340px); display: flex; align-items: flex-start; border: 1px solid var(--border); }
 .banner .art-hero { position: absolute; inset: 0; width: 100%; height: 100%; }
 .banner-text { position: relative; padding: 28px 30px; max-width: 520px; display: flex; flex-direction: column; gap: 8px; }
 .banner-text h1 { color: var(--art-ink); }
@@ -740,7 +740,7 @@ dialog.lightbox { max-width: min(1100px, calc(100vw - 24px)); }
 
 /* ── Profile ────────────────────────────────────────── */
 .profile-card { overflow: hidden; }
-.profile-cover { aspect-ratio: 4 / 1; min-height: 150px; max-height: 260px; width: 100%; }
+.profile-cover { aspect-ratio: 4 / 1; min-height: 180px; max-height: 320px; width: 100%; }
 .profile-cover .art-hero { position: absolute; inset: 0; width: 100%; height: 100%; }
 .profile-main { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; padding: 0 24px 22px; }
 .profile-avatar { position: relative; margin-top: -54px; border-radius: 50%; box-shadow: 0 0 0 4px var(--surface); flex: none; }
@@ -959,8 +959,8 @@ input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) { 
 .title-input { height: auto; padding: 4px 10px; margin-left: -10px; width: calc(100% + 10px); font-size: 28px !important; font-weight: 700; letter-spacing: -0.02em; border-color: transparent; background: transparent; box-shadow: none; }
 .title-input::placeholder { color: var(--text-3); font-weight: 650; }
 .title-input:hover:not(:focus) { background: var(--surface-2); border-color: transparent; }
-.fact-row { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 2px; color: var(--text-3); }
-.fact-row .icon { flex: none; }
+.studio-where { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 2px; color: var(--text-3); }
+.studio-where .icon { flex: none; }
 .fact-input { height: 36px; padding: 0 8px; border-color: transparent; background: transparent; box-shadow: none; color: var(--text-2); }
 .fact-input:hover:not(:focus) { background: var(--surface-2); border-color: transparent; }
 .studio-error { color: var(--danger); font-size: 13px; padding-left: 0; }
@@ -982,3 +982,10 @@ input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) { 
 .preview-card { pointer-events: none; }
 .preview-card .cover { aspect-ratio: 16 / 9; }
 @media (max-width: 600px) { .assist-input { min-height: 120px; } }
+
+/* Tabs on phones share the width, so none hides past the edge. */
+@media (max-width: 600px) {
+  .tabs { overflow-x: visible; gap: 0; }
+  .tabs button { flex: 1 1 0; min-width: 0; justify-content: center; text-align: center; white-space: normal; line-height: 1.2; padding: 10px 4px; font-size: 13px; gap: 5px; }
+  .tabs button .count { flex: none; }
+}
