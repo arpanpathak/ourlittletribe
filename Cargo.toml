@@ -1,0 +1,48 @@
+[workspace]
+resolver = "3"
+members = ["crates/tribe-core", "crates/tribe-db", "crates/tribe-places", "crates/tribe-brain", "crates/tribe-media", "crates/tribe-server"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/arpanpathak/ourlittletribe"
+
+[workspace.dependencies]
+tribe-core = { path = "crates/tribe-core" }
+tribe-db = { path = "crates/tribe-db" }
+tribe-places = { path = "crates/tribe-places" }
+tribe-brain = { path = "crates/tribe-brain" }
+tribe-media = { path = "crates/tribe-media" }
+anyhow = "1"
+axum = { version = "0.8", features = ["macros"] }
+argon2 = "0.5"
+base64 = "0.22"
+rand = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "time", "sync"] }
+futures-core = "0.3"
+tracing = "0.1"
+quick-xml = "0.37"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
+
+# Picture decoding is unbearably slow unoptimised; keep debug builds and tests quick.
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3

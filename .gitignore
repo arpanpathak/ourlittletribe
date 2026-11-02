@@ -1,45 +1,10 @@
-# OS
-.DS_Store
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Node / Frontend
-node_modules/
-dist/
-build/
+/target/
+*.db
+*.db-shm
+*.db-wal
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.next/
-
-# Go / Backend
-/bin/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-vendor/
-
-# Editors & IDEs
+.DS_Store
 .idea/
 .vscode/
 *.swp
-*.swo
-
-# Secrets & Generated Kubernetes Configs
-secrets/
-backend/secrets/
-k8s/secrets.yaml
-k8s/config.yaml
-k8s/gateway.yaml
-k8s/certificate.yaml
+media/

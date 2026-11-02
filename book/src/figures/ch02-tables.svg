@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1044 557" width="1044" height="557" role="img">
+<rect x="0.5" y="0.5" width="1043" height="556" rx="18" fill="#faf7f0" stroke="#ddd6c6"/>
+<text x="32" y="46" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="700" fill="#1d2722" text-anchor="start">Fifteen tables, one file</text>
+<text x="32" y="70" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="13.5" font-weight="400" fill="#5d6a63" text-anchor="start">An arrow inside a card is a foreign key; deleting the row it points to deletes or clears this one.</text>
+<g>
+<rect x="32" y="110" width="236" height="97" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="32" y="120" width="4" height="77" rx="2" fill="#c8571f"/>
+<text x="52" y="137" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">users</text><text x="52" y="156" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">email: unique, any case</text><text x="52" y="173" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">password_hash: Argon2id</text><text x="52" y="190" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">avatar_image, cover_image</text>
+</g><g>
+<rect x="32" y="221" width="236" height="97" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="32" y="231" width="4" height="77" rx="2" fill="#c8571f"/>
+<text x="52" y="248" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">sessions</text><text x="52" y="267" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">token_hash: SHA-256</text><text x="52" y="284" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">user_id → users</text><text x="52" y="301" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">expires_at</text>
+</g><g>
+<rect x="32" y="332" width="236" height="80" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="32" y="342" width="4" height="60" rx="2" fill="#2f7d5b"/>
+<text x="52" y="359" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">tribes</text><text x="52" y="378" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">name, home_area</text><text x="52" y="395" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">creator_id → users</text>
+</g><g>
+<rect x="32" y="426" width="236" height="97" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="32" y="436" width="4" height="77" rx="2" fill="#2f7d5b"/>
+<text x="52" y="453" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">tribe_members</text><text x="52" y="472" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">tribe_id → tribes</text><text x="52" y="489" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">user_id → users</text><text x="52" y="506" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">role: organizer|member</text>
+</g><g>
+<rect x="280" y="110" width="236" height="97" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="280" y="120" width="4" height="77" rx="2" fill="#2d6a9f"/>
+<text x="300" y="137" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">events</text><text x="300" y="156" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">tribe_id → tribes</text><text x="300" y="173" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">place_name, lat, lng</text><text x="300" y="190" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">starts_at, tz_offset</text>
+</g><g>
+<rect x="280" y="221" width="236" height="97" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="280" y="231" width="4" height="77" rx="2" fill="#2d6a9f"/>
+<text x="300" y="248" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">event_stops</text><text x="300" y="267" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">event_id → events</text><text x="300" y="284" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">kind: stop|optional|venue</text><text x="300" y="301" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">position</text>
+</g><g>
+<rect x="280" y="332" width="236" height="80" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="280" y="342" width="4" height="60" rx="2" fill="#2d6a9f"/>
+<text x="300" y="359" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">event_rsvps</text><text x="300" y="378" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">event_id → events</text><text x="300" y="395" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">status: going|not_going</text>
+</g><g>
+<rect x="280" y="426" width="236" height="80" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="280" y="436" width="4" height="60" rx="2" fill="#2d6a9f"/>
+<text x="300" y="453" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">event_votes</text><text x="300" y="472" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">event_id → events</text><text x="300" y="489" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">vote: -1 | 1</text>
+</g><g>
+<rect x="528" y="110" width="236" height="97" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="528" y="120" width="4" height="77" rx="2" fill="#a8741a"/>
+<text x="548" y="137" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">prep_items</text><text x="548" y="156" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">event_id → events</text><text x="548" y="173" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">scope: personal|shared</text><text x="548" y="190" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">source: model|person</text>
+</g><g>
+<rect x="528" y="221" width="236" height="97" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="528" y="231" width="4" height="77" rx="2" fill="#a8741a"/>
+<text x="548" y="248" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">item_marks</text><text x="548" y="267" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">item_id → prep_items</text><text x="548" y="284" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">user_id → users</text><text x="548" y="301" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">state: bringing|got</text>
+</g><g>
+<rect x="528" y="332" width="236" height="80" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="528" y="342" width="4" height="60" rx="2" fill="#a8741a"/>
+<text x="548" y="359" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">trip_origins</text><text x="548" y="378" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">event_id → events</text><text x="548" y="395" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">lat, lng: yours only</text>
+</g><g>
+<rect x="776" y="110" width="236" height="97" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="776" y="120" width="4" height="77" rx="2" fill="#6b4fa0"/>
+<text x="796" y="137" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">images</text><text x="796" y="156" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">event_id or tribe_id</text><text x="796" y="173" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">purpose: cover|photo</text><text x="796" y="190" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">uploader_id → users</text>
+</g><g>
+<rect x="776" y="221" width="236" height="63" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="776" y="231" width="4" height="43" rx="2" fill="#6b4fa0"/>
+<text x="796" y="248" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">inline_images</text><text x="796" y="267" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">uploader_id → users</text>
+</g><g>
+<rect x="776" y="298" width="236" height="80" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="776" y="308" width="4" height="60" rx="2" fill="#4f5d68"/>
+<text x="796" y="325" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">stores</text><text x="796" y="344" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">osm_ref, shop_tag</text><text x="796" y="361" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">shared by every route</text>
+</g><g>
+<rect x="776" y="392" width="236" height="80" rx="12" fill="#ffffff" stroke="#ddd6c6"/>
+<rect x="776" y="402" width="4" height="60" rx="2" fill="#4f5d68"/>
+<text x="796" y="419" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="650" fill="#1d2722" text-anchor="start">activity_log</text><text x="796" y="438" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">user_id → users</text><text x="796" y="455" font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace" font-size="12.5" font-weight="400" fill="#5d6a63" text-anchor="start">target_type, target_id</text>
+</g>
+</svg>

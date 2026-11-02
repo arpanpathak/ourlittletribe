@@ -1,0 +1,14 @@
+{
+  "name": "ourlittletribe-web",
+  "private": true,
+  "description": "The OurLittleTribe web app, in TypeScript; compiled into dist/ and embedded in the server binary.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p .",
+    "check": "tsc -p . --noEmit"
+  },
+  "devDependencies": {
+    "@types/leaflet": "1.9.22",
+    "typescript": "7.0.2"
+  }
+}

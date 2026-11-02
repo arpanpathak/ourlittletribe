@@ -1,0 +1,16 @@
+[package]
+name = "tribe-places"
+description = "Clients for open map and weather services: Open-Meteo, OSRM, Overpass, Photon and Nominatim."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tracing.workspace = true
+tribe-core.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+

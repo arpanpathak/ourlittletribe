@@ -1,0 +1,19 @@
+[Unit]
+Description=Tailscale node "ourlittletribe": publishes OurLittleTribe at https://ourlittletribe.<tailnet>.ts.net
+Documentation=https://tailscale.com/kb/1112/userspace-networking
+After=network-online.target ourlittletribe.service
+Wants=network-online.target
+
+# A second Tailscale node, separate from the Thor's own, so the app gets its
+# own stable name. It runs as this user with userspace networking: no root,
+# no new network interface. Funnel then proxies its port 443 to the app.
+[Service]
+ExecStartPre=/usr/bin/mkdir -p %h/.local/share/ourlittletribe/tailscale
+ExecStart=/usr/sbin/tailscaled --tun=userspace-networking --port=0 \
+  --statedir=%h/.local/share/ourlittletribe/tailscale \
+  --socket=%t/ourlittletribe-tailscaled.sock
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

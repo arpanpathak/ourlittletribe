@@ -1,0 +1,176 @@
+/* Evergreen: the dark theme of this book, in the colours of the app's
+   dark mode (forest greens on near-black). It replaces mdBook's "navy" theme,
+   which book.toml makes the dark default. Adapted from the Material Deep Ocean
+   theme of the Thor Thunder Tigress book. */
+html.navy {
+    --forest-bg: #0e1110;
+    --forest-bg-deep: #0a0c0b;
+    --forest-panel: #161a18;
+    --forest-selection: #1d2220;
+    --forest-border: #39413d;
+    --forest-disabled: #5b625e;
+    --forest-fg: #b5bdb8;
+    --forest-text: #ecefed;
+    --forest-muted: #858e89;
+    --forest-accent: #6fd3a3;
+    --forest-blue: #7cb3f0;
+    --forest-cyan: #6fd3a3;
+    --forest-green: #9fe0bf;
+    --forest-yellow: #f2c66d;
+    --forest-orange: #f08a5d;
+    --forest-red: #f08a8a;
+
+    --bg: var(--forest-bg);
+    --fg: var(--forest-fg);
+
+    --sidebar-bg: var(--forest-bg-deep);
+    --sidebar-fg: var(--forest-muted);
+    --sidebar-non-existant: var(--forest-disabled);
+    --sidebar-active: var(--forest-accent);
+    --sidebar-spacer: var(--forest-selection);
+    --sidebar-header-border-color: var(--forest-blue);
+
+    --scrollbar: var(--forest-border);
+    --icons: var(--forest-muted);
+    --icons-hover: var(--forest-accent);
+    --links: var(--forest-cyan);
+    --inline-code-color: var(--forest-yellow);
+
+    --theme-popup-bg: var(--forest-panel);
+    --theme-popup-border: var(--forest-border);
+    --theme-hover: var(--forest-selection);
+
+    --quote-bg: var(--forest-panel);
+    --quote-border: var(--forest-blue);
+    --warning-border: var(--forest-orange);
+
+    --table-border-color: var(--forest-border);
+    --table-header-bg: var(--forest-selection);
+    --table-alternate-bg: #121514;
+
+    --searchbar-border-color: var(--forest-border);
+    --searchbar-bg: var(--forest-panel);
+    --searchbar-fg: var(--forest-text);
+    --searchbar-shadow-color: transparent;
+    --searchresults-header-fg: var(--forest-muted);
+    --searchresults-border-color: var(--forest-border);
+    --searchresults-li-bg: var(--forest-panel);
+    --search-mark-bg: var(--forest-yellow);
+
+    --footnote-highlight: var(--forest-blue);
+    --blockquote-note-color: var(--forest-blue);
+    --blockquote-tip-color: var(--forest-green);
+    --blockquote-important-color: var(--forest-cyan);
+    --blockquote-warning-color: var(--forest-yellow);
+    --blockquote-caution-color: var(--forest-red);
+}
+
+html.navy .content h1,
+html.navy .content h2,
+html.navy .content h3 {
+    color: var(--forest-text);
+}
+
+html.navy .content h2 {
+    border-bottom: 1px solid var(--forest-selection);
+    padding-bottom: 0.2em;
+}
+
+html.navy .content strong {
+    color: var(--forest-text);
+}
+
+/* Code blocks and the highlight.js token colours of Material Deep Ocean. */
+html.navy pre,
+html.navy pre > .hljs {
+    background: var(--forest-bg-deep);
+    border: 1px solid var(--forest-selection);
+    border-radius: 6px;
+}
+html.navy .hljs { color: var(--forest-fg); }
+html.navy .hljs-comment,
+html.navy .hljs-quote { color: var(--forest-disabled); font-style: italic; }
+html.navy .hljs-keyword,
+html.navy .hljs-selector-tag,
+html.navy .hljs-type,
+html.navy .hljs-built_in { color: var(--forest-blue); font-style: italic; }
+html.navy .hljs-string,
+html.navy .hljs-regexp,
+html.navy .hljs-addition { color: var(--forest-green); }
+html.navy .hljs-number,
+html.navy .hljs-literal,
+html.navy .hljs-symbol { color: var(--forest-orange); }
+html.navy .hljs-title,
+html.navy .hljs-title.function_,
+html.navy .hljs-section { color: var(--forest-blue); }
+html.navy .hljs-attr,
+html.navy .hljs-attribute,
+html.navy .hljs-variable,
+html.navy .hljs-template-variable { color: var(--forest-yellow); }
+html.navy .hljs-meta,
+html.navy .hljs-punctuation,
+html.navy .hljs-operator { color: var(--forest-cyan); }
+html.navy .hljs-deletion { color: var(--forest-red); }
+
+/* The "This chapter covers" box, as in the systems programming book. */
+.covers {
+    background: var(--forest-panel, var(--quote-bg));
+    border-left: 3px solid var(--forest-accent, var(--links));
+    border-radius: 6px;
+    padding: 0.4em 1.2em 0.6em;
+    margin: 1.4em 0;
+}
+.covers > p:first-child {
+    font-weight: bold;
+    color: var(--forest-accent, inherit);
+    margin-bottom: 0.3em;
+}
+
+/* Figures. Screenshots keep a thin frame; diagrams carry their own paper. */
+figure { margin: 2.4em 0; text-align: center; }
+figure img {
+    max-width: 100%;
+    border: 1px solid var(--forest-selection, var(--table-border-color));
+    border-radius: 8px;
+}
+
+/* Diagrams are drawn about 1000 px wide and the text column is 750 px, so a
+   diagram runs wider than the text, by the same amount on each side, as far
+   as the window allows. 440 px is the sidebar plus room for the page arrows.
+   On a narrow window the amount is zero and the diagram fits the column. */
+figure:has(> img[src$=".svg"]) {
+    margin-inline: calc(-1 * max(0px, (min(1060px, 100vw - 440px) - 100%) / 2));
+}
+figure > img[src$=".svg"] {
+    width: 100%;
+    border: none;
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(20, 28, 40, 0.08), 0 10px 30px rgba(20, 28, 40, 0.12);
+}
+html.navy figure > img[src$=".svg"],
+html.coal figure > img[src$=".svg"],
+html.ayu figure > img[src$=".svg"] {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.10), 0 12px 34px rgba(0, 0, 0, 0.45);
+}
+
+figcaption {
+    margin: 1em auto 0;
+    max-width: 46em;
+    font-size: 0.9em;
+    line-height: 1.5;
+    color: var(--forest-muted, var(--fg));
+}
+figcaption b { color: var(--forest-accent, inherit); margin-right: 0.4em; }
+
+
+/* Light theme: the app's evergreen accent for links and headings. */
+html.light { --links: #1f6f4e; --sidebar-active: #1f6f4e; }
+html.light .covers { background: #eef5f0; border-left-color: #1f6f4e; }
+html.light .covers > p:first-child { color: #165c3f; }
+html.light figcaption b { color: #165c3f; }
+
+/* Chapter pictures and the cover come from the app's own animated scenes. */
+img.plate { display: block; width: 100%; max-width: 760px; margin: 0.5em auto 1.5em; border-radius: 16px; box-shadow: 0 10px 30px rgba(20, 28, 24, 0.16); }
+img.cover { display: block; width: 100%; max-width: 760px; margin: 1em auto 2em; border-radius: 16px; box-shadow: 0 10px 30px rgba(20, 28, 24, 0.18); }
+.built { color: #1f6f4e; font-weight: bold; }
+.planned { color: #a8741a; font-weight: bold; }

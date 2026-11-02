@@ -1,0 +1,17 @@
+[package]
+name = "tribe-db"
+description = "SQLite storage for OurLittleTribe."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tribe-core.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
