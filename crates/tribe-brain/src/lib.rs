@@ -27,7 +27,7 @@ mod related;
 
 use std::time::Duration;
 
-pub use client::Brain;
+pub use client::{Brain, Listening};
 pub use prompt::{DriveFacts, TripFacts, WeatherFacts};
 
 /// Everything that can go wrong asking the model.
@@ -48,6 +48,9 @@ pub enum BrainError {
     /// The answer was not the JSON the schema asks for.
     #[error("model answer was not valid JSON: {0}")]
     BadJson(#[from] serde_json::Error),
+    /// The caller stopped the answer before it was finished.
+    #[error("stopped")]
+    Stopped,
     /// The one-at-a-time lock was closed; only happens while shutting down.
     #[error("model is shutting down")]
     Closed,

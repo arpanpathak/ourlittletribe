@@ -636,6 +636,15 @@ export interface CoverRequest {
   when: string;
 }
 
+/** One line of a cover drawing as the server streams it. */
+export type DrawingUpdate =
+  /** More of the model's SVG as it writes it; not cleaned, so show it only as a picture. */
+  | { kind: "piece"; text: string }
+  /** The finished drawing, cleaned. */
+  | { kind: "done"; svg: string }
+  /** What went wrong. */
+  | { kind: "failed"; message: string };
+
 /** How hard a trail is, from OpenStreetMap's grades. */
 export type Difficulty = "easy" | "moderate" | "hard" | "alpine";
 

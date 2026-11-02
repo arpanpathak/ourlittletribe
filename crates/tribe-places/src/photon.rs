@@ -187,7 +187,8 @@ impl Places {
         }
 
         let answer = self.photon_request(path, parameters).await;
-        if answer.is_err() {
+        if let Err(error) = &answer {
+            tracing::warn!(%error, "Photon failed; using Nominatim for two minutes");
             self.photon_resting_until
                 .store(now_seconds() + PHOTON_REST_SECONDS, Ordering::Relaxed);
         }
@@ -230,6 +231,22 @@ impl Places {
         match self.photon("api/", &parameters).await {
             Ok(features) => Ok(features.into_iter().next().and_then(Feature::into_area)),
             Err(_) => self.nominatim_area(query, near).await,
+        }
+    }
+
+    /// The town or city best matching `query`, such as "Leavenworth,
+    /// Washington", and never a business or street named after it.
+    pub async fn find_town(
+        &self,
+        query: &str,
+        near: Option<LatLng>,
+    ) -> Result<Option<PlaceMatch>, PlacesError> {
+        let mut parameters = search_parameters(query, 1, near);
+        parameters.push(("osm_tag", "place".to_string()));
+
+        match self.photon("api/", &parameters).await {
+            Ok(features) => Ok(features.into_iter().find_map(Feature::into_place)),
+            Err(_) => self.nominatim_town(query, near).await,
         }
     }
 

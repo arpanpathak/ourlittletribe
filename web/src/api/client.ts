@@ -2,7 +2,7 @@
 // so the app also works under a sub-path.
 
 import type {
-  Briefing, CoverRequest, DescriptionDraftRequest, Event, EventDetail, EventDraft, EventFields, Feed, InlinePicture, LatLng,
+  Briefing, CoverRequest, DescriptionDraftRequest, DrawingUpdate, Event, EventDetail, EventDraft, EventFields, Feed, InlinePicture, LatLng,
   MarkState, PlaceMatch, PlanResult, PrepItem, ProfileFields, ProfilePage, Photo, Rsvp, SearchResults, Suggestions,
   Trail, Tribe, TribeDetail, TribeDraft, TribeFields, TripView, Units, User, Vote,
 } from "./types.js";
@@ -34,8 +34,8 @@ function messageFor(status: number, data: unknown): string {
   return capitalize(serverMessage ?? `Request failed (${status})`);
 }
 
-function requestInit(method: Method, body: Body): RequestInit {
-  const init: RequestInit = { method, credentials: "same-origin", headers: {} };
+function requestInit(method: Method, body: Body, signal?: AbortSignal): RequestInit {
+  const init: RequestInit = { method, credentials: "same-origin", headers: {}, signal };
   if (body === null) return init;
 
   if ("file" in body) {
@@ -48,20 +48,70 @@ function requestInit(method: Method, body: Body): RequestInit {
   return init;
 }
 
-async function send<Answer>(method: Method, path: string, body: Body = null): Promise<Answer> {
-  const response = await fetch(`api/${path}`, requestInit(method, body));
-  const text = await response.text();
-
-  let data: unknown = null;
+function parsed(text: string): unknown {
   try {
-    data = text ? JSON.parse(text) : null;
+    return text ? JSON.parse(text) : null;
   } catch {
-    data = null;
+    return null;
   }
+}
 
+/** Throws the server's error for a failed response. */
+async function refuse(response: Response): Promise<never> {
   if (response.status === 401) window.dispatchEvent(new CustomEvent("signed-out"));
-  if (!response.ok) throw new ApiError(response.status, messageFor(response.status, data));
-  return data as Answer;
+
+  const data = parsed(await response.text());
+  throw new ApiError(response.status, messageFor(response.status, data));
+}
+
+async function send<Answer>(method: Method, path: string, body: Body = null, signal?: AbortSignal): Promise<Answer> {
+  const response = await fetch(`api/${path}`, requestInit(method, body, signal));
+  if (!response.ok) return refuse(response);
+
+  return parsed(await response.text()) as Answer;
+}
+
+/** Reads a response of JSON lines, calling `onLine` with each as it arrives. */
+async function readLines<Line>(response: Response, onLine: (line: Line) => void): Promise<void> {
+  const reader = response.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let unread = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    unread += decoder.decode(value, { stream: true });
+    const lines = unread.split("\n");
+    unread = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (line.trim()) onLine(JSON.parse(line) as Line);
+    }
+  }
+}
+
+/**
+ * Has the model draw `scene`, calling `onPiece` with each new piece of SVG as
+ * it is written, and resolves with the finished, cleaned drawing. Aborting
+ * `signal` ends the request, which stops the model.
+ */
+async function drawCover(scene: string, signal: AbortSignal, onPiece: (text: string) => void): Promise<string> {
+  const response = await fetch("api/cover-drawings", requestInit("POST", json({ scene }), signal));
+  if (!response.ok) return refuse(response);
+
+  let finished: DrawingUpdate | null = null;
+  await readLines<DrawingUpdate>(response, (update) => {
+    if (update.kind === "piece") onPiece(update.text);
+    else finished = update;
+  });
+
+  const result = finished as DrawingUpdate | null;
+  if (result?.kind === "done") return result.svg;
+  if (result?.kind === "failed") throw new ApiError(502, result.message);
+  throw new ApiError(502, "The drawing stopped part way. Try again.");
 }
 
 const json = (value: unknown): Body => ({ json: value });
@@ -144,9 +194,10 @@ export const items = {
 
 /** Places on the map. */
 export const places = {
-  search: (text: string, near: LatLng | null) => send<PlaceMatch[]>("GET", `places?q=${encode(text)}${nearParameters(near)}`),
-  bestMatches: (text: string, near: LatLng | null) =>
-    send<PlaceMatch[]>("GET", `places/best-matches?q=${encode(text)}${nearParameters(near)}`),
+  search: (text: string, near: LatLng | null, signal?: AbortSignal) =>
+    send<PlaceMatch[]>("GET", `places?q=${encode(text)}${nearParameters(near)}`, null, signal),
+  bestMatches: (text: string, near: LatLng | null, signal?: AbortSignal) =>
+    send<PlaceMatch[]>("GET", `places/best-matches?q=${encode(text)}${nearParameters(near)}`, null, signal),
   nearest: (point: LatLng) => send<PlaceMatch | null>("GET", `places/nearest?lat=${point.lat.toFixed(6)}&lng=${point.lng.toFixed(6)}`),
 };
 
@@ -162,6 +213,6 @@ export const drafts = {
   event: (text: string, today: string, near: LatLng | null) => send<EventDraft>("POST", "event-drafts", json({ text, today, near })),
   description: (request: DescriptionDraftRequest) => send<{ text: string }>("POST", "description-drafts", json(request)),
   tribe: (text: string) => send<TribeDraft>("POST", "tribe-drafts", json({ text })),
-  coverScene: (request: CoverRequest) => send<{ scene: string }>("POST", "cover-scenes", json(request)),
-  coverDrawing: (scene: string) => send<{ svg: string }>("POST", "cover-drawings", json({ scene })),
+  coverScene: (request: CoverRequest, signal?: AbortSignal) => send<{ scene: string }>("POST", "cover-scenes", json(request), signal),
+  coverDrawing: drawCover,
 };

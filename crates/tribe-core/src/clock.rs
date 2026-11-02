@@ -60,6 +60,38 @@ pub fn format_local_clock(unix_seconds: i64, offset_minutes: i64) -> String {
     )
 }
 
+/// Converts a (year, month, day) date to days since 1970-01-01.
+///
+/// This is Howard Hinnant's `days_from_civil` algorithm, the inverse of
+/// [`civil_from_days`].
+pub fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
+    let year = match month <= 2 {
+        true => year - 1,
+        false => year,
+    };
+    let era = year.div_euclid(400);
+    let year_of_era = year.rem_euclid(400);
+    let month_index = i64::from((month + 9) % 12);
+    let day_of_year = (153 * month_index + 2) / 5 + i64::from(day) - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
+}
+
+/// The day of the week of a `YYYY-MM-DD` date, such as "Sunday"; `None`
+/// when the text is not a date.
+pub fn weekday_of(date: &str) -> Option<&'static str> {
+    let mut parts = date.trim().split('-');
+    let year: i64 = parts.next()?.parse().ok()?;
+    let month: u32 = parts.next()?.parse().ok()?;
+    let day: u32 = parts.next()?.parse().ok()?;
+    if parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+
+    let days = days_from_civil(year, month, day);
+    WEEKDAYS.get(days.rem_euclid(7) as usize).copied()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,5 +113,16 @@ mod tests {
     #[test]
     fn leap_day() {
         assert_eq!(civil_from_days(19_782), (2024, 2, 29));
+        assert_eq!(days_from_civil(2024, 2, 29), 19_782);
+    }
+
+    #[test]
+    fn weekdays_of_dates() {
+        assert_eq!(weekday_of("2026-11-08"), Some("Sunday"));
+        assert_eq!(weekday_of("2026-11-07"), Some("Saturday"));
+        assert_eq!(weekday_of("1970-01-01"), Some("Thursday"));
+
+        assert_eq!(weekday_of("next sunday"), None);
+        assert_eq!(weekday_of("2026-13-01"), None);
     }
 }

@@ -126,7 +126,9 @@ fn kept_attributes(element: &BytesStart) -> String {
 }
 
 /// The drawing with only allowed elements and attributes, and no text,
-/// comments, scripts or declarations.
+/// comments, scripts or declarations. A drawing cut off part way, as when
+/// the model runs out of room, keeps every whole element before the cut,
+/// and whatever was still open is closed.
 pub fn clean_svg(source: &str) -> Result<String, SvgError> {
     if source.len() > MOST_SVG_BYTES {
         return Err(SvgError::TooLarge);
@@ -141,9 +143,12 @@ pub fn clean_svg(source: &str) -> Result<String, SvgError> {
     let mut count = 0usize;
 
     loop {
-        let event = reader
-            .read_event()
-            .map_err(|error| SvgError::Malformed(error.to_string()))?;
+        let event = match reader.read_event() {
+            Ok(event) => event,
+            Err(_) if !out.is_empty() => break,
+            Err(error) => return Err(SvgError::Malformed(error.to_string())),
+        };
+
         match event {
             Event::Eof => break,
             Event::Start(_) if skipping > 0 => skipping += 1,
@@ -232,6 +237,16 @@ mod tests {
         ] {
             assert!(!clean.contains(bad), "{bad} survived: {clean}");
         }
+    }
+
+    #[test]
+    fn a_drawing_cut_off_part_way_is_closed() {
+        let cut = r#"<svg viewBox="0 0 10 10"><g><rect width="10" height="10"/><circle r="2"/><path d="M0 0 L5"#;
+
+        let clean = clean_svg(cut).unwrap();
+
+        assert!(clean.ends_with("<circle r=\"2\"/></g></svg>"), "{clean}");
+        assert!(!clean.contains("<path"));
     }
 
     #[test]

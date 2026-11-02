@@ -1,7 +1,9 @@
 // A place search box. As you type it shows OpenStreetMap matches at once,
 // then asks the model what you meant ("mt rainier henry jackson" is the
 // Jackson Visitor Center at Paradise) and puts those best matches on top
-// when they arrive. Every result is a real place on the map.
+// when they arrive. Every result is a real place on the map. Typing more
+// cancels the search for the old text, on the server too, so the map and
+// the model only ever work on what is in the box now.
 
 import { places } from "../api/client.js";
 import type { LatLng, PlaceMatch } from "../api/types.js";
@@ -33,6 +35,7 @@ export interface PlaceSearchOptions {
 type SearchStatus =
   | { kind: "idle" }
   | { kind: "too_short" }
+  /** The model is still looking; map matches may already be shown. */
   | { kind: "searching" }
   | { kind: "done" };
 
@@ -51,8 +54,13 @@ const KIND_ICONS: Record<string, IconName> = {
 /** How long to wait after typing before asking the map, milliseconds. */
 const PLAIN_PAUSE = 250;
 
-/** How long to wait after typing before asking the model, milliseconds. */
-const MODEL_PAUSE = 700;
+/** How much longer to wait before also asking the model, milliseconds. */
+const MODEL_PAUSE = 500;
+
+/** Resolves after `milliseconds`. */
+function pause(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
 function samePlace(first: PlaceMatch, second: PlaceMatch): boolean {
   const close = Math.abs(first.lat - second.lat) < 0.003 && Math.abs(first.lng - second.lng) < 0.003;
@@ -78,8 +86,8 @@ export class PlaceSearch {
   private status: SearchStatus = { kind: "idle" };
   /** The highlighted row, for the arrow keys; -1 for none. */
   private activeIndex = -1;
-  /** Counts searches, so a slow answer to an old search is ignored. */
-  private searchNumber = 0;
+  /** Cancels the search for the text that was in the box before. */
+  private inFlight: AbortController | null = null;
 
   constructor(private readonly options: PlaceSearchOptions) {
     const placeholder = options.placeholder ?? "Search places: a trailhead, park, café, address…";
@@ -104,12 +112,11 @@ export class PlaceSearch {
   }
 
   private listen(): void {
-    const searchSoon = debounce((text: string) => void this.search(text), PLAIN_PAUSE);
-    const askModelSoon = debounce((text: string, number: number) => void this.askModel(text, number), MODEL_PAUSE);
+    const searchSoon = debounce((text: string) => this.search(text), PLAIN_PAUSE);
 
     this.input.addEventListener("input", () => {
+      this.cancel();
       searchSoon(this.input.value);
-      askModelSoon(this.input.value, this.searchNumber + 1);
     });
     this.input.addEventListener("focus", () => this.draw());
     this.input.addEventListener("blur", () => setTimeout(() => this.close(), 150));
@@ -138,9 +145,14 @@ export class PlaceSearch {
     }
   }
 
-  private async search(text: string): Promise<void> {
-    this.searchNumber += 1;
-    const number = this.searchNumber;
+  /** Stops the search in flight, on the server too. */
+  private cancel(): void {
+    this.inFlight?.abort();
+    this.inFlight = null;
+  }
+
+  private search(text: string): void {
+    this.cancel();
     this.best = [];
 
     if (text.trim().length < 3) {
@@ -150,20 +162,29 @@ export class PlaceSearch {
       return;
     }
 
+    this.inFlight = new AbortController();
+    const signal = this.inFlight.signal;
     this.status = { kind: "searching" };
     this.draw();
 
-    const found = await places.search(text, this.options.near()).catch(() => []);
-    if (number !== this.searchNumber) return;
+    void this.searchMap(text, signal);
+    void this.askModel(text, signal);
+  }
+
+  private async searchMap(text: string, signal: AbortSignal): Promise<void> {
+    const found = await places.search(text, this.options.near(), signal).catch(() => []);
+    if (signal.aborted) return;
+
     this.plain = found;
     this.draw();
   }
 
-  private async askModel(text: string, number: number): Promise<void> {
-    if (text.trim().length < 3) return;
+  private async askModel(text: string, signal: AbortSignal): Promise<void> {
+    await pause(MODEL_PAUSE);
+    if (signal.aborted) return;
 
-    const found = await places.bestMatches(text, this.options.near()).catch(() => []);
-    if (number !== this.searchNumber) return;
+    const found = await places.bestMatches(text, this.options.near(), signal).catch(() => []);
+    if (signal.aborted) return;
 
     this.best = found;
     this.status = { kind: "done" };
@@ -190,6 +211,8 @@ export class PlaceSearch {
     const place = this.shown[index];
     if (!place) return;
 
+    this.cancel();
+    this.status = { kind: "idle" };
     this.close();
     this.input.value = place.name;
     this.options.onPick({ name: place.name, detail: place.detail, lat: place.lat, lng: place.lng });
@@ -222,8 +245,10 @@ export class PlaceSearch {
         return null;
       case "too_short":
         return h("li", { class: "combo-note" }, "Keep typing…");
-      case "searching":
-        return h("li", { class: "combo-note" }, h("span", { class: "spinner" }), "Finding what you meant…");
+      case "searching": {
+        const note = nothingFound ? "Finding what you meant…" : "Looking for a better match…";
+        return h("li", { class: "combo-note" }, h("span", { class: "spinner" }), note);
+      }
       case "done":
         return nothingFound ? h("li", { class: "combo-note" }, "Nothing found. Try other words, or click the map to drop a pin.") : null;
     }

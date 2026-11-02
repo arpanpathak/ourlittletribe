@@ -164,6 +164,13 @@ export class MarkdownEditor {
     this.textarea.scrollTop = 0;
   }
 
+  /** Puts in text the model wrote and shows it formatted; the Write tab shows the Markdown to edit. */
+  showWritten(text: string): void {
+    this.setValue(text);
+    this.grow();
+    this.setMode("preview", false);
+  }
+
   focus(): void {
     this.textarea.focus();
   }
@@ -320,8 +327,8 @@ export class MarkdownEditor {
     try {
       const details = this.options.details?.() ?? [];
       const written = await drafts.description({ details, current: this.textarea.value, instruction });
-      this.setValue(written.text);
-      toast(`Written. Press ${MOD}Z to undo.`, "success");
+      this.showWritten(written.text);
+      toast("Written. Click Write to edit it.", "success");
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {

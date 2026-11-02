@@ -173,7 +173,7 @@ class TribeForm {
       filled.push("home area");
     }
     if (draft.description) {
-      this.description.setValue(draft.description);
+      this.description.showWritten(draft.description);
       filled.push("description");
     }
 

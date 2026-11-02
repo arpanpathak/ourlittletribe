@@ -4,19 +4,24 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::client::{Brain, Question};
+use crate::client::{AnswerStyle, Brain, Question};
 use crate::{BrainError, clip, prompt, whereabouts};
 
 /// Most guesses looked up for one search.
 const MAX_GUESSES: usize = 3;
 
-/// A real place the model thinks a map search means.
+/// A real place the model thinks someone means, or a thing at a place: the
+/// parking at a trail, a café in a town.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlaceGuess {
     /// The place's own name, such as "Henry M. Jackson Memorial Visitor Center".
     pub name: String,
     /// The town, park or region it is in, such as "Mount Rainier National Park, Washington".
     pub area: String,
+    /// The OpenStreetMap tag of the thing at the place they want instead of
+    /// the place itself, such as "amenity=parking"; empty for the place.
+    #[serde(default)]
+    pub facility: String,
 }
 
 impl PlaceGuess {
@@ -25,6 +30,7 @@ impl PlaceGuess {
         PlaceGuess {
             name: clip(&self.name, 120),
             area: clip(&self.area, 120),
+            facility: clip(&self.facility, 80),
         }
     }
 }
@@ -43,8 +49,12 @@ struct ChoiceAnswer {
 pub(crate) fn guess_schema() -> serde_json::Value {
     json!({
         "type": "object",
-        "properties": { "name": { "type": "string" }, "area": { "type": "string" } },
-        "required": ["name", "area"],
+        "properties": {
+            "name": { "type": "string" },
+            "area": { "type": "string" },
+            "facility": { "type": "string" }
+        },
+        "required": ["name", "area", "facility"],
         "additionalProperties": false
     })
 }
@@ -53,7 +63,8 @@ fn guesses_question() -> Question {
     Question {
         instructions: prompt::PLACE_SYSTEM,
         schema_name: "place_guesses",
-        max_tokens: 300,
+        max_tokens: 400,
+        style: AnswerStyle::Exact,
         schema: json!({
             "type": "object",
             "properties": { "places": { "type": "array", "items": guess_schema() } },
@@ -68,6 +79,7 @@ fn choice_question() -> Question {
         instructions: prompt::CHOOSE_PLACE_SYSTEM,
         schema_name: "place_choice",
         max_tokens: 120,
+        style: AnswerStyle::Exact,
         schema: json!({
             "type": "object",
             "properties": { "best": { "type": "array", "items": { "type": "integer" } } },

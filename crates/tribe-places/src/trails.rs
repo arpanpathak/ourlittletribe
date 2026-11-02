@@ -34,6 +34,16 @@ impl Difficulty {
             _ => None,
         }
     }
+
+    /// The grade in plain words, such as "easy: a clear path with easy footing".
+    pub fn in_words(self) -> &'static str {
+        match self {
+            Difficulty::Easy => "easy: a clear path with easy footing",
+            Difficulty::Moderate => "moderate: steeper, and rougher in places",
+            Difficulty::Hard => "hard: exposed or steep, and sure footing is needed",
+            Difficulty::Alpine => "alpine: scrambling, snow or rock",
+        }
+    }
 }
 
 /// A trail as OpenStreetMap has it.

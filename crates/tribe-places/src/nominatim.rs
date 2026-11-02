@@ -20,6 +20,8 @@ pub(crate) struct Found {
     pub place: PlaceMatch,
     /// Its bounding box as Nominatim gives it; a building's is tiny, a park's is its extent.
     pub outline: Option<Bounds>,
+    /// Whether it has a name of its own, rather than being called by its street.
+    pub named: bool,
 }
 
 /// One result as Nominatim's JSON has it.
@@ -117,9 +119,37 @@ impl NominatimPlace {
     fn into_found(self) -> Option<Found> {
         let location = self.location()?;
         let outline = self.outline();
+        let named = !self.name.trim().is_empty();
         let place = self.address().into_match(location, &self.kind)?;
-        Some(Found { place, outline })
+        Some(Found {
+            place,
+            outline,
+            named,
+        })
     }
+}
+
+/// How far around a known place to look for its record, in degrees each way.
+const RECORD_HALF_DEGREES: f64 = 0.02;
+
+/// How far around the plan to look for a town first, in degrees each way
+/// (about 300 km): a day trip's lunch can be a long drive away.
+const TOWN_HALF_DEGREES: f64 = 3.0;
+
+/// Most tags kept from one record.
+const MOST_TAGS: usize = 20;
+
+/// A record's extra OpenStreetMap tags, such as `railway=abandoned`.
+#[derive(Deserialize)]
+struct TaggedPlace {
+    #[serde(default)]
+    extratags: Option<std::collections::BTreeMap<String, String>>,
+}
+
+/// Whether a tag says something about the place, rather than naming it in
+/// another language or saying who mapped it.
+fn telling_tag(key: &str) -> bool {
+    !key.starts_with("name") && !key.starts_with("source") && !key.contains("wikidata")
 }
 
 /// A box as Nominatim's `viewbox` parameter: west, north, east, south.
@@ -163,7 +193,7 @@ impl Places {
     }
 
     /// Places matching `query` inside `view`; nothing outside it.
-    async fn nominatim_bounded(
+    pub(crate) async fn nominatim_bounded(
         &self,
         query: &str,
         view: Bounds,
@@ -211,6 +241,61 @@ impl Places {
         self.nominatim_anywhere(query, limit).await
     }
 
+    /// The settlement best matching `query`: a town, city or village, near
+    /// `near` first, since many towns share a name (Leavenworth is in
+    /// Washington and in Kansas).
+    pub(crate) async fn nominatim_town(
+        &self,
+        query: &str,
+        near: Option<LatLng>,
+    ) -> Result<Option<PlaceMatch>, PlacesError> {
+        let parameters = vec![
+            ("q", query.to_string()),
+            ("limit", "1".to_string()),
+            ("featureType", "settlement".to_string()),
+        ];
+
+        if let Some(point) = near {
+            let around = Bounds::around(point, TOWN_HALF_DEGREES);
+            let mut nearby = parameters.clone();
+            nearby.push(("viewbox", viewbox_parameter(around)));
+            nearby.push(("bounded", "1".to_string()));
+
+            let places: Vec<NominatimPlace> = self.nominatim_json("search", &nearby).await?;
+            if let Some(found) = found_of(places).into_iter().next() {
+                return Ok(Some(found.place));
+            }
+        }
+
+        let places: Vec<NominatimPlace> = self.nominatim_json("search", &parameters).await?;
+        Ok(found_of(places).into_iter().next().map(|found| found.place))
+    }
+
+    /// What OpenStreetMap records about the place called `name` at `at`, as
+    /// `key=value` tags, such as `railway=abandoned` and `wheelchair=yes` for
+    /// a trail on an old railway line. Empty when it has no record there.
+    pub async fn map_tags(&self, name: &str, at: LatLng) -> Result<Vec<String>, PlacesError> {
+        let around = Bounds::around(at, RECORD_HALF_DEGREES);
+        let parameters = [
+            ("q", name.to_string()),
+            ("limit", "1".to_string()),
+            ("viewbox", viewbox_parameter(around)),
+            ("bounded", "1".to_string()),
+            ("extratags", "1".to_string()),
+        ];
+
+        let found: Vec<TaggedPlace> = self.nominatim_json("search", &parameters).await?;
+        let Some(tags) = found.into_iter().next().and_then(|place| place.extratags) else {
+            return Ok(Vec::new());
+        };
+
+        let telling = tags.into_iter().filter(|(key, _)| telling_tag(key));
+        Ok(telling
+            .take(MOST_TAGS)
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect())
+    }
+
     /// The nearest named place or address to `point`.
     pub(crate) async fn nominatim_reverse(
         &self,
@@ -236,6 +321,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn tags_that_only_name_a_place_are_dropped() {
+        assert!(telling_tag("railway"));
+        assert!(telling_tag("wheelchair"));
+
+        assert!(!telling_tag("name:de"));
+        assert!(!telling_tag("source"));
+        assert!(!telling_tag("wikidata"));
+    }
+
+    #[test]
     fn a_result_becomes_a_place_with_its_outline() {
         let sample = r#"{"lat":"46.78","lon":"-121.73","name":"Jackson Visitor Center","type":"office",
             "display_name":"Jackson Visitor Center, 52415, Paradise Road, Paradise, Pierce County, Washington, United States",
@@ -249,6 +344,7 @@ mod tests {
         let Some(Found {
             place,
             outline: Some(outline),
+            ..
         }) = place.into_found()
         else {
             panic!("no place");

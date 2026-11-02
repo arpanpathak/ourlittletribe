@@ -1571,6 +1571,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "tracing",
  "tribe-core",
 ]
 
@@ -1625,6 +1626,7 @@ dependencies = [
  "argon2",
  "axum",
  "base64 0.22.1",
+ "futures-core",
  "http-body-util",
  "rand 0.8.8",
  "serde",

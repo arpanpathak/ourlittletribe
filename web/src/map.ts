@@ -171,19 +171,54 @@ export function itineraryUrl(points: LatLng[]): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${destination.lat},${destination.lng}${waypointPart}`;
 }
 
-/** Asks the browser where the viewer is. */
-export function currentPosition(timeoutMilliseconds = 8000): Promise<LatLng> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("This browser can't share your location"));
-      return;
-    }
+/** How old a position the browser may hand back, milliseconds: where you were ten minutes ago is close enough to plan from. */
+const RECENT_POSITION_MS = 10 * 60 * 1000;
 
+/** The last position found on this page, so asking again is instant. */
+let lastPosition: { point: LatLng; at: number } | null = null;
+
+/** One request to the browser for the viewer's position. */
+function askBrowser(precise: boolean, timeoutMilliseconds: number): Promise<LatLng> {
+  return new Promise((resolve, reject) => {
     const succeed = (position: GeolocationPosition) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude });
-    const fail = (problem: GeolocationPositionError) => {
-      const blocked = problem.code === problem.PERMISSION_DENIED;
-      reject(new Error(blocked ? "Location access was blocked. Allow it in the browser to use this." : "Couldn't get your location"));
-    };
-    navigator.geolocation.getCurrentPosition(succeed, fail, { timeout: timeoutMilliseconds, enableHighAccuracy: true });
+    const options = { enableHighAccuracy: precise, timeout: timeoutMilliseconds, maximumAge: RECENT_POSITION_MS };
+    navigator.geolocation.getCurrentPosition(succeed, reject, options);
   });
+}
+
+/** What to tell the viewer when the browser gave no position. */
+function locationProblem(problem: unknown): Error {
+  const denied = problem instanceof GeolocationPositionError && problem.code === problem.PERMISSION_DENIED;
+  if (denied) return new Error("Location is turned off for this site. Allow it in the browser's site settings, then try again.");
+
+  return new Error("Couldn't find your location. Check that location is on for your device, or search for a place instead.");
+}
+
+/**
+ * Asks the browser where the viewer is. A quick, approximate fix comes
+ * first, from Wi-Fi or the network, which is all a desktop has and is
+ * enough to plan from; a precise GPS fix is asked for only if that fails.
+ */
+export async function currentPosition(timeoutMilliseconds = 10000): Promise<LatLng> {
+  if (lastPosition && Date.now() - lastPosition.at < RECENT_POSITION_MS) return lastPosition.point;
+
+  if (!window.isSecureContext) {
+    throw new Error("Browsers share your location only with secure (https://) addresses. Open the app at its https:// address to use it.");
+  }
+  if (!navigator.geolocation) throw new Error("This browser can't share your location");
+
+  let point: LatLng;
+  try {
+    point = await askBrowser(false, timeoutMilliseconds);
+  } catch (quickProblem) {
+    const denied = quickProblem instanceof GeolocationPositionError && quickProblem.code === quickProblem.PERMISSION_DENIED;
+    if (denied) throw locationProblem(quickProblem);
+
+    point = await askBrowser(true, timeoutMilliseconds * 2).catch((preciseProblem: unknown) => {
+      throw locationProblem(preciseProblem);
+    });
+  }
+
+  lastPosition = { point, at: Date.now() };
+  return point;
 }

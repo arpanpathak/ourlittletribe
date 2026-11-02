@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::client::{Brain, Question};
+use crate::client::{AnswerStyle, Brain, Question};
 use crate::{BrainError, TripFacts, clip, prompt};
 
 /// Points a briefing keeps at most.
@@ -90,6 +90,7 @@ fn briefing_question() -> Question {
         instructions: prompt::BRIEFING_SYSTEM,
         schema_name: "briefing",
         max_tokens: 500,
+        style: AnswerStyle::Varied,
         schema: json!({
             "type": "object",
             "properties": {

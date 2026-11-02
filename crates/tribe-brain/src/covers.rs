@@ -6,7 +6,7 @@
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::client::{Brain, Question};
+use crate::client::{AnswerStyle, Brain, Listening, Question};
 use crate::{BrainError, clip, prompt};
 
 /// What a cover is for.
@@ -37,8 +37,10 @@ pub struct CoverSubject<'a> {
 /// Longest scene description kept, in characters.
 const LONGEST_SCENE: usize = 2500;
 
-/// Most tokens a drawing may take. About 4,000 is usual, and takes about 50 seconds on the Thor.
-const DRAWING_TOKENS: u32 = 9000;
+/// Most tokens a drawing may take. The Thor writes about 75 tokens a second,
+/// so this is at most about 90 seconds. A drawing cut off here is still
+/// used: the server closes whatever the model left open.
+const DRAWING_TOKENS: u32 = 7000;
 
 /// How freely the model draws: some variety, so a second drawing differs.
 const DRAWING_TEMPERATURE: f64 = 0.7;
@@ -53,6 +55,7 @@ fn scene_question() -> Question {
         instructions: prompt::COVER_SCENE_SYSTEM,
         schema_name: "cover_scene",
         max_tokens: 900,
+        style: AnswerStyle::Varied,
         schema: json!({
             "type": "object",
             "properties": { "scene": { "type": "string" } },
@@ -91,12 +94,15 @@ fn subject_lines(subject: &CoverSubject) -> String {
 }
 
 /// The SVG document in the model's answer, from `<svg` to the last `</svg>`,
-/// or `None` when there is none.
+/// or to the end when the model ran out of room; `None` when there is none.
 fn svg_in(answer: &str) -> Option<String> {
     let start = answer.find("<svg")?;
-    let end = answer.rfind("</svg>")? + "</svg>".len();
+    let end = match answer.rfind("</svg>") {
+        Some(close) if close > start => close + "</svg>".len(),
+        _ => answer.len(),
+    };
 
-    (start < end).then(|| answer[start..end].to_string())
+    Some(answer[start..end].to_string())
 }
 
 impl Brain {
@@ -109,9 +115,15 @@ impl Brain {
         Ok(clip(answer.scene.trim(), LONGEST_SCENE))
     }
 
-    /// Draws `scene` as one SVG document, 1600 by 900. The server cleans the
-    /// SVG before anyone sees it; this only finds it in the answer.
-    pub async fn draw_cover(&self, scene: &str) -> Result<String, BrainError> {
+    /// Draws `scene` as one SVG document, 1600 by 900. `on_piece` sees the
+    /// drawing as it is written and can stop it. The SVG may be unfinished
+    /// when the model ran out of room; the server closes and cleans it before
+    /// anyone sees it, and this only finds it in the answer.
+    pub async fn draw_cover(
+        &self,
+        scene: &str,
+        on_piece: &mut (dyn FnMut(&str) -> Listening + Send),
+    ) -> Result<String, BrainError> {
         let request = format!(
             "Draw this scene:\n\"\"\"\n{}\n\"\"\"",
             clip(scene, LONGEST_SCENE)
@@ -122,6 +134,7 @@ impl Brain {
                 request,
                 DRAWING_TOKENS,
                 DRAWING_TEMPERATURE,
+                on_piece,
             )
             .await?;
 
@@ -142,6 +155,10 @@ mod tests {
             Some("<svg viewBox=\"0 0 10 10\"><rect/></svg>")
         );
         assert_eq!(svg_in("no drawing"), None);
+        assert_eq!(
+            svg_in("<svg><rect/><circ").as_deref(),
+            Some("<svg><rect/><circ")
+        );
     }
 
     #[test]

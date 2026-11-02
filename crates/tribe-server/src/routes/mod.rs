@@ -15,6 +15,7 @@
 
 mod access;
 mod drafts;
+mod drawings;
 mod events;
 mod feed;
 mod items;
@@ -159,7 +160,7 @@ fn discovery_routes() -> Router<AppState> {
         .route("/description-drafts", post(drafts::description_draft))
         .route("/tribe-drafts", post(drafts::tribe_draft))
         .route("/cover-scenes", post(drafts::cover_scene))
-        .route("/cover-drawings", post(drafts::cover_drawing))
+        .route("/cover-drawings", post(drawings::cover_drawing))
 }
 
 /// Every route: the API under `/api`, pictures under `/media`, the health check, and the web app.

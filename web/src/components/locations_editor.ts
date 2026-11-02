@@ -11,6 +11,7 @@ import { h, mount } from "../dom.js";
 import { icon, type IconName } from "../icons.js";
 import { PLACE_KINDS, inStageOrder, pinLabels, stage, type PlaceKind } from "../itinerary.js";
 import { DEFAULT_CENTER, createMap, currentPosition, fitTo, itineraryLine, placePin } from "../map.js";
+import { dropdown } from "../ui/menu.js";
 import { PlaceSearch, type PickedPlace } from "./place_search.js";
 
 /** Most places besides the meeting point. */
@@ -193,7 +194,7 @@ export class LocationsEditor {
   }
 
   private async centreOnViewer(): Promise<void> {
-    const point = await currentPosition(5000).catch(() => null);
+    const point = await currentPosition(8000).catch(() => null);
     const nothingPlaced = !this.rows.some((row) => row.place);
     if (point && nothingPlaced) this.map?.setView([point.lat, point.lng], 11);
   }
@@ -373,20 +374,27 @@ export class LocationsEditor {
     mount(this.list, this.ordered().map((row, index) => this.rowElement(row, labels[index] ?? "")));
   }
 
-  private drawAddBar(): void {
-    const full = this.rows.length > MOST_STOPS;
+  /** One kind in the add menu: its icon, its name and what it is for. */
+  private addEntry(kind: StopKind): HTMLElement {
     const hasVenue = this.rows.some((row) => row.kind === "venue");
+    const taken = kind === "venue" && hasVenue;
+    const hint = taken ? "This event already has a venue" : PLACE_KINDS[kind].hint;
 
-    const addButton = (kind: StopKind, disabled: boolean, title: string | null = null) =>
-      h("button", { type: "button", class: "btn btn-sm", disabled: disabled ? true : null, title, onclick: () => this.add(kind) }, icon("plus", "sm"), PLACE_KINDS[kind].label);
+    return h("button", { type: "button", role: "menuitem", class: "menu-rich", disabled: taken ? true : null, onclick: () => this.add(kind) },
+      icon(PLACE_KINDS[kind].icon),
+      h("span", { class: "menu-rich-text" },
+        h("span", { class: "strong" }, PLACE_KINDS[kind].label),
+        h("span", { class: "small muted" }, hint)));
+  }
 
-    mount(this.addBar,
-      h("span", { class: "small muted" }, "Add:"),
-      addButton("pickup", full),
-      addButton("stop", full),
-      addButton("optional", full),
-      addButton("venue", full || hasVenue, hasVenue ? "This event already has a venue" : null),
-      addButton("after", full));
+  private drawAddBar(): void {
+    if (this.rows.length > MOST_STOPS) {
+      mount(this.addBar, h("p", { class: "small muted" }, "That's the most places one event can have."));
+      return;
+    }
+
+    const trigger = h("button", { type: "button", class: "btn loc-add-button" }, icon("plus", "sm"), "Add a place");
+    mount(this.addBar, dropdown(trigger, () => STOP_KINDS.map((kind) => this.addEntry(kind))));
   }
 
   private drawPin(row: Row, place: PickedPlace, label: string): void {

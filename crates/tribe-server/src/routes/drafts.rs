@@ -6,18 +6,20 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
+use tribe_brain::Brain;
 use tribe_brain::covers::{CoverFor, CoverSubject};
-use tribe_brain::drafting::TribeDraft;
+use tribe_brain::drafting::{self, TribeDraft};
 use tribe_brain::places::PlaceGuess;
 use tribe_core::geo::LatLng;
 use tribe_core::itinerary::StopKind;
 use tribe_db::ids::TribeId;
 use tribe_db::tribes::{self, Tribe};
-use tribe_media::svg::clean_svg;
 use tribe_places::address::PlaceMatch;
+use tribe_places::facilities::OsmTag;
 
 use super::{bounded, model};
 use crate::auth::CurrentUser;
+use crate::draft_facts::{Planned, draft_facts};
 use crate::error::{ApiError, ApiResult};
 use crate::place_search;
 use crate::state::AppState;
@@ -74,7 +76,13 @@ pub struct EventDraft {
     stops: Vec<DraftStop>,
 }
 
+/// What to put in the search box for a guess, such as "Rattlesnake Ledge,
+/// North Bend", or "Cafe in Snoqualmie" for a kind of place in a town.
 fn query_of(guess: &PlaceGuess) -> String {
+    if let Some(tag) = OsmTag::parse(&guess.facility) {
+        return format!("{} in {}", tag.plain_name(), guess.name);
+    }
+
     match guess.area.is_empty() {
         true => guess.name.clone(),
         false => format!("{}, {}", guess.name, guess.area),
@@ -85,12 +93,17 @@ fn query_of(guess: &PlaceGuess) -> String {
 async fn resolve_all(
     state: &AppState,
     guesses: Vec<PlaceGuess>,
+    said: &str,
     near: Option<LatLng>,
 ) -> Vec<Option<PlaceMatch>> {
     let mut lookups = JoinSet::new();
     for (index, guess) in guesses.into_iter().enumerate() {
         let state = state.clone();
-        lookups.spawn(async move { (index, place_search::resolve(&state, guess, near).await) });
+        let said = said.to_string();
+        lookups.spawn(async move {
+            let place = place_search::resolve(&state, guess, &said, near).await;
+            (index, place)
+        });
     }
 
     let mut found = Vec::new();
@@ -99,6 +112,53 @@ async fn resolve_all(
     }
     found.sort_by_key(|(index, _)| *index);
     found.into_iter().map(|(_, place)| place).collect()
+}
+
+/// The description, written from what they said and the facts found for
+/// the plan; empty when the model fails, so the rest of the draft still
+/// reaches the form.
+async fn describe(
+    state: &AppState,
+    brain: &Brain,
+    said: &str,
+    draft: &drafting::EventDraft,
+    meeting_point: Option<&DraftPlace>,
+    stops: &[DraftStop],
+) -> String {
+    let mut planned: Vec<Planned> = Vec::new();
+    if let Some(meeting) = meeting_point {
+        planned.push(Planned {
+            kind: None,
+            query: &meeting.query,
+            place: meeting.place.as_ref(),
+            note: "",
+        });
+    }
+    for stop in stops {
+        planned.push(Planned {
+            kind: Some(stop.kind),
+            query: &stop.found.query,
+            place: stop.found.place.as_ref(),
+            note: &stop.note,
+        });
+    }
+
+    let facts = draft_facts(
+        state,
+        draft.date.as_deref(),
+        draft.time.as_deref(),
+        &planned,
+    )
+    .await;
+    tracing::debug!(?facts, "facts for a drafted description");
+
+    match brain.describe_event(said, &facts).await {
+        Ok(description) => description,
+        Err(error) => {
+            tracing::warn!(%error, "the model could not write the description");
+            String::new()
+        }
+    }
 }
 
 /// `POST /api/event-drafts`: fills in an event from what someone said. Nothing
@@ -150,21 +210,24 @@ pub async fn event_draft(
     // the group is, so a stop's name cannot match a town of the same name
     // far away, even when the browser did not share the person's location.
     let meeting_place = match draft.meeting_point.clone() {
-        Some(guess) => place_search::resolve(&state, guess, near).await,
+        Some(guess) => place_search::resolve(&state, guess, &text, near).await,
         None => None,
     };
     let around = near.or(meeting_place.as_ref().map(|place| place.location));
 
     let guesses: Vec<PlaceGuess> = draft.stops.iter().map(|stop| stop.place.clone()).collect();
-    let mut found = resolve_all(&state, guesses, around).await.into_iter();
+    let mut found = resolve_all(&state, guesses, &text, around)
+        .await
+        .into_iter();
 
-    let meeting_point = draft.meeting_point.map(|guess| DraftPlace {
-        query: query_of(&guess),
+    let meeting_point = draft.meeting_point.as_ref().map(|guess| DraftPlace {
+        query: query_of(guess),
         place: meeting_place,
     });
-    let stops = draft
+    let stops: Vec<DraftStop> = draft
         .stops
-        .into_iter()
+        .iter()
+        .cloned()
         .map(|stop| DraftStop {
             kind: stop.kind,
             note: stop.note,
@@ -175,10 +238,20 @@ pub async fn event_draft(
         })
         .collect();
 
+    let description = describe(
+        &state,
+        &brain,
+        &text,
+        &draft,
+        meeting_point.as_ref(),
+        &stops,
+    )
+    .await;
+
     let filled = EventDraft {
         tribe_id,
         title: draft.title,
-        description: draft.description,
+        description,
         date: draft.date,
         time: draft.time,
         meeting_point,
@@ -319,46 +392,4 @@ pub async fn cover_scene(
     };
     let scene = brain.describe_cover(&subject).await?;
     Ok((StatusCode::CREATED, Json(CoverScene { scene })))
-}
-
-/// Body of `POST /api/cover-drawings`.
-#[derive(Deserialize)]
-pub struct CoverDrawingRequest {
-    /// The scene to draw, 20 to 2,500 characters.
-    scene: String,
-}
-
-/// A cover drawing.
-#[derive(Serialize)]
-pub struct CoverDrawing {
-    /// One SVG document, cleaned: plain drawing elements only.
-    svg: String,
-}
-
-/// `POST /api/cover-drawings`: has the model draw a scene as SVG. Takes
-/// about a minute. The SVG is cleaned before it is sent; the page turns it
-/// into a picture and uploads that like any other.
-pub async fn cover_drawing(
-    State(state): State<AppState>,
-    CurrentUser(_user): CurrentUser,
-    Json(request): Json<CoverDrawingRequest>,
-) -> ApiResult<(StatusCode, Json<CoverDrawing>)> {
-    let brain = model(&state)?;
-    let scene = bounded(
-        &request.scene,
-        2500,
-        "the scene is too long; keep it under 2,500 characters",
-    )?;
-    if scene.chars().count() < 20 {
-        return Err(ApiError::Invalid(
-            "describe the scene in a sentence or more",
-        ));
-    }
-
-    let drawn = brain.draw_cover(&scene).await?;
-    let svg = clean_svg(&drawn).map_err(|error| {
-        tracing::warn!(%error, "the model's drawing was not usable");
-        ApiError::Upstream("the model's drawing could not be used; try again".to_string())
-    })?;
-    Ok((StatusCode::CREATED, Json(CoverDrawing { svg })))
 }

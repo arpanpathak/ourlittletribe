@@ -129,18 +129,28 @@ export interface CoverOptions {
   className?: string;
 }
 
+/** The picture `id`, or `fallback()` if there is none or it fails to load. */
+function pictureOr(id: string | null, size: PictureSize, fallback: () => HTMLElement): HTMLElement {
+  if (!id) return fallback();
+
+  const image = h("img", { src: pictureUrl(id, size), alt: "", loading: "lazy", decoding: "async" });
+  image.addEventListener("error", () => image.replaceWith(fallback()));
+  return image;
+}
+
 /** An event's picture: its cover, or a map of where it meets. */
 export function eventCover(event: Event, options: CoverOptions = {}): HTMLElement {
-  const picture = event.cover_image
-    ? h("img", { src: pictureUrl(event.cover_image, options.size ?? "small"), alt: "", loading: "lazy", decoding: "async" })
-    : mapThumb(event.meeting_point.lat, event.meeting_point.lng, 12, options.size === "large" ? WIDE_TILES : CARD_TILES);
-  return h("div", { class: `cover ${options.className ?? ""}` }, picture);
+  const size = options.size ?? "small";
+  const tiles = size === "large" ? WIDE_TILES : CARD_TILES;
+  const map = () => mapThumb(event.meeting_point.lat, event.meeting_point.lng, 12, tiles);
+
+  return h("div", { class: `cover ${options.className ?? ""}` }, pictureOr(event.cover_image, size, map));
 }
 
 /** A tribe's picture: its cover, or a gradient with its initials. */
 export function tribeCover(tribe: Tribe, options: CoverOptions = {}): HTMLElement {
-  const picture = tribe.cover_image
-    ? h("img", { src: pictureUrl(tribe.cover_image, options.size ?? "small"), alt: "", loading: "lazy", decoding: "async" })
-    : h("div", { class: "cover-fallback", style: gradientFor(tribe.id) }, h("span", { class: "monogram" }, initials(tribe.name)));
-  return h("div", { class: `cover ${options.className ?? ""}` }, picture);
+  const size = options.size ?? "small";
+  const monogram = () => h("div", { class: "cover-fallback", style: gradientFor(tribe.id) }, h("span", { class: "monogram" }, initials(tribe.name)));
+
+  return h("div", { class: `cover ${options.className ?? ""}` }, pictureOr(tribe.cover_image, size, monogram));
 }

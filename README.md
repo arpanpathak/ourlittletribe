@@ -3,13 +3,52 @@
 <h1 align="center">OurLittleTribe</h1>
 
 <p align="center">Plan hikes, picnics, runs and book clubs with your people.<br>
-A local model works out what to bring from the plan, the forecast and your route.</p>
+Say the plan in your own words; a model on your own hardware does the rest.</p>
+
+<p align="center">
+  <img alt="Rust 2024" src="https://img.shields.io/badge/Rust-2024-f74c00?style=flat-square&logo=rust&logoColor=white&labelColor=0d1117">
+  <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white&labelColor=0d1117">
+  <img alt="axum" src="https://img.shields.io/badge/axum-HTTP-7fdbca?style=flat-square&labelColor=0d1117">
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-embedded-4fa3d9?style=flat-square&logo=sqlite&logoColor=white&labelColor=0d1117">
+  <img alt="Local AI" src="https://img.shields.io/badge/AI-Qwen%2035B%20%C2%B7%20TensorRT-76b900?style=flat-square&logo=nvidia&logoColor=white&labelColor=0d1117">
+  <img alt="OpenStreetMap" src="https://img.shields.io/badge/maps-OpenStreetMap-7ebc6f?style=flat-square&logo=openstreetmap&logoColor=white&labelColor=0d1117">
+  <br>
+  <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-no%20cloud%20AI-c792ea?style=flat-square&labelColor=0d1117">
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-82aaff?style=flat-square&labelColor=0d1117">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-126%20passing-addb67?style=flat-square&labelColor=0d1117">
+  <img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-ff5874?style=flat-square&labelColor=0d1117">
+</p>
+
+## See it in action
+
+| Say the plan, get the event | AI cover art, drawn live | Trails with their climb |
+|:---:|:---:|:---:|
+| <img src="docs/demo/plan-phone.gif" width="230" alt="Typing a plan in plain words fills in the whole event form"> | <img src="docs/demo/cover-phone.gif" width="230" alt="The model writes a scene and draws the cover shape by shape"> | <img src="docs/demo/trails-desktop.gif" width="360" alt="Choosing a trail draws it on the map and shows its elevation profile"> |
+
+Full walkthroughs, about three minutes each, in the Night Owl theme:
+**[phone](docs/demo/ourlittletribe-phone.mp4)** and **[desktop](docs/demo/ourlittletribe-desktop.mp4)**.
+The parts where the model is working are sped up and marked on screen.
 
 ---
 
 OurLittleTribe is a free, self-hosted alternative to Meetup. A tribe plans an
 outing; the app then helps the group get ready for it:
 
+- **Say the plan, get the event.** *"Next Sunday 7am, meet at Green Lake park
+  and ride, hike the Iron Goat Trail, lunch somewhere after"* becomes a title,
+  date, time, tribe and every place on the map. "Lunch somewhere" becomes a
+  real restaurant in the nearest town. The description is written *after* the
+  places are found, from facts the app looked up (the real address, the drive
+  time, the trail's grade and its OpenStreetMap record), so the model does not
+  have to guess them.
+- **Cover art drawn by the model.** It writes a scene for the tribe or outing,
+  you change anything, and it draws it as SVG while you watch. Stop at any
+  time and the model stops too.
+- **Trails nearby, with their climb.** Marked routes and named paths around
+  the venue, each with its length and climb; choosing one draws it on the map
+  and shows its elevation profile.
+- **Sixteen themes,** from Evergreen to Night Owl, Tokyo Night and Catppuccin;
+  light, dark, or following the device.
 - **The model drafts the prep list.** It reads the organiser's description,
   the forecast and elevation at the meeting point (Open-Meteo), the drive
   (OSRM), the daylight and the group size, and returns items with the fact
@@ -26,9 +65,10 @@ outing; the app then helps the group get ready for it:
 - **Search that understands places.** Typing shows OpenStreetMap matches at
   once (Photon, falling back to Nominatim when Photon is down). The model then
   reads the search the way a person means it: "mt rainier henry jackson" is the
-  Jackson Visitor Center at Paradise. It guesses names and areas, each guess
-  is looked up inside that area's bounds, and the model picks from the real
-  places found. Nothing it suggests appears unless the map has it.
+  Jackson Visitor Center at Paradise, and "snoqualmie falls parking" is the
+  falls' actual car park, found by its OpenStreetMap tag beside the falls.
+  The model picks only from real places found, so nothing it suggests appears
+  unless the map has it.
 - **More than one place.** An event has a meeting point and, optionally, stops
   on the way, optional stops and a venue, each placed by search or on one
   shared map. The event page shows the itinerary, and directions go through
@@ -53,12 +93,13 @@ shared per event, only by choice, and deleted a day after the event.
 |---|---|
 | `crates/tribe-core` | Pure logic: route geometry, store ranking, basket analysis, local time formatting |
 | `crates/tribe-db` | SQLite storage: users, sessions, tribes, events, prep items and marks, cached stores |
-| `crates/tribe-places` | Clients for Open-Meteo, OSRM, Overpass and Photon (OpenStreetMap) |
+| `crates/tribe-places` | Clients for Open-Meteo, OSRM, Overpass, Photon and Nominatim (OpenStreetMap) |
 | `crates/tribe-media` | Uploaded pictures: checked, turned upright, resized, re-encoded, stored on disk |
 | `crates/tribe-brain` | The model client: trip facts in, checked items out; one request at a time |
 | `crates/tribe-server` | The `ourlittletribe` binary: axum API, Argon2id accounts, the embedded web app |
 | `web/` | The app: strict TypeScript in `web/src`, compiled to `web/dist` by the server's build script. Leaflet and the Inter font are vendored |
 | `deploy/` | systemd unit, deploy script, and the voltforge.tech forwarding page |
+| `docs/demo/` | The demo videos and the previews shown above |
 
 The whole app is one 9.4 MB binary with the web files compiled in. Uploaded
 pictures are the only files kept outside the database.
@@ -88,7 +129,7 @@ Jetson AGX Thor it is TensorRT Edge-LLM serving Qwen3.6-35B-A3B (NVFP4).
 ## Tests
 
 ```bash
-cargo test --workspace                                      # 66 tests, no network
+cargo test --workspace                                      # 126 tests, no network
 cargo test -p tribe-places --test live -- --ignored         # real map and weather services
 OLT_LLM_URL=http://127.0.0.1:8081/v1 \
   cargo test -p tribe-brain --test live -- --ignored --nocapture   # the real model

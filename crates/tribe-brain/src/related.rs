@@ -5,7 +5,7 @@
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::client::{Brain, Question};
+use crate::client::{AnswerStyle, Brain, Question};
 use crate::{BrainError, clip, prompt};
 
 /// Most related words kept.
@@ -24,6 +24,7 @@ fn related_question() -> Question {
         instructions: prompt::RELATED_SYSTEM,
         schema_name: "related_words",
         max_tokens: 200,
+        style: AnswerStyle::Varied,
         schema: json!({
             "type": "object",
             "properties": {

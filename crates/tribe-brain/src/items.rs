@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tribe_core::osm::{ShopTags, is_plain_tag};
 
-use crate::client::{Brain, Question};
+use crate::client::{AnswerStyle, Brain, Question};
 use crate::{BrainError, TripFacts, clip, prompt};
 
 /// Most items kept from one answer.
@@ -49,6 +49,7 @@ fn items_question(instructions: &'static str) -> Question {
         instructions,
         schema_name: "prep_list",
         max_tokens: 1800,
+        style: AnswerStyle::Varied,
         schema: json!({
             "type": "object",
             "properties": {

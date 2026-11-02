@@ -12,6 +12,7 @@
 //! instance can use its own copies.
 
 pub mod address;
+pub mod facilities;
 pub mod nominatim;
 pub mod osrm;
 pub mod overpass;

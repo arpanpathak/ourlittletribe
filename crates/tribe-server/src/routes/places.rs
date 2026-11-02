@@ -53,11 +53,21 @@ impl PlaceQuery {
 const SAME_PLACE_KM: f64 = 0.3;
 
 /// Whether `place` is already in `kept`: the same name, a few hundred metres away at most.
+/// Kinds of place OpenStreetMap draws as lines, which come back from a
+/// search as many pieces with the same name.
+const LINE_KINDS: &[&str] = &["path", "footway", "track", "bridleway", "cycleway", "steps"];
+
+/// How far apart two pieces of one trail may be, km.
+const SAME_TRAIL_KM: f64 = 20.0;
+
 fn already_kept(kept: &[PlaceMatch], place: &PlaceMatch) -> bool {
+    let is_line = LINE_KINDS.contains(&place.kind.as_str());
+
     kept.iter().any(|other| {
         let same_name = other.name.eq_ignore_ascii_case(&place.name);
-        let close = haversine_km(other.location, place.location) < SAME_PLACE_KM;
-        same_name && close
+        let apart = haversine_km(other.location, place.location);
+        let same_trail = is_line && other.kind == place.kind && apart < SAME_TRAIL_KM;
+        same_name && (apart < SAME_PLACE_KM || same_trail)
     })
 }
 
